@@ -42,3 +42,7 @@
 ### 2025-12-21 修复 Streamable HTTP 启动崩溃
 - 修复 `StreamableHttpApp.lifespan` 方法签名以兼容 Starlette `lifespan(app)` 调用，解决容器启动 `TypeError` 崩溃
 - 增加回归测试 `tests/test_transport.py`，确保生命周期钩子可正常进入/退出
+
+### 2025-12-21 文档与开源协议完善
+- 扩充 `README.md`（中文）功能介绍与使用说明，并新增英文版 `README.en.md`
+- 新增 `LICENSE`（MIT License），便于 GitHub 开源分发
