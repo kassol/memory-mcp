@@ -38,3 +38,7 @@
 - 补齐各子包 `__init__.py` 并拆分认证中间件到 `src/memory_mcp/transport/auth.py`
 - `remember` 在 entity_key 命中时也执行冲突判定，并输出 `labels`（`conflict/correction/reversal`）用于打标与追溯
 - `docker-compose.yml` 移除 8765 端口暴露，cloudflared 仅通过环境变量注入 token
+
+### 2025-12-21 修复 Streamable HTTP 启动崩溃
+- 修复 `StreamableHttpApp.lifespan` 方法签名以兼容 Starlette `lifespan(app)` 调用，解决容器启动 `TypeError` 崩溃
+- 增加回归测试 `tests/test_transport.py`，确保生命周期钩子可正常进入/退出
