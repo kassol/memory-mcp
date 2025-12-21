@@ -1,5 +1,5 @@
 import contextlib
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 from mcp.server.lowlevel.server import Server as MCPServer
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
@@ -24,7 +24,7 @@ class StreamableHttpApp:
         )
 
     @contextlib.asynccontextmanager
-    async def lifespan(self) -> AsyncIterator[None]:
+    async def lifespan(self, _app: Any) -> AsyncIterator[None]:
         async with self._manager.run():
             yield
 
