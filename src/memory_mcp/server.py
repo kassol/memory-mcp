@@ -23,6 +23,7 @@ from .storage.graph import graph_store
 from .storage.vector import vector_store
 from .tools import remember, recall, trace, forget, relate, graph_query, recall_all
 from .transport.auth import AuthMiddleware
+from .transport.cors import CorsMiddleware
 from .transport.streamable_http import StreamableHttpApp
 
 # Setup Logging
@@ -250,5 +251,8 @@ app = Starlette(
         Route("/mcp", endpoint=streamable_http_app, methods=["GET", "POST", "DELETE"]),
         Route("/health", endpoint=health, methods=["GET"])
     ],
-    middleware=[Middleware(AuthMiddleware)]
+    middleware=[
+        Middleware(CorsMiddleware),
+        Middleware(AuthMiddleware),
+    ]
 )
