@@ -7,7 +7,7 @@ from ..config import settings
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path == "/health":
+        if request.url.path == "/health" or request.method == "OPTIONS":
             return await call_next(request)
 
         auth_header = request.headers.get("Authorization")
