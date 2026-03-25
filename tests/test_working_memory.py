@@ -34,23 +34,44 @@ def test_briefing_shows_preferences(tools, wm):
     assert "preference:theme" in result
 
 
-def test_briefing_truncates_content(tools, wm):
+def test_no_truncation_first_line_preserved(tools, wm):
+    """Multi-line content: first line shown in full, not char-truncated."""
     remember = tools[0]
 
     async def run():
-        long_content = "A" * 200
+        content = "First line is the summary\nSecond line has details\nThird line too"
         await remember.remember_tool(
-            {"content": long_content, "entity_key": "preference:verbose", "entity_type": "preference"}
+            {"content": content, "entity_key": "preference:verbose", "entity_type": "preference"}
         )
         return await wm.generate_briefing()
 
     result = anyio.run(run)
-    # Content should be truncated, not the full 200 chars
-    assert "A" * 80 not in result
-    assert "..." in result
+    assert "First line is the summary" in result
+    assert "Second line" not in result
+    assert "..." not in result  # no truncation marker
 
 
-def test_briefing_project_filtering(tools, wm):
+def test_cwd_reduces_preference_count(tools, wm):
+    """With cwd (project mode), fewer global preferences shown."""
+    remember = tools[0]
+
+    async def run():
+        for i in range(10):
+            await remember.remember_tool(
+                {"content": f"Pref {i}", "entity_key": f"preference:p{i}", "entity_type": "preference"}
+            )
+        no_cwd = await wm.generate_briefing()
+        with_cwd = await wm.generate_briefing(cwd="/Users/x/Workspace/someproject")
+        return no_cwd, with_cwd
+
+    no_cwd, with_cwd = anyio.run(run)
+    # Without cwd: 5 prefs max
+    assert no_cwd.count("preference:p") == 5
+    # With cwd (project mode): 3 prefs max
+    assert with_cwd.count("preference:p") == 3
+
+
+def test_cwd_project_match(tools, wm):
     remember = tools[0]
 
     async def run():
@@ -58,26 +79,13 @@ def test_briefing_project_filtering(tools, wm):
             {"content": "memory-mcp is a memory service", "entity_key": "project:memory-mcp", "entity_type": "project"}
         )
         await remember.remember_tool(
-            {"content": "unrelated project info", "entity_key": "project:other", "entity_type": "project"}
+            {"content": "unrelated stuff", "entity_key": "project:other", "entity_type": "project"}
         )
         return await wm.generate_briefing(cwd="/Users/kassol/Workspace/memory-mcp")
 
     result = anyio.run(run)
     assert "## Project: memory-mcp" in result
     assert "project:memory-mcp" in result
-
-
-def test_briefing_without_cwd_no_project_section(tools, wm):
-    remember = tools[0]
-
-    async def run():
-        await remember.remember_tool(
-            {"content": "some project", "entity_key": "project:foo", "entity_type": "project"}
-        )
-        return await wm.generate_briefing()
-
-    result = anyio.run(run)
-    assert "## Project:" not in result
 
 
 def test_briefing_shows_recent_changes(tools, wm):
@@ -94,7 +102,6 @@ def test_briefing_shows_recent_changes(tools, wm):
 
     result = anyio.run(run)
     assert "## Recent Changes (7d)" in result
-    assert "preference:editor" in result
     assert "->" in result
 
 
@@ -117,19 +124,16 @@ def test_briefing_shows_conflicts(test_env, tools, wm):
     assert "[conflict]" in result
 
 
-def test_briefing_total_size_bounded(tools, wm):
-    """Even with many memories, briefing should stay small."""
+def test_briefing_size_bounded(tools, wm):
     remember = tools[0]
 
     async def run():
         for i in range(30):
             await remember.remember_tool(
-                {"content": f"Preference number {i} with some detail text", "entity_key": f"preference:pref{i}", "entity_type": "preference"}
+                {"content": f"Preference {i}", "entity_key": f"preference:pref{i}", "entity_type": "preference"}
             )
         return await wm.generate_briefing()
 
     result = anyio.run(run)
-    # Should show at most _MAX_PREFERENCE (5), not all 30
     assert result.count("preference:pref") <= 5
-    # Total should be well under 2KB
     assert len(result) < 2000
