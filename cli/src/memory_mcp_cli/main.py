@@ -120,9 +120,12 @@ def relate(
 # wm  (working memory)
 # ---------------------------------------------------------------------------
 @app.command()
-def wm(fmt: str = _format_opt) -> None:
+def wm(
+    cwd: Optional[str] = typer.Option(None, "--cwd", help="Current working directory for project-aware briefing"),
+    fmt: str = _format_opt,
+) -> None:
     """Get working memory briefing."""
-    result = _client().wm()
+    result = _client().wm(cwd=cwd)
     _out(result, fmt)
 
 
