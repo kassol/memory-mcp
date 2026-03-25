@@ -11,8 +11,10 @@
 - Starlette / Uvicorn
 
 ## 目录索引
-- `src/` - 源代码
-- `tests/` - 测试代码
+- `src/` - 服务端源代码
+- `tests/` - 服务端测试
+- `cli/` - CLI 客户端（独立包 memory-mcp-cli）
+- `claude-code-plugin/` - Claude Code 插件（hooks/skills/commands）
 - `docs/` - 项目文档
 - `data/` - 运行时数据
 
@@ -46,3 +48,13 @@
 ### 2025-12-21 文档与开源协议完善
 - 扩充 `README.md`（中文）功能介绍与使用说明，并新增英文版 `README.en.md`
 - 新增 `LICENSE`（MIT License），便于 GitHub 开源分发
+
+### 2026-03-25 Extension: REST API + CLI + Working Memory + Extraction + Plugin
+- 新增 REST API (`/api/v1/*`) 作为辅助传输协议，复用现有 tool 函数
+- 新增 `mem` CLI 客户端（httpx + typer），位于 `cli/` 目录
+- 新增 Working Memory 引擎 — 模板拼接 briefing，无需 LLM
+- 新增 Extraction Engine — LLM 从对话记录中提取候选记忆
+- `remember_tool` 新增 `skip_semantic_merge` 参数，防止自动提取时跨实体污染
+- 新增 Claude Code 插件（hooks: session-start/stop, skills, commands）
+- AuthMiddleware 错误格式统一为 `{"ok": false, "error": ...}`
+- 协议约束更新：MCP 主 + REST 辅
