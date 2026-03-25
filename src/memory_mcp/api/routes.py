@@ -11,6 +11,23 @@ def err(message: str, status_code: int = 400) -> JSONResponse:
     return JSONResponse({"ok": False, "error": message}, status_code=status_code)
 
 
+# POST /api/v1/memories/extract
+async def handle_extract(request: Request) -> JSONResponse:
+    from ..engine import extraction
+    try:
+        body = await request.json()
+    except Exception:
+        return err("Invalid JSON body")
+    messages = body.get("messages")
+    if not messages or not isinstance(messages, list):
+        return err("messages must be a non-empty list")
+    try:
+        result = await extraction.extract_memories(messages)
+    except Exception as e:
+        return err(str(e), 500)
+    return ok(result)
+
+
 # POST /api/v1/memories
 async def handle_remember(request: Request) -> JSONResponse:
     from ..tools import remember
@@ -122,6 +139,16 @@ async def handle_relate(request: Request) -> JSONResponse:
     return ok(result)
 
 
+# GET /api/v1/wm
+async def handle_working_memory(request: Request) -> JSONResponse:
+    from ..engine import working_memory
+    try:
+        result = await working_memory.generate_briefing()
+    except Exception as e:
+        return err(str(e), 500)
+    return ok({"briefing": result})
+
+
 # GET /api/v1/graph/{entity_key:path}
 async def handle_graph_query(request: Request) -> JSONResponse:
     from ..tools import graph_query
@@ -145,8 +172,9 @@ async def handle_graph_query(request: Request) -> JSONResponse:
     return ok(result)
 
 
-# Route ordering: search before the bare /memories path, trace/forget path params last
+# Route ordering: extract/search before the bare /memories path, trace/forget path params last
 routes = [
+    Route("/api/v1/memories/extract", endpoint=handle_extract, methods=["POST"]),
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
     Route("/api/v1/memories", endpoint=handle_remember, methods=["POST"]),
     Route("/api/v1/memories", endpoint=handle_recall_all, methods=["GET"]),
@@ -154,4 +182,5 @@ routes = [
     Route("/api/v1/memories/{entity_key:path}", endpoint=handle_forget, methods=["DELETE"]),
     Route("/api/v1/relations", endpoint=handle_relate, methods=["POST"]),
     Route("/api/v1/graph/{entity_key:path}", endpoint=handle_graph_query, methods=["GET"]),
+    Route("/api/v1/wm", endpoint=handle_working_memory, methods=["GET"]),
 ]

@@ -146,6 +146,26 @@ def test_trace_summary_format(tools, test_env):
 
     anyio.run(run)
 
+def test_remember_skip_semantic_merge_creates_new(tools, test_env, monkeypatch):
+    """When skip_semantic_merge=True, a different entity_key always creates new memory."""
+    async def run():
+        remember, _, _, _, _, _, _ = tools
+        await remember.remember_tool({
+            "content": "Use Cursor editor",
+            "entity_type": "preference",
+            "entity_key": "preference:editor",
+        })
+        res = await remember.remember_tool({
+            "content": "Use Cursor editor",
+            "entity_type": "preference",
+            "entity_key": "preference:editor-v2",
+            "skip_semantic_merge": True,
+        })
+        assert res["status"] == "created"
+        assert res["entity_key"] == "preference:editor-v2"
+    anyio.run(run)
+
+
 def test_graph_query_depth(tools, test_env):
     async def run():
         _, _, _, _, _, relate, graph_query = tools

@@ -34,6 +34,9 @@ def test_env(tmp_path, monkeypatch):
     import memory_mcp.engine.conflict as conflict
     importlib.reload(conflict)
 
+    import memory_mcp.engine.evolution as evolution
+    importlib.reload(evolution)
+
     async def fake_embedding(_text: str):
         return [0.1, 0.1, 0.1]
 

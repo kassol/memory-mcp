@@ -18,6 +18,7 @@ from starlette.responses import JSONResponse
 from starlette.requests import Request
 from starlette.middleware import Middleware
 
+from .api.routes import routes as api_routes
 from .config import settings
 from .storage.graph import graph_store
 from .storage.vector import vector_store
@@ -249,7 +250,8 @@ app = Starlette(
     lifespan=streamable_http_app.lifespan,
     routes=[
         Route("/mcp", endpoint=streamable_http_app, methods=["GET", "POST", "DELETE"]),
-        Route("/health", endpoint=health, methods=["GET"])
+        Route("/health", endpoint=health, methods=["GET"]),
+        *api_routes,
     ],
     middleware=[
         Middleware(CorsMiddleware),
