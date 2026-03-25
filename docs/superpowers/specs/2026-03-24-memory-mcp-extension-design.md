@@ -77,7 +77,11 @@
 +-----------------------------------------------------------+
 ```
 
-**Core design decision**: CLI as the universal glue layer. Hooks call CLI, skills call CLI, other tools call CLI. CLI calls REST API. REST API reuses existing MCP tool functions. One codebase, four access modes.
+**Core design decisions**:
+
+1. **CLI as universal glue layer**: Hooks call CLI, skills call CLI, other tools call CLI. CLI calls REST API. REST API reuses existing MCP tool functions. One codebase, four access modes.
+2. **Protocol positioning**: MCP remains the primary protocol for AI tool clients (Cursor, Claude Desktop). REST API is a lightweight secondary transport for CLI, hooks, and non-MCP integrations. REST handlers are thin wrappers (~5 lines each) that delegate to the same `*_tool()` functions — schema is defined once, no dual maintenance.
+3. **AGENTS.md update required**: Current constraint "使用 MCP Streamable HTTP 作为唯一传输方式" must be updated to reflect the new architecture: "MCP Streamable HTTP 为主传输协议；REST API (`/api/v1/*`) 为 CLI/hooks 等非 MCP 客户端提供轻量接入，复用同一套 tool 函数".
 
 ## 4. Component Design
 
@@ -97,8 +101,7 @@ Add routes to the existing Starlette app in `server.py`. Each handler extracts p
 | POST | `/api/v1/relations` | `api_relate` | `relate_tool` |
 | GET | `/api/v1/graph/{entity_key:path}` | `api_graph_query` | `graph_query_tool` |
 | GET | `/api/v1/wm` | `api_working_memory` | `generate_briefing` |
-| POST | `/api/v1/sessions` | `api_session_create` | `SessionEngine.create` |
-| POST | `/api/v1/sessions/{id}/commit` | `api_session_commit` | `SessionEngine.commit` |
+| POST | `/api/v1/memories/extract` | `api_extract` | `extract_memories` |
 
 **Auth**: Same Bearer Token middleware (already global via `AuthMiddleware`). The middleware currently returns `{"error": "Unauthorized"}` which doesn't match REST format. **Fix required**: Update `AuthMiddleware` to return `{"ok": false, "error": "Unauthorized"}` for consistency. This is backward-compatible since MCP clients don't parse auth error bodies.
 
@@ -139,19 +142,13 @@ Error:
 }
 ```
 
-`POST /api/v1/sessions`:
-```json
-{}
-```
-Returns: `{"ok": true, "data": {"session_id": "uuid"}}`
-
-`POST /api/v1/sessions/{id}/commit`:
+`POST /api/v1/memories/extract`:
 ```json
 {
   "transcript": "string (required) — full conversation text, or JSON array of {role, content} messages"
 }
 ```
-This replaces the multi-step add-message approach (see Section 4.4).
+Single stateless endpoint. No session_id needed — the server extracts candidate memories and writes them in one shot (see Section 4.4).
 
 **Query string parameters** (GET endpoints):
 
@@ -183,9 +180,8 @@ mem forget <entity_key> [--reason "reason"]
 # Relations
 mem relate <from_key> <to_key> --type <relation_type>
 
-# Session (for auto extraction)
-mem session create                                    # returns session_id
-mem session commit <session_id> --transcript <file>   # send full transcript, extract memories
+# Auto extraction
+mem extract --transcript <file>   # extract memories from conversation transcript (reads stdin if no file)
 
 # Working Memory
 mem wm
@@ -229,20 +225,21 @@ Server-side module that generates a structured briefing from recent and importan
 **Logic**:
 1. Fetch all current memories via `vector_store.list_current()`
 2. Group by `entity_type`
-3. Identify recent changes: filter nodes where `created_at` is within 7 days AND `parent_id is not None` (means evolved). For each such node, call `vector_store.get_by_id(parent_id)` to get the previous content for the "old -> new" display. To avoid N+1 queries on large datasets, limit recent changes to the 20 most recent evolved nodes.
+3. Identify recent changes: filter nodes where `created_at` is within 7 days AND `parent_id is not None` (means evolved). Cap at 20 most recent. For each, call `vector_store.get_by_id(parent_id)` to get previous content for "old -> new" display. (N+1 queries, acceptable at 20-node cap.)
 4. Identify conflicts (`conflict == True`)
-5. Count evolution depth per entity: count nodes in `get_history(entity_key)` — this is already cached in the list_current result set, no extra query needed for count
-6. Assemble markdown briefing
+5. Assemble markdown briefing
+
+Note: `list_current()` returns `MemoryNode` which has no `evolution_count` field. The briefing does NOT show evolution depth — that would require extra `get_history()` calls per entity, not worth the cost. If needed later, add a denormalized field.
 
 **Output format**:
 ```markdown
 ## Active Context
-- [preference] editor: Cursor (evolved 3 times)
+- [preference] editor: Cursor
 - [project] memory-mcp: personal memory service
 - [goal] build cross-tool persistent memory
 
 ## Recent Changes (7d)
-- preference:editor -- evolution: VSCode -> Cursor
+- preference:editor -- VSCode -> Cursor
 
 ## Flags
 - [conflict] fact:xxx -- conflicting information, needs confirmation
@@ -250,42 +247,29 @@ Server-side module that generates a structured briefing from recent and importan
 
 **Integration**: Exposed via `GET /api/v1/wm` and `mem wm` CLI command.
 
-### 4.4 Session Engine
+### 4.4 Memory Extraction Engine
 
-Server-side module for conversation-based memory extraction. Stores conversation messages, then uses LLM to extract candidate memories on commit.
+Stateless server-side module for conversation-based memory extraction. Takes a transcript, uses LLM to extract candidates, writes them via `remember_tool`.
 
-**Location**: `src/memory_mcp/engine/session.py`
+**Location**: `src/memory_mcp/engine/extraction.py`
 
-**Data model**:
-```python
-class SessionMessage(BaseModel):
-    role: str       # "user" | "assistant"
-    content: str
-    timestamp: datetime
-
-class Session(BaseModel):
-    id: str
-    messages: list[SessionMessage]
-    created_at: datetime
-    committed: bool = False
-```
-
-**Storage**: In-memory dict + JSON persistence in `data/sessions/` (enabled by default). Sessions are ephemeral — they exist only until committed, then cleaned up after successful commit.
-
-**Simplified API**: Instead of multi-step create/add/commit, the primary flow is a single commit call that accepts the full transcript:
+**API**: Single endpoint, no session state.
 
 ```
-POST /api/v1/sessions/{id}/commit
-Body: {"transcript": "full conversation text or JSON messages array"}
+POST /api/v1/memories/extract
+Body: {"transcript": "..."}
+Returns: {"ok": true, "data": {"results": [...]}}
 ```
 
-The `create` endpoint returns a session_id. The `commit` endpoint accepts transcript and does extraction in one shot. This avoids the N-requests-per-message problem.
-
-**Commit flow**:
+**Extraction flow**:
 1. LLM analyzes transcript and extracts candidate memories
 2. Each candidate is a `{entity_key, entity_type, content}` tuple
-3. Each candidate goes through the existing `remember_tool()` pipeline — conflict detection, evolution chain, graph update all reused
+3. Each candidate goes through `remember_tool()` with **`skip_semantic_merge=True`** — only exact entity_key matching, NO cross-entity semantic similarity merge
 4. Return extraction results (what was created/evolved/skipped)
+
+**Why `skip_semantic_merge`**: The existing `remember_tool` (lines 80-117) does a semantic similarity search when entity_key doesn't match. If similarity >= 0.85 and LLM says conflict, it silently merges into that existing entity. This is fine for user-driven remember (user chose the entity_key deliberately), but dangerous for LLM-extracted candidates where entity_keys are generated and may not match existing ones. A hallucinated entity_key + coincidental semantic similarity = silent data pollution. With `skip_semantic_merge=True`, unmatched entity_keys always create new memories.
+
+**Implementation**: Add `skip_semantic_merge: bool = False` parameter to `remember_tool()`. When `True`, skip the semantic similarity search block (lines 80-117 in `remember.py`). Default `False` preserves existing behavior for all current callers.
 
 **LLM client**: Session Engine creates its own httpx call to OpenRouter (same pattern as `ConflictDetector` in `conflict.py`). Both share `settings.openrouter_api_key`, `settings.openrouter_base_url`, and `settings.llm_model`. No need for a shared abstraction now — if a third LLM caller appears later, refactor then.
 
@@ -321,7 +305,7 @@ Plugin structure for Claude Code, using hooks + skills + CLI.
 claude-code-plugin/
   hooks/
     session-start.sh       # mem wm -> inject as systemMessage
-    stop.sh                # async: extract transcript -> session commit
+    stop.sh                # async: read transcript -> mem extract
   skills/
     search-memory/SKILL.md
     save-memory/SKILL.md
@@ -334,23 +318,51 @@ claude-code-plugin/
 
 **Hooks behavior**:
 
-| Hook | Action | Blocking |
-|------|--------|----------|
-| SessionStart | `mem wm` -> return as system message | Sync, 8s timeout |
-| Stop | Collect transcript -> `mem session commit` | Async, 120s timeout |
+| Hook | Action | Config |
+|------|--------|--------|
+| SessionStart | `mem wm` -> stdout injected as context | `"async": false`, timeout 10s |
+| Stop | Read transcript -> `mem extract` | `"async": true` (fire-and-forget) |
 
-**Stop hook transcript handling**: Claude Code provides conversation context via `$CLAUDE_CONVERSATION` env var (JSON). The `stop.sh` script:
-1. Reads `$CLAUDE_CONVERSATION` (or falls back to reading the transcript file)
-2. Calls `mem session create` to get a session_id
-3. Calls `mem session commit <session_id> --transcript <file_or_stdin>` — sends the full transcript in one request
-4. Server extracts memories from the transcript in one LLM call
+**Hook input contract** (Claude Code actual API):
+- All hooks receive JSON on **stdin** (not env vars)
+- Common fields: `session_id`, `transcript_path` (JSONL file), `cwd`, `hook_event_name`
 
-**Phase 3 initial behavior**: In Phase 3 (before Session Engine exists), `stop.sh` is a no-op placeholder. It only becomes functional in Phase 4 when Session Engine is ready.
+**SessionStart hook** (`session-start.sh`):
+```bash
+#!/bin/bash
+# stdout is injected as additional context for Claude
+mem wm --format text 2>/dev/null || echo "Memory service unavailable"
+```
+- Output goes to **stdout** -> Claude sees it as context
+- Exit 0 = success, non-zero = hook skipped silently
+- Matcher: `"source": "startup"` (skip on resume/compact)
+
+**Stop hook** (`stop.sh`):
+```bash
+#!/bin/bash
+INPUT=$(cat)  # Read JSON from stdin
+TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
+STOP_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
+
+# Prevent infinite loop
+if [ "$STOP_ACTIVE" = "true" ]; then exit 0; fi
+
+# Extract memories from transcript
+if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+  mem extract --transcript "$TRANSCRIPT_PATH" 2>/dev/null
+fi
+exit 0
+```
+- Configured with `"async": true` — runs in background, exit code ignored
+- `stop_hook_active` check prevents infinite loops
+- `transcript_path` points to JSONL file with conversation history
+
+**Phase 3 initial behavior**: In Phase 3 (before Extraction Engine exists), `stop.sh` is a no-op (just `exit 0`). Becomes functional in Phase 4.
 
 **Key design**: Hooks only call `mem` CLI, never Python bridge. This means:
-- Claude Code doesn't need Python runtime
-- Decoupled from MCP transport
+- Hooks are pure shell scripts, decoupled from MCP transport
 - Same CLI reusable by any tool
+- `mem` CLI requires Python (`pipx install memory-mcp-cli` or `uv tool install memory-mcp-cli` for isolated install)
 
 **Skills**:
 
@@ -428,14 +440,15 @@ claude-code-plugin/
 
 **Validation**: In Claude Code, SessionStart hook injects working memory, /search and /save commands work.
 
-### Phase 4: Session + Auto Extraction
+### Phase 4: Auto Extraction
 
-- New file: `src/memory_mcp/engine/session.py`
-- Edit: `src/memory_mcp/api/routes.py` — add session endpoints
-- Edit: `cli/src/memory_mcp_cli/main.py` — add `mem session` commands
-- Edit: `claude-code-plugin/hooks/stop.sh` — switch to session mode
+- New file: `src/memory_mcp/engine/extraction.py` — LLM-based memory extraction
+- Edit: `src/memory_mcp/tools/remember.py` — add `skip_semantic_merge` parameter
+- Edit: `src/memory_mcp/api/routes.py` — add `POST /api/v1/memories/extract`
+- Edit: `cli/src/memory_mcp_cli/main.py` — add `mem extract` command
+- Edit: `claude-code-plugin/hooks/stop.sh` — activate extraction logic
 
-**Validation**: `mem session create` -> `mem session commit <id> --transcript <file>` extracts and stores memories.
+**Validation**: `mem extract --transcript <file>` extracts and stores memories. Stop hook triggers extraction after Claude Code session.
 
 ### Phase 5: Behavioral Guidance + Other Tools
 
@@ -450,27 +463,28 @@ claude-code-plugin/
 ### 6.1 Claude Code Session Lifecycle
 
 ```
-SessionStart hook fires
-  -> mem wm
+SessionStart hook fires (sync)
+  -> Hook reads stdin JSON (session_id, cwd, etc.)
+  -> Runs: mem wm --format text
   -> CLI calls GET /api/v1/wm
   -> Server assembles briefing from vector_store.list_current()
   -> Returns markdown briefing
-  -> Hook injects as system message
-  -> Claude sees: "## Active Context ..."
+  -> Hook prints to stdout
+  -> Claude sees briefing as additional context
 
 User works with Claude...
 
-Stop hook fires (async)
-  -> Read $CLAUDE_CONVERSATION transcript
-  -> mem session create -> POST /api/v1/sessions -> returns session_id
-  -> mem session commit <id> --transcript <file>
-     -> POST /api/v1/sessions/{id}/commit with full transcript
-     -> Server: LLM extracts candidates from transcript
-     -> Each candidate: remember_tool(arguments)
-       -> Conflict detection
-       -> Evolution chain
-       -> Graph update
-     -> Returns: {extracted: 3, evolved: 1, created: 2, skipped: 0}
+Stop hook fires (async: true, fire-and-forget)
+  -> Hook reads stdin JSON, extracts transcript_path
+  -> Checks stop_hook_active to prevent infinite loop
+  -> Runs: mem extract --transcript $TRANSCRIPT_PATH
+  -> CLI reads JSONL file, sends POST /api/v1/memories/extract
+  -> Server: LLM extracts candidates from transcript
+  -> Each candidate: remember_tool(skip_semantic_merge=True)
+    -> entity_key exact match only (no cross-entity merge)
+    -> Conflict detection + evolution chain for matched entities
+    -> New entity creation for unmatched entity_keys
+  -> Returns: {extracted: 3, evolved: 1, created: 2, skipped: 0}
 ```
 
 ### 6.2 CLI Direct Usage
@@ -524,8 +538,9 @@ No dependencies — shell scripts calling `mem` CLI binary.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Session commit LLM hallucination | Bad memories extracted | remember_tool's conflict detection catches contradictions; extraction prompt enforces conservative extraction |
-| CLI install friction | Adoption barrier | Single `pip install` or standalone binary via PyInstaller |
-| Hook timeout in Claude Code | Missing injection/extraction | Graceful fallback (no injection / async retry) |
+| LLM extraction cross-entity pollution | Wrong entity gets silently evolved | `skip_semantic_merge=True` for extraction — only exact entity_key matching, no cross-entity semantic merge |
+| LLM extraction hallucinated entities | Junk memories created | Conservative extraction prompt; review via `mem recall --all`; `mem forget` to clean up |
+| CLI install friction | Adoption barrier | `pipx install` / `uv tool install` for isolated install |
+| Hook timeout in Claude Code | Missing injection/extraction | SessionStart: graceful fallback (empty stdout); Stop: async fire-and-forget |
 | REST API adds attack surface | Security | Same auth middleware, rate limiting can be added later |
 | Large transcripts exceed LLM context | Extraction failure | Truncate to last N messages or chunk-and-merge |

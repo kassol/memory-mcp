@@ -23,7 +23,7 @@
 - 代码检查：`ruff check .`
 
 ## 全局规范
-- 使用 MCP Streamable HTTP 作为唯一传输方式
+- MCP Streamable HTTP 为主传输协议；REST API (`/api/v1/*`) 为 CLI/hooks 等非 MCP 客户端提供轻量接入，复用同一套 tool 函数
 - Tool 返回值统一为 JSON 字符串
 - 记忆数据持久化：向量存储 + 图存储并行
 - 变更必须更新本文件
