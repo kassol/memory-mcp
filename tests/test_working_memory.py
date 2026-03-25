@@ -16,76 +16,61 @@ def test_briefing_empty(wm):
     assert result == "No memories yet."
 
 
-def test_briefing_shows_preferences(tools, wm):
+def test_briefing_shows_preferences_full_content(tools, wm):
     remember = tools[0]
 
     async def run():
         await remember.remember_tool(
-            {"content": "I use Cursor", "entity_key": "preference:editor", "entity_type": "preference"}
-        )
-        await remember.remember_tool(
-            {"content": "Dark mode always", "entity_key": "preference:theme", "entity_type": "preference"}
+            {"content": "Line one\nLine two\nLine three", "entity_key": "preference:multi", "entity_type": "preference"}
         )
         return await wm.generate_briefing()
 
     result = anyio.run(run)
     assert "## Preferences" in result
-    assert "preference:editor" in result
-    assert "preference:theme" in result
+    # Full content preserved, no truncation
+    assert "Line one\nLine two\nLine three" in result
 
 
-def test_no_truncation_first_line_preserved(tools, wm):
-    """Multi-line content: first line shown in full, not char-truncated."""
+def test_cwd_adds_project_section_without_reducing_preferences(tools, wm):
+    """cwd adds project items on top; global preferences stay at full budget."""
     remember = tools[0]
 
     async def run():
-        content = "First line is the summary\nSecond line has details\nThird line too"
+        for i in range(8):
+            await remember.remember_tool(
+                {"content": f"Pref {i}", "entity_key": f"preference:p{i}", "entity_type": "preference"}
+            )
         await remember.remember_tool(
-            {"content": content, "entity_key": "preference:verbose", "entity_type": "preference"}
+            {"content": "myproj context", "entity_key": "project:myproj", "entity_type": "project"}
         )
-        return await wm.generate_briefing()
+        no_cwd = await wm.generate_briefing()
+        with_cwd = await wm.generate_briefing(cwd="/home/user/Workspace/myproj")
+        return no_cwd, with_cwd
 
-    result = anyio.run(run)
-    assert "First line is the summary" in result
-    assert "Second line" not in result
-    assert "..." not in result  # no truncation marker
+    no_cwd, with_cwd = anyio.run(run)
+    # Both should show 5 preferences (max budget unchanged)
+    assert no_cwd.count("preference:p") == 5
+    assert with_cwd.count("preference:p") == 5
+    # cwd version also has project section
+    assert "## Project: myproj" in with_cwd
+    assert "## Project:" not in no_cwd
 
 
-def test_cwd_reduces_preference_count(tools, wm):
-    """With cwd (project mode), fewer global preferences shown."""
+def test_cwd_no_match_same_as_no_cwd(tools, wm):
+    """cwd with no matching memories produces same preferences as no cwd."""
     remember = tools[0]
 
     async def run():
-        for i in range(10):
+        for i in range(3):
             await remember.remember_tool(
                 {"content": f"Pref {i}", "entity_key": f"preference:p{i}", "entity_type": "preference"}
             )
         no_cwd = await wm.generate_briefing()
-        with_cwd = await wm.generate_briefing(cwd="/Users/x/Workspace/someproject")
+        with_cwd = await wm.generate_briefing(cwd="/home/user/Workspace/unrelated")
         return no_cwd, with_cwd
 
     no_cwd, with_cwd = anyio.run(run)
-    # Without cwd: 5 prefs max
-    assert no_cwd.count("preference:p") == 5
-    # With cwd (project mode): 3 prefs max
-    assert with_cwd.count("preference:p") == 3
-
-
-def test_cwd_project_match(tools, wm):
-    remember = tools[0]
-
-    async def run():
-        await remember.remember_tool(
-            {"content": "memory-mcp is a memory service", "entity_key": "project:memory-mcp", "entity_type": "project"}
-        )
-        await remember.remember_tool(
-            {"content": "unrelated stuff", "entity_key": "project:other", "entity_type": "project"}
-        )
-        return await wm.generate_briefing(cwd="/Users/kassol/Workspace/memory-mcp")
-
-    result = anyio.run(run)
-    assert "## Project: memory-mcp" in result
-    assert "project:memory-mcp" in result
+    assert no_cwd == with_cwd
 
 
 def test_briefing_shows_recent_changes(tools, wm):
@@ -124,7 +109,8 @@ def test_briefing_shows_conflicts(test_env, tools, wm):
     assert "[conflict]" in result
 
 
-def test_briefing_size_bounded(tools, wm):
+def test_selection_caps_at_max(tools, wm):
+    """Even with many memories, only _PREF_MAX shown."""
     remember = tools[0]
 
     async def run():
@@ -135,5 +121,4 @@ def test_briefing_size_bounded(tools, wm):
         return await wm.generate_briefing()
 
     result = anyio.run(run)
-    assert result.count("preference:pref") <= 5
-    assert len(result) < 2000
+    assert result.count("preference:pref") == 5

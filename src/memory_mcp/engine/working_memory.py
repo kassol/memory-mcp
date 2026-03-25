@@ -3,21 +3,9 @@ from pathlib import PurePosixPath
 
 from ..storage.vector import vector_store
 
-# Budget: cwd present = tighter (project-focused), absent = broader (global)
 _PROJECT_MAX = 5
-_PREF_MAX_GLOBAL = 5
-_PREF_MAX_PROJECT = 3
-_RECENT_MAX_GLOBAL = 5
-_RECENT_MAX_PROJECT = 3
-
-
-def _first_line(text: str) -> str:
-    """Extract first meaningful line — no lossy truncation."""
-    for line in text.split("\n"):
-        line = line.strip()
-        if line:
-            return line
-    return text.strip()
+_PREF_MAX = 5
+_RECENT_MAX = 5
 
 
 def _infer_project_name(cwd: str | None) -> str | None:
@@ -41,7 +29,6 @@ async def generate_briefing(cwd: str | None = None) -> str:
         return "No memories yet."
 
     project_name = _infer_project_name(cwd)
-    project_mode = project_name is not None
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
     # Classify
@@ -63,10 +50,6 @@ async def generate_briefing(cwd: str | None = None) -> str:
     preference_nodes.sort(key=lambda n: n.created_at, reverse=True)
     recent_nodes.sort(key=lambda n: n.created_at, reverse=True)
 
-    # Budgets depend on mode
-    pref_max = _PREF_MAX_PROJECT if project_mode else _PREF_MAX_GLOBAL
-    recent_max = _RECENT_MAX_PROJECT if project_mode else _RECENT_MAX_GLOBAL
-
     seen: set[str] = set()
     lines: list[str] = []
 
@@ -74,10 +57,10 @@ async def generate_briefing(cwd: str | None = None) -> str:
         if node.entity_key in seen:
             return False
         seen.add(node.entity_key)
-        lines.append(f"- [{node.entity_type}] {node.entity_key}: {_first_line(node.content)}")
+        lines.append(f"- [{node.entity_type}] {node.entity_key}: {node.content}")
         return True
 
-    # Tier 1: Project
+    # Tier 1: Project (only when cwd matches)
     if project_nodes:
         lines.append(f"## Project: {project_name}")
         count = 0
@@ -87,11 +70,11 @@ async def generate_briefing(cwd: str | None = None) -> str:
             if _add(node):
                 count += 1
 
-    # Tier 2: Preferences
+    # Tier 2: Preferences (always full budget, full content)
     added = 0
     start = len(lines)
     for node in preference_nodes:
-        if added >= pref_max:
+        if added >= _PREF_MAX:
             break
         if _add(node):
             added += 1
@@ -102,11 +85,10 @@ async def generate_briefing(cwd: str | None = None) -> str:
     if recent_nodes:
         rc_start = len(lines)
         rc_count = 0
-        for node in recent_nodes[:recent_max]:
+        for node in recent_nodes[:_RECENT_MAX]:
             old = await vector_store.get_by_id(node.parent_id)
-            old_text = _first_line(old.content) if old else "?"
-            new_text = _first_line(node.content)
-            lines.append(f"- {node.entity_key}: {old_text} -> {new_text}")
+            old_summary = old.content if old else "?"
+            lines.append(f"- {node.entity_key}: {old_summary} -> {node.content}")
             seen.add(node.entity_key)
             rc_count += 1
         if rc_count:
@@ -116,6 +98,6 @@ async def generate_briefing(cwd: str | None = None) -> str:
     if conflict_nodes:
         lines.append("## Flags")
         for node in conflict_nodes:
-            lines.append(f"- [conflict] {node.entity_key}: {_first_line(node.content)}")
+            lines.append(f"- [conflict] {node.entity_key}: {node.content}")
 
     return "\n".join(lines) if lines else "No memories yet."
