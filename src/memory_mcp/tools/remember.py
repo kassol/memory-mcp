@@ -29,7 +29,8 @@ async def remember_tool(arguments: dict) -> dict:
     entity_key = arguments.get("entity_key")
     entity_type = arguments.get("entity_type")
     tags = arguments.get("tags", [])
-    
+    skip_semantic_merge = arguments.get("skip_semantic_merge", False)
+
     if not content or not entity_key or not entity_type:
         raise ValueError("Missing required arguments: content, entity_key, entity_type")
 
@@ -78,43 +79,44 @@ async def remember_tool(arguments: dict) -> dict:
         }
 
     # 3. Semantic similarity check for conflict detection when entity_key not found
-    similar = await vector_store.search(
-        query_vector=embedding,
-        limit=1,
-        filter_current=True,
-        entity_type=entity_type,
-    )
-    if similar:
-        candidate, distance = similar[0]
-        relevance = _distance_to_relevance(distance)
-        if relevance is not None and relevance >= settings.similarity_threshold:
-            is_conflict = await conflict_detector.check_conflict(candidate.content, content)
-            if is_conflict:
-                suggested_type = infer_mutation_type(candidate.content, content)
-                mutation_type_override = (
-                    MutationType.REVERSAL if suggested_type == MutationType.REVERSAL else MutationType.CORRECTION
-                )
-                new_node = await evolve_memory(
-                    content,
-                    candidate,
-                    embedding,
-                    mutation_type_override=mutation_type_override,
-                    conflict=True,
-                    conflict_with_id=candidate.id,
-                )
-                await graph_store.upsert_entity(candidate.entity_key, candidate.entity_type, new_node.id)
-                return {
-                    "status": "evolved",
-                    "memory_id": new_node.id,
-                    "entity_key": new_node.entity_key,
-                    "mutation_type": new_node.mutation_type.value,
-                    "mutation_reason": new_node.mutation_reason,
-                    "parent_id": new_node.parent_id,
-                    "conflict": new_node.conflict,
-                    "labels": _build_labels(new_node.conflict, new_node.mutation_type),
-                    "matched_entity_key": candidate.entity_key,
-                    "input_entity_key": entity_key,
-                }
+    if not skip_semantic_merge:
+        similar = await vector_store.search(
+            query_vector=embedding,
+            limit=1,
+            filter_current=True,
+            entity_type=entity_type,
+        )
+        if similar:
+            candidate, distance = similar[0]
+            relevance = _distance_to_relevance(distance)
+            if relevance is not None and relevance >= settings.similarity_threshold:
+                is_conflict = await conflict_detector.check_conflict(candidate.content, content)
+                if is_conflict:
+                    suggested_type = infer_mutation_type(candidate.content, content)
+                    mutation_type_override = (
+                        MutationType.REVERSAL if suggested_type == MutationType.REVERSAL else MutationType.CORRECTION
+                    )
+                    new_node = await evolve_memory(
+                        content,
+                        candidate,
+                        embedding,
+                        mutation_type_override=mutation_type_override,
+                        conflict=True,
+                        conflict_with_id=candidate.id,
+                    )
+                    await graph_store.upsert_entity(candidate.entity_key, candidate.entity_type, new_node.id)
+                    return {
+                        "status": "evolved",
+                        "memory_id": new_node.id,
+                        "entity_key": new_node.entity_key,
+                        "mutation_type": new_node.mutation_type.value,
+                        "mutation_reason": new_node.mutation_reason,
+                        "parent_id": new_node.parent_id,
+                        "conflict": new_node.conflict,
+                        "labels": _build_labels(new_node.conflict, new_node.mutation_type),
+                        "matched_entity_key": candidate.entity_key,
+                        "input_entity_key": entity_key,
+                    }
 
     # 4. Initial memory
     new_node = MemoryNode(
