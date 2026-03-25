@@ -142,8 +142,9 @@ async def handle_relate(request: Request) -> JSONResponse:
 # GET /api/v1/wm
 async def handle_working_memory(request: Request) -> JSONResponse:
     from ..engine import working_memory
+    cwd = request.query_params.get("cwd")
     try:
-        result = await working_memory.generate_briefing()
+        result = await working_memory.generate_briefing(cwd=cwd)
     except Exception as e:
         return err(str(e), 500)
     return ok({"briefing": result})
