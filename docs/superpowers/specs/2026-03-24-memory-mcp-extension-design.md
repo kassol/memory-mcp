@@ -37,7 +37,6 @@
 | HTTP REST API | Only `/mcp` (JSON-RPC) and `/health` |
 | Claude Code plugin | None |
 | Auto memory extraction | Fully depends on Agent calling remember |
-| Session management | None |
 | Working Memory | None (recall_all is close but not structured) |
 | Cross-tool behavioral guidance | No system prompt template |
 
@@ -64,11 +63,11 @@
 |  |  /api/v1/*     -- REST API (new)                    |  |
 |  |  /health       -- Health check (exists)             |  |
 |  |                                                     |  |
-|  |  +------------+ +----------+ +----------------+     |  |
-|  |  | Memory     | | Session  | | Working Memory |     |  |
-|  |  | Engine     | | Engine   | | Engine         |     |  |
-|  |  | (exists)   | | (new)    | | (new)          |     |  |
-|  |  +------------+ +----------+ +----------------+     |  |
+|  |  +------------+ +-------------+ +--------------+    |  |
+|  |  | Memory     | | Extraction  | | Working      |    |  |
+|  |  | Engine     | | Engine      | | Memory       |    |  |
+|  |  | (exists)   | | (new)       | | (new)        |    |  |
+|  |  +------------+ +-------------+ +--------------+    |  |
 |  |                      v                              |  |
 |  |  +--------------------------------------------------+ |
 |  |  |  Storage: LanceDB + NetworkX (exists)            | |
@@ -103,7 +102,14 @@ Add routes to the existing Starlette app in `server.py`. Each handler extracts p
 | GET | `/api/v1/wm` | `api_working_memory` | `generate_briefing` |
 | POST | `/api/v1/memories/extract` | `api_extract` | `extract_memories` |
 
-**Auth**: Same Bearer Token middleware (already global via `AuthMiddleware`). The middleware currently returns `{"error": "Unauthorized"}` which doesn't match REST format. **Fix required**: Update `AuthMiddleware` to return `{"ok": false, "error": "Unauthorized"}` for consistency. This is backward-compatible since MCP clients don't parse auth error bodies.
+**Auth**: Same Bearer Token middleware (already global via `AuthMiddleware`). **Fix required**: Update `AuthMiddleware` error responses to use REST format. Current behavior and required changes:
+
+| Condition | Current Response | Required Response |
+|-----------|-----------------|-------------------|
+| Missing/malformed `Authorization` header | 401 `{"error": "Unauthorized"}` | 401 `{"ok": false, "error": "Unauthorized"}` |
+| Valid format but wrong token | 403 `{"error": "Forbidden"}` | 403 `{"ok": false, "error": "Forbidden"}` |
+
+This is backward-compatible since MCP clients don't parse auth error bodies.
 
 **Response format**: All REST endpoints return JSON with consistent structure:
 ```json
@@ -145,10 +151,13 @@ Error:
 `POST /api/v1/memories/extract`:
 ```json
 {
-  "transcript": "string (required) — full conversation text, or JSON array of {role, content} messages"
+  "messages": [
+    {"role": "user", "content": "..."},
+    {"role": "assistant", "content": "..."}
+  ]
 }
 ```
-Single stateless endpoint. No session_id needed — the server extracts candidate memories and writes them in one shot (see Section 4.4).
+Server expects a JSON array of `{role, content}` messages. The CLI is responsible for converting source formats (e.g., Claude Code JSONL transcript) into this canonical form before POSTing (see Section 4.2 `mem extract`). Single stateless endpoint — no session_id needed (see Section 4.4).
 
 **Query string parameters** (GET endpoints):
 
@@ -181,7 +190,9 @@ mem forget <entity_key> [--reason "reason"]
 mem relate <from_key> <to_key> --type <relation_type>
 
 # Auto extraction
-mem extract --transcript <file>   # extract memories from conversation transcript (reads stdin if no file)
+mem extract --transcript <file>   # extract memories from transcript (reads stdin if no file)
+                                 # CLI reads JSONL/JSON, filters user/assistant messages,
+                                 # converts to [{role, content}] array, POSTs to server
 
 # Working Memory
 mem wm
@@ -271,7 +282,7 @@ Returns: {"ok": true, "data": {"results": [...]}}
 
 **Implementation**: Add `skip_semantic_merge: bool = False` parameter to `remember_tool()`. When `True`, skip the semantic similarity search block (lines 80-117 in `remember.py`). Default `False` preserves existing behavior for all current callers.
 
-**LLM client**: Session Engine creates its own httpx call to OpenRouter (same pattern as `ConflictDetector` in `conflict.py`). Both share `settings.openrouter_api_key`, `settings.openrouter_base_url`, and `settings.llm_model`. No need for a shared abstraction now — if a third LLM caller appears later, refactor then.
+**LLM client**: Extraction Engine creates its own httpx call to OpenRouter (same pattern as `ConflictDetector` in `conflict.py`). Both share `settings.openrouter_api_key`, `settings.openrouter_base_url`, and `settings.llm_model`. No need for a shared abstraction now — if a third LLM caller appears later, refactor then.
 
 **Extraction prompt** (core):
 ```
@@ -340,14 +351,19 @@ mem wm --format text 2>/dev/null || echo "Memory service unavailable"
 **Stop hook** (`stop.sh`):
 ```bash
 #!/bin/bash
-INPUT=$(cat)  # Read JSON from stdin
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
-STOP_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
+# Parse stdin JSON with python (already required for mem CLI, avoids jq dependency)
+eval "$(python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f'TRANSCRIPT_PATH={d.get(\"transcript_path\", \"\")}')
+print(f'STOP_ACTIVE={str(d.get(\"stop_hook_active\", False)).lower()}')
+")"
 
 # Prevent infinite loop
 if [ "$STOP_ACTIVE" = "true" ]; then exit 0; fi
 
 # Extract memories from transcript
+# mem extract reads JSONL, filters user/assistant, converts to [{role,content}], POSTs to server
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
   mem extract --transcript "$TRANSCRIPT_PATH" 2>/dev/null
 fi
@@ -356,6 +372,7 @@ exit 0
 - Configured with `"async": true` — runs in background, exit code ignored
 - `stop_hook_active` check prevents infinite loops
 - `transcript_path` points to JSONL file with conversation history
+- Uses `python3` for JSON parsing (already required for `mem` CLI, avoids `jq` dependency)
 
 **Phase 3 initial behavior**: In Phase 3 (before Extraction Engine exists), `stop.sh` is a no-op (just `exit 0`). Becomes functional in Phase 4.
 
@@ -478,7 +495,8 @@ Stop hook fires (async: true, fire-and-forget)
   -> Hook reads stdin JSON, extracts transcript_path
   -> Checks stop_hook_active to prevent infinite loop
   -> Runs: mem extract --transcript $TRANSCRIPT_PATH
-  -> CLI reads JSONL file, sends POST /api/v1/memories/extract
+  -> CLI reads JSONL, filters user/assistant messages, converts to [{role,content}]
+  -> CLI sends POST /api/v1/memories/extract with {"messages": [...]}
   -> Server: LLM extracts candidates from transcript
   -> Each candidate: remember_tool(skip_semantic_merge=True)
     -> entity_key exact match only (no cross-entity merge)
@@ -499,11 +517,11 @@ $ mem recall "editor theme"
 
 ## 7. Error Handling
 
-- REST API returns HTTP status codes: 200 (success), 400 (bad request), 401 (unauthorized), 500 (server error)
+- REST API returns HTTP status codes: 200 (success), 400 (bad request), 401 (unauthorized), 403 (forbidden), 500 (server error). All error bodies use `{"ok": false, "error": "message"}`.
 - CLI exits with code 0 on success, 1 on error, prints error to stderr
-- Session commit: if LLM extraction fails, returns partial results + error details for failed candidates
+- Extraction: if LLM extraction fails, returns partial results + error details for failed candidates; if JSON parsing fails, returns empty results (never crash)
 - Working Memory: if vector_store is empty, returns a minimal briefing ("No memories yet")
-- Hooks: timeout gracefully — SessionStart falls back to no injection, Stop logs failure but doesn't block
+- Hooks: timeout gracefully — SessionStart falls back to no injection, Stop is async fire-and-forget
 
 ## 8. Testing Strategy
 
@@ -512,7 +530,7 @@ $ mem recall "editor theme"
 | REST API routes | Unit + Integration | pytest-asyncio, mock tool functions, test HTTP layer with Starlette TestClient |
 | CLI | Unit | Mock httpx responses, verify command parsing and output formatting |
 | Working Memory | Unit | Feed known MemoryNode list, verify briefing output |
-| Session Engine | Unit + Integration | Mock LLM responses, verify extraction -> remember pipeline |
+| Extraction Engine | Unit + Integration | Mock LLM responses, verify extraction -> remember(skip_semantic_merge=True) pipeline |
 | Plugin hooks | Manual | Run in Claude Code, verify injection and extraction |
 
 Existing tests for remember/recall/conflict/evolution remain unchanged.
@@ -532,7 +550,7 @@ typer>=0.12.0
 
 ### Plugin
 
-No dependencies — shell scripts calling `mem` CLI binary.
+Prerequisites: `mem` CLI (Python) and `python3` (used in `stop.sh` for stdin JSON parsing). No additional dependencies — shell scripts only.
 
 ## 10. Risks and Mitigations
 
