@@ -268,12 +268,12 @@ Stateless server-side module for conversation-based memory extraction. Takes a t
 
 ```
 POST /api/v1/memories/extract
-Body: {"transcript": "..."}
+Body: {"messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
 Returns: {"ok": true, "data": {"results": [...]}}
 ```
 
 **Extraction flow**:
-1. LLM analyzes transcript and extracts candidate memories
+1. LLM analyzes messages and extracts candidate memories
 2. Each candidate is a `{entity_key, entity_type, content}` tuple
 3. Each candidate goes through `remember_tool()` with **`skip_semantic_merge=True`** — only exact entity_key matching, NO cross-entity semantic similarity merge
 4. Return extraction results (what was created/evolved/skipped)
@@ -315,7 +315,7 @@ Plugin structure for Claude Code, using hooks + skills + CLI.
 ```
 claude-code-plugin/
   hooks/
-    session-start.sh       # mem wm -> inject as systemMessage
+    session-start.sh       # mem wm -> stdout injected as context
     stop.sh                # async: read transcript -> mem extract
   skills/
     search-memory/SKILL.md
@@ -351,28 +351,24 @@ mem wm --format text 2>/dev/null || echo "Memory service unavailable"
 **Stop hook** (`stop.sh`):
 ```bash
 #!/bin/bash
-# Parse stdin JSON with python (already required for mem CLI, avoids jq dependency)
-eval "$(python3 -c "
+# Entire hook logic in Python — avoids eval/shell-injection risks and jq dependency.
+# Python is already required for mem CLI.
+python3 -c "
 import sys, json
 d = json.load(sys.stdin)
-print(f'TRANSCRIPT_PATH={d.get(\"transcript_path\", \"\")}')
-print(f'STOP_ACTIVE={str(d.get(\"stop_hook_active\", False)).lower()}')
-")"
-
-# Prevent infinite loop
-if [ "$STOP_ACTIVE" = "true" ]; then exit 0; fi
-
-# Extract memories from transcript
-# mem extract reads JSONL, filters user/assistant, converts to [{role,content}], POSTs to server
-if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
-  mem extract --transcript "$TRANSCRIPT_PATH" 2>/dev/null
-fi
-exit 0
+if d.get('stop_hook_active'):
+    sys.exit(0)
+tp = d.get('transcript_path', '')
+if not tp:
+    sys.exit(0)
+import subprocess
+subprocess.run(['mem', 'extract', '--transcript', tp], stderr=subprocess.DEVNULL)
+"
 ```
 - Configured with `"async": true` — runs in background, exit code ignored
 - `stop_hook_active` check prevents infinite loops
-- `transcript_path` points to JSONL file with conversation history
-- Uses `python3` for JSON parsing (already required for `mem` CLI, avoids `jq` dependency)
+- `transcript_path` passed as list element to subprocess, no shell expansion
+- `mem extract` reads JSONL, filters user/assistant, converts to `[{role,content}]`, POSTs to server
 
 **Phase 3 initial behavior**: In Phase 3 (before Extraction Engine exists), `stop.sh` is a no-op (just `exit 0`). Becomes functional in Phase 4.
 
