@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install locked Python dependencies
 COPY requirements.lock pyproject.toml README.md ./
-RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+RUN pip install --no-cache-dir -r requirements.lock
 COPY src/ src/
 RUN pip install --no-cache-dir --no-deps .
 
