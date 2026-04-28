@@ -95,6 +95,7 @@
 - `trace`：追溯某实体的演化链（timeline/summary）
 - `forget`：归档某实体当前记忆（不再作为 current）
 - `relate`：创建实体关系边
+- `unrelate`：按 relation id 删除实体关系边
 - `graph_query`：按深度查询实体关系（入边+出边 BFS）
 
 ## Resources（资源）

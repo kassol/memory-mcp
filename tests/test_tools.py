@@ -1,4 +1,5 @@
 import anyio
+import importlib
 
 
 def test_remember_create_and_evolve(tools, test_env):
@@ -186,5 +187,52 @@ def test_graph_query_depth(tools, test_env):
         )
         res = await graph_query.graph_query_tool({"entity_key": "person:alice", "depth": 2})
         assert res["count"] >= 2
+
+    anyio.run(run)
+
+
+def test_unrelate_deletes_relation(tools, test_env):
+    async def run():
+        _, _, _, _, _, relate, graph_query = tools
+        import memory_mcp.tools.unrelate as unrelate
+
+        importlib.reload(unrelate)
+
+        created = await relate.relate_tool(
+            {
+                "from_entity_key": "person:alice",
+                "to_entity_key": "project:x",
+                "relation_type": "WORKS_ON",
+            }
+        )
+        relation_id = created["relation_id"]
+
+        before = await graph_query.graph_query_tool({"entity_key": "person:alice"})
+        assert before["count"] == 1
+
+        deleted = await unrelate.unrelate_tool({"relation_id": relation_id})
+        assert deleted == {"status": "deleted", "relation_id": relation_id}
+
+        after = await graph_query.graph_query_tool({"entity_key": "person:alice"})
+        assert after["count"] == 0
+
+        missing = await unrelate.unrelate_tool({"relation_id": relation_id})
+        assert missing == {"status": "not_found", "relation_id": relation_id}
+
+    anyio.run(run)
+
+
+def test_unrelate_requires_relation_id(tools, test_env):
+    async def run():
+        import memory_mcp.tools.unrelate as unrelate
+
+        importlib.reload(unrelate)
+
+        try:
+            await unrelate.unrelate_tool({})
+        except ValueError as exc:
+            assert str(exc) == "Missing required argument: relation_id"
+        else:
+            raise AssertionError("Expected ValueError")
 
     anyio.run(run)

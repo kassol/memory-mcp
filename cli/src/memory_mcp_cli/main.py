@@ -118,6 +118,16 @@ def relate(
     _out(result, fmt)
 
 
+@app.command()
+def unrelate(
+    relation_id: str = typer.Argument(..., help="Relation id to delete"),
+    fmt: str = _format_opt,
+) -> None:
+    """Delete a relation by id."""
+    result = _client().unrelate(relation_id)
+    _out(result, fmt)
+
+
 # ---------------------------------------------------------------------------
 # wm  (working memory)
 # ---------------------------------------------------------------------------

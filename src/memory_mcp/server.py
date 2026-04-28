@@ -22,7 +22,7 @@ from .api.routes import routes as api_routes
 from .config import settings
 from .storage.graph import graph_store
 from .storage.vector import vector_store
-from .tools import remember, recall, trace, forget, relate, graph_query, recall_all
+from .tools import remember, recall, trace, forget, relate, unrelate, graph_query, recall_all
 from .transport.auth import AuthMiddleware
 from .transport.cors import CorsMiddleware
 from .transport.streamable_http import StreamableHttpApp
@@ -120,6 +120,17 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="unrelate",
+            description="Delete a relationship by relation id.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "relation_id": {"type": "string"}
+                },
+                "required": ["relation_id"]
+            }
+        ),
+        Tool(
             name="graph_query",
             description="Query relations for an entity.",
             inputSchema={
@@ -150,6 +161,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
             result = await forget.forget_tool(arguments)
         elif name == "relate":
             result = await relate.relate_tool(arguments)
+        elif name == "unrelate":
+            result = await unrelate.unrelate_tool(arguments)
         elif name == "graph_query":
             result = await graph_query.graph_query_tool(arguments)
         else:

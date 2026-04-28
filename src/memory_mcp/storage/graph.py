@@ -147,6 +147,14 @@ class GraphStore:
             current_memory_id=None,
         )
 
+    async def delete_relation(self, relation_id: str) -> bool:
+        for from_key, to_key, edge_key in list(self.g.edges(keys=True)):
+            if edge_key == relation_id:
+                self.g.remove_edge(from_key, to_key, key=edge_key)
+                self._save()
+                return True
+        return False
+
     async def get_relations(self, entity_key: str, relation_types: Optional[List[str]] = None, depth: int = 1) -> List[Dict]:
         if entity_key not in self.g or depth < 1:
             return []

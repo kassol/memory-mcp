@@ -29,8 +29,15 @@
 - Tool 返回值统一为 JSON 字符串
 - 记忆数据持久化：向量存储 + 图存储并行
 - 变更必须更新本文件
+- 涉及线上服务能力的任务，只有更新到线上并完成线上验证后才算终结；仅完成本地代码、测试或文档不算完成
 
 ## 变更日志
+### 2026-04-29 Relation 删除能力与交付规则
+- 新增 `unrelate` MCP tool，用于按 `relation_id` 删除实体关系边
+- 新增 REST API `DELETE /api/v1/relations/{relation_id}`，返回 `deleted/not_found`
+- CLI 新增 `mem unrelate <relation_id>`
+- 明确交付规则：线上服务更新并验证通过才视为任务完成
+
 ### 2025-12-20 Streamable HTTP 与 PRD 补齐
 - 替换 SSE 集成为 Streamable HTTP，会话由 SDK 管理
 - 补齐 recall_all、资源读取、演化规则、图深度查询与归档原因
