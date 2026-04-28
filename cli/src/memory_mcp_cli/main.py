@@ -41,10 +41,12 @@ def remember(
     content: str = typer.Argument(..., help="Memory content to store"),
     entity_type: Optional[str] = typer.Option(None, "--type", "-t", help="Entity type"),
     entity_key: Optional[str] = typer.Option(None, "--key", "-k", help="Entity key"),
+    tags: Optional[str] = typer.Option(None, "--tags", help="Comma-separated tags"),
     fmt: str = _format_opt,
 ) -> None:
     """Store a new memory."""
-    result = _client().remember(content, entity_type, entity_key)
+    tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()] if tags else None
+    result = _client().remember(content, entity_type, entity_key, tag_list)
     _out(result, fmt)
 
 

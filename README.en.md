@@ -13,7 +13,7 @@ Personal memory service powered by **MCP Streamable HTTP**. It combines **semant
 - **Semantic recall** via OpenRouter Embedding API (`recall`)
 - **Knowledge graph relations** with BFS depth query (`relate` / `graph_query`)
 - **MCP resources**: `memory:///...` (current/entities/entity)
-- **Test-friendly storage**: LanceDB by default, `MEMORY_MCP_VECTOR_BACKEND=memory` fallback
+- **Test-friendly storage**: LanceDB by default, `MEMORY_MCP_VECTOR_BACKEND=memory` backend for tests
 
 ## Endpoints
 
@@ -56,8 +56,9 @@ See `.env.example`.
   - `MEMORY_MCP_DATA_DIR` (default `./data`)
   - `MEMORY_MCP_DEBUG` (default `false`)
 - **Vector backend (optional)**
-  - `MEMORY_MCP_VECTOR_BACKEND`: `lancedb` (default) / `memory`
-  - Tip: if your runtime has `pandas/pyarrow` issues, set it to `memory`
+  - `MEMORY_MCP_VECTOR_BACKEND`: `lancedb` (default) / `memory` / `auto`
+  - Production should use `lancedb`; LanceDB startup failure stops the service so existing memories stay visible as a deployment issue
+  - `memory` is useful for tests; `auto` switches to `memory` after LanceDB initialization failure
 - **Cloudflare Tunnel (optional)**
   - `CLOUDFLARE_TUNNEL_TOKEN`
 
@@ -106,4 +107,3 @@ More details: `docs/testing.md`
 ## License
 
 MIT License. See `LICENSE`.
-

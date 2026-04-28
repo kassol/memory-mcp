@@ -1,11 +1,15 @@
 import json
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
-from memory_mcp_cli.main import _filter_messages, _parse_transcript, app
+CLI_SRC_DIR = Path(__file__).resolve().parents[1] / "src"
+if str(CLI_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(CLI_SRC_DIR))
+
+from memory_mcp_cli.main import _filter_messages, _parse_transcript, app  # noqa: E402
 
 runner = CliRunner()
 
@@ -30,7 +34,7 @@ class TestTranscriptParsing:
             {"role": "assistant", "content": "line2"},
         ]
         f = tmp_path / "transcript.jsonl"
-        f.write_text("\n".join(json.dumps(l) for l in lines))
+        f.write_text("\n".join(json.dumps(item) for item in lines))
         result = _parse_transcript(f)
         assert result == lines
 
@@ -72,6 +76,19 @@ class TestCliCommands:
             assert out["ok"] is True
             assert out["data"]["entity_key"] == "test_key"
 
+    def test_remember_with_tags(self) -> None:
+        mock_resp = self._make_response({"entity_key": "test_key", "action": "created"})
+        with patch("httpx.Client") as mock_client_cls:
+            mock_http = MagicMock()
+            mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_http)
+            mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
+            mock_http.post.return_value = mock_resp
+
+            result = runner.invoke(app, ["remember", "test content", "--tags", "a,b"])
+            assert result.exit_code == 0
+            _, kwargs = mock_http.post.call_args
+            assert kwargs["json"]["tags"] == ["a", "b"]
+
     def test_recall_all(self) -> None:
         mock_resp = self._make_response({"memories": [{"entity_key": "k1", "content": "c1"}]})
         with patch("httpx.Client") as mock_client_cls:
@@ -85,3 +102,21 @@ class TestCliCommands:
             out = json.loads(result.output)
             assert out["ok"] is True
             assert "memories" in out["data"]
+
+    def test_relate_uses_server_field_names(self) -> None:
+        mock_resp = self._make_response({"status": "created"})
+        with patch("httpx.Client") as mock_client_cls:
+            mock_http = MagicMock()
+            mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_http)
+            mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
+            mock_http.post.return_value = mock_resp
+
+            result = runner.invoke(app, ["relate", "person:a", "project:b", "WORKS_ON", "--weight", "0.5"])
+            assert result.exit_code == 0
+            _, kwargs = mock_http.post.call_args
+            assert kwargs["json"] == {
+                "from_entity_key": "person:a",
+                "to_entity_key": "project:b",
+                "relation_type": "WORKS_ON",
+                "properties": {"weight": 0.5},
+            }
