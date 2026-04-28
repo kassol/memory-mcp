@@ -224,7 +224,7 @@ class GraphStore:
             with open(self.evolution_path, 'r') as f:
                 try:
                     chains = json.load(f)
-                except:
+                except json.JSONDecodeError:
                     pass
         chains.append(chain_entry)
         

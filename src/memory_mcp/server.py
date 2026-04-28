@@ -242,7 +242,7 @@ async def read_resource(uri: str) -> list[ReadResourceContents]:
     ]
 
 async def health(request: Request):
-    return JSONResponse({"status": "healthy"})
+    return JSONResponse({"status": "healthy", "vector_backend": vector_store.backend_name})
 
 streamable_http_app = StreamableHttpApp(mcp_server, json_response=False)
 

@@ -7,10 +7,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY pyproject.toml README.md ./
+# Install locked Python dependencies
+COPY requirements.lock pyproject.toml README.md ./
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 COPY src/ src/
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --no-deps .
 
 # Create data directories
 RUN mkdir -p /app/data/vectors /app/data/graph

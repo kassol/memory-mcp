@@ -20,12 +20,20 @@ class MemoryClient:
             raise SystemExit(1)
         return resp.json()
 
-    def remember(self, content: str, entity_type: str | None = None, entity_key: str | None = None) -> dict:
+    def remember(
+        self,
+        content: str,
+        entity_type: str | None = None,
+        entity_key: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict:
         payload: dict = {"content": content}
         if entity_type:
             payload["entity_type"] = entity_type
         if entity_key:
             payload["entity_key"] = entity_key
+        if tags:
+            payload["tags"] = tags
         with httpx.Client(headers=self._headers, timeout=30) as c:
             return self._handle(c.post(f"{self._base}/api/v1/memories", json=payload))
 
@@ -64,9 +72,13 @@ class MemoryClient:
             return self._handle(c.delete(f"{self._base}/api/v1/memories/{entity_key}", params=params))
 
     def relate(self, from_key: str, to_key: str, relation_type: str, weight: float | None = None) -> dict:
-        payload: dict = {"from_key": from_key, "to_key": to_key, "relation_type": relation_type}
+        payload: dict = {
+            "from_entity_key": from_key,
+            "to_entity_key": to_key,
+            "relation_type": relation_type,
+        }
         if weight is not None:
-            payload["weight"] = weight
+            payload["properties"] = {"weight": weight}
         with httpx.Client(headers=self._headers, timeout=30) as c:
             return self._handle(c.post(f"{self._base}/api/v1/relations", json=payload))
 

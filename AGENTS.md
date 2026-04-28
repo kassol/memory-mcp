@@ -58,3 +58,15 @@
 - 新增 Claude Code 插件（hooks: session-start/stop, skills, commands）
 - AuthMiddleware 错误格式统一为 `{"ok": false, "error": ...}`
 - 协议约束更新：MCP 主 + REST 辅
+
+### 2026-03-25 Review Fixes: CLI / Extraction / Test Runner
+- 修复 CLI `relate` 请求字段名错误，避免向 REST API 发送 `from_key/to_key` 导致 400
+- CLI `remember` 补充 `--tags` 支持，并透传到 REST API
+- Extraction Engine 在 LLM 调用失败时显式抛错，不再伪装为 `200 + empty results`
+- 移除 `cli/tests/__init__.py`，修复根目录 `pytest` 因双 `tests` 包冲突导致的收集失败
+
+### 2026-04-28 Production Deploy Hardening
+- Dockerfile 改为使用 `requirements.lock` 安装锁定依赖，再以 `--no-deps` 安装本地包，降低重建时依赖漂移风险
+- `MEMORY_MCP_VECTOR_BACKEND=lancedb` 下 LanceDB 初始化失败会直接中止启动；`memory` 与 `auto` 保留测试/兼容场景
+- `/health` 返回当前 `vector_backend`，便于部署后确认实际存储后端
+- Extraction Engine 返回单条候选写入失败的 `errors/failed`，便于排查部分写入失败

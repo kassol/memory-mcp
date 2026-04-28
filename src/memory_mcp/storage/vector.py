@@ -180,17 +180,32 @@ class VectorStore:
     def __init__(self):
         vectors_dir = os.path.join(settings.data_dir, "vectors")
         os.makedirs(vectors_dir, exist_ok=True)
+        self.backend_name = ""
 
-        backend = os.getenv("MEMORY_MCP_VECTOR_BACKEND", "lancedb").strip().lower()
+        backend = settings.vector_backend.strip().lower()
         if backend == "memory":
             self._impl = InMemoryVectorStore(os.path.join(vectors_dir, "memories.json"))
+            self.backend_name = "memory"
             return
+
+        if backend in {"lancedb", "lance"}:
+            try:
+                self._impl = LanceVectorStore(vectors_dir)
+            except Exception as e:
+                raise RuntimeError("Failed to initialize LanceDB vector backend") from e
+            self.backend_name = "lancedb"
+            return
+
+        if backend != "auto":
+            raise ValueError(f"Unsupported vector backend: {backend}")
 
         try:
             self._impl = LanceVectorStore(vectors_dir)
+            self.backend_name = "lancedb"
         except Exception as e:
             logger.warning("LanceDB unavailable, falling back to in-memory store: %s", e)
             self._impl = InMemoryVectorStore(os.path.join(vectors_dir, "memories.json"))
+            self.backend_name = "memory"
 
     async def insert(self, node: MemoryNode):
         await self._impl.insert(node)

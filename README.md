@@ -13,7 +13,7 @@
 - **语义检索**：通过 OpenRouter Embedding API 获取向量，支持相似度检索（`recall`）
 - **图谱关系**：实体关系入/出边 + BFS 深度查询（`relate` / `graph_query`）
 - **资源读取**：提供 `memory:///...` 资源给 MCP Client（current/entities/entity）
-- **可测试/可落盘**：默认 LanceDB；可用 `MEMORY_MCP_VECTOR_BACKEND=memory` 作为无依赖后备
+- **可测试/可落盘**：默认 LanceDB；可用 `MEMORY_MCP_VECTOR_BACKEND=memory` 作为无依赖后端
 
 ## 接口
 
@@ -63,8 +63,9 @@
   - `MEMORY_MCP_LLM_MODEL`：默认 `anthropic/claude-3-haiku`
   - `MEMORY_MCP_SIMILARITY_THRESHOLD`：默认 `0.85`
 - **向量后端（可选）**
-  - `MEMORY_MCP_VECTOR_BACKEND`：`lancedb`（默认）/ `memory`
-  - 说明：若运行环境的 `pandas/pyarrow` 兼容性有问题，可设置为 `memory` 快速启动与测试
+  - `MEMORY_MCP_VECTOR_BACKEND`：`lancedb`（默认）/ `memory` / `auto`
+  - 说明：生产建议使用 `lancedb`；LanceDB 启动失败会中止服务，避免旧记忆被静默隐藏
+  - `memory` 适合测试；`auto` 会在 LanceDB 初始化失败时切换到 `memory`
 - **Cloudflare Tunnel（可选）**
   - `CLOUDFLARE_TUNNEL_TOKEN`
 

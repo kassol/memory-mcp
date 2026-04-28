@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     
     # Storage
     data_dir: str = "./data"
+    vector_backend: str = "lancedb"
     
     # Embedding
     openrouter_api_key: str = Field(

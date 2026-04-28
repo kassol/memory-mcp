@@ -6,6 +6,11 @@ import httpx
 from ..config import settings
 from ..tools.remember import remember_tool
 
+
+class ExtractionError(RuntimeError):
+    """Raised when extraction cannot be completed due to upstream/service failure."""
+
+
 _EXTRACTION_PROMPT = """You are a memory extraction assistant. Given a conversation, extract structured memories.
 
 For each distinct piece of information worth remembering, output a JSON object with:
@@ -77,12 +82,13 @@ def _parse_llm_output(text: str) -> list[dict]:
 async def extract_memories(messages: list[dict]) -> dict:
     try:
         llm_output = await _call_llm(messages)
-    except Exception:
-        return {"results": [], "total": 0}
+    except Exception as exc:
+        raise ExtractionError("LLM extraction failed") from exc
 
     candidates = _parse_llm_output(llm_output)
 
     results = []
+    errors = []
     for candidate in candidates:
         if not isinstance(candidate, dict):
             continue
@@ -99,7 +105,14 @@ async def extract_memories(messages: list[dict]) -> dict:
                 "skip_semantic_merge": True,
             })
             results.append(result)
-        except Exception:
-            pass
+        except Exception as exc:
+            errors.append(
+                {
+                    "entity_key": entity_key,
+                    "entity_type": entity_type,
+                    "content": content,
+                    "error": str(exc),
+                }
+            )
 
-    return {"results": results, "total": len(results)}
+    return {"results": results, "errors": errors, "total": len(results), "failed": len(errors)}
