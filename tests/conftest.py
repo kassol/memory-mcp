@@ -59,8 +59,10 @@ def tools(test_env):
     import memory_mcp.tools.trace as trace
     import memory_mcp.tools.forget as forget
     import memory_mcp.tools.relate as relate
+    import memory_mcp.tools.unrelate as unrelate
     import memory_mcp.tools.graph_query as graph_query
 
+    importlib.reload(unrelate)
     return (
         importlib.reload(remember),
         importlib.reload(recall),

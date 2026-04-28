@@ -120,3 +120,18 @@ class TestCliCommands:
                 "relation_type": "WORKS_ON",
                 "properties": {"weight": 0.5},
             }
+
+    def test_unrelate(self) -> None:
+        mock_resp = self._make_response({"status": "deleted", "relation_id": "rel-1"})
+        with patch("httpx.Client") as mock_client_cls:
+            mock_http = MagicMock()
+            mock_client_cls.return_value.__enter__ = MagicMock(return_value=mock_http)
+            mock_client_cls.return_value.__exit__ = MagicMock(return_value=False)
+            mock_http.delete.return_value = mock_resp
+
+            result = runner.invoke(app, ["unrelate", "rel-1"])
+            assert result.exit_code == 0
+            mock_http.delete.assert_called_once()
+            assert mock_http.delete.call_args.args[0].endswith("/api/v1/relations/rel-1")
+            out = json.loads(result.output)
+            assert out["data"]["status"] == "deleted"

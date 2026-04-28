@@ -82,6 +82,10 @@ class MemoryClient:
         with httpx.Client(headers=self._headers, timeout=30) as c:
             return self._handle(c.post(f"{self._base}/api/v1/relations", json=payload))
 
+    def unrelate(self, relation_id: str) -> dict:
+        with httpx.Client(headers=self._headers, timeout=30) as c:
+            return self._handle(c.delete(f"{self._base}/api/v1/relations/{relation_id}"))
+
     def graph_query(self, entity_key: str, depth: int | None = None, relation_types: list[str] | None = None) -> dict:
         params: dict = {}
         if depth is not None:

@@ -139,6 +139,19 @@ async def handle_relate(request: Request) -> JSONResponse:
     return ok(result)
 
 
+# DELETE /api/v1/relations/{relation_id}
+async def handle_unrelate(request: Request) -> JSONResponse:
+    from ..tools import unrelate
+    relation_id = request.path_params["relation_id"]
+    try:
+        result = await unrelate.unrelate_tool({"relation_id": relation_id})
+    except ValueError as e:
+        return err(str(e))
+    except Exception as e:
+        return err(str(e), 500)
+    return ok(result)
+
+
 # GET /api/v1/wm
 async def handle_working_memory(request: Request) -> JSONResponse:
     from ..engine import working_memory
@@ -182,6 +195,7 @@ routes = [
     Route("/api/v1/memories/{entity_key:path}/trace", endpoint=handle_trace, methods=["GET"]),
     Route("/api/v1/memories/{entity_key:path}", endpoint=handle_forget, methods=["DELETE"]),
     Route("/api/v1/relations", endpoint=handle_relate, methods=["POST"]),
+    Route("/api/v1/relations/{relation_id}", endpoint=handle_unrelate, methods=["DELETE"]),
     Route("/api/v1/graph/{entity_key:path}", endpoint=handle_graph_query, methods=["GET"]),
     Route("/api/v1/wm", endpoint=handle_working_memory, methods=["GET"]),
 ]

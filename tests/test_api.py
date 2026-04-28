@@ -14,6 +14,7 @@ def app(test_env):
     import memory_mcp.tools.trace as _tr
     import memory_mcp.tools.forget as _fo
     import memory_mcp.tools.relate as _rel
+    import memory_mcp.tools.unrelate as _unrel
     import memory_mcp.tools.graph_query as _gq
     importlib.reload(_rem)
     importlib.reload(_rec)
@@ -21,6 +22,7 @@ def app(test_env):
     importlib.reload(_tr)
     importlib.reload(_fo)
     importlib.reload(_rel)
+    importlib.reload(_unrel)
     importlib.reload(_gq)
 
     import memory_mcp.api.routes as routes_mod
@@ -243,6 +245,43 @@ def test_relate_missing_field_returns_error(client):
     resp = client.post("/api/v1/relations", json={"from_entity_key": "a"}, headers=AUTH)
     assert resp.status_code == 400
     assert resp.json()["ok"] is False
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/v1/relations/{relation_id}  (unrelate)
+# ---------------------------------------------------------------------------
+
+def test_unrelate_existing(client):
+    create_resp = client.post(
+        "/api/v1/relations",
+        json={
+            "from_entity_key": "person:alice",
+            "to_entity_key": "project:x",
+            "relation_type": "WORKS_ON",
+        },
+        headers=AUTH,
+    )
+    relation_id = create_resp.json()["data"]["relation_id"]
+
+    delete_resp = client.delete(f"/api/v1/relations/{relation_id}", headers=AUTH)
+    assert delete_resp.status_code == 200
+    body = delete_resp.json()
+    assert body["ok"] is True
+    assert body["data"]["status"] == "deleted"
+    assert body["data"]["relation_id"] == relation_id
+
+    graph_resp = client.get("/api/v1/graph/person:alice", headers=AUTH)
+    assert graph_resp.status_code == 200
+    assert graph_resp.json()["data"]["count"] == 0
+
+
+def test_unrelate_nonexistent(client):
+    resp = client.delete("/api/v1/relations/missing-relation-id", headers=AUTH)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["data"]["status"] == "not_found"
+    assert body["data"]["relation_id"] == "missing-relation-id"
 
 
 # ---------------------------------------------------------------------------

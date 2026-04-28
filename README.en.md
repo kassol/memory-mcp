@@ -88,6 +88,7 @@ Replace the domain and token:
 - `trace`: evolution chain (timeline/summary)
 - `forget`: archive current memory for an entity
 - `relate`: create relations between entities
+- `unrelate`: delete a relation by relation id
 - `graph_query`: query relations with BFS depth (in + out edges)
 
 ## Resources
