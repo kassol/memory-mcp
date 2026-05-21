@@ -11,13 +11,16 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.lock pyproject.toml README.md ./
 RUN pip install --no-cache-dir -r requirements.lock
 COPY src/ src/
+COPY alembic.ini ./alembic.ini
 RUN pip install --no-cache-dir --no-deps .
 
 # Create data directories
-RUN mkdir -p /app/data/vectors /app/data/graph
+RUN mkdir -p /app/data/vectors
 
 # Expose port
 EXPOSE 8765
 
-# Start command
+# jieba lazy-loads its dictionary on first call; nothing to pre-warm.
+# Alembic upgrade head runs at FastAPI lifespan startup (auto_migrate=true).
+
 CMD ["python", "-m", "memory_mcp"]
