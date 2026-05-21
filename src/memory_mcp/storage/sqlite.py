@@ -24,8 +24,10 @@ class DBHandle:
 
     All downstream layers (repositories, hybrid_search, threads, workers) MUST
     use this interface — never reach for the underlying aiosqlite connection
-    directly. The interface mirrors aiosqlite but standardises return shapes:
-    rows are always ``aiosqlite.Row`` (dict-like + index-able).
+    directly. Contract: ``fetchone`` / ``fetchall`` return ``aiosqlite.Row``
+    (dict-like + index-able). Cursors returned by ``execute`` / ``executemany``
+    are intended for ``rowcount`` / ``lastrowid`` inspection only — do not
+    iterate them; use ``fetchone`` / ``fetchall`` instead.
     """
 
     def __init__(self, conn: aiosqlite.Connection) -> None:
@@ -39,6 +41,13 @@ class DBHandle:
         return await self._conn.executemany(sql, [tuple(p) for p in seq_of_params])
 
     async def executescript(self, script: str) -> None:
+        """Run a multi-statement SQL script (e.g., schema bootstrap).
+
+        SQLite forbids transaction control inside ``executescript``: do NOT call
+        this while an outer ``transaction()`` block is open, and do not embed
+        ``BEGIN`` / ``COMMIT`` inside ``script`` if the caller already started a
+        transaction.
+        """
         await self._conn.executescript(script)
 
     # -- Read ops ------------------------------------------------------------
@@ -105,8 +114,9 @@ class SQLiteStore:
     async def get_db(self) -> AsyncIterator[DBHandle]:
         """Authoritative entry point — returns the unified DBHandle facade.
 
-        All M1-M4 modules consume this. Auto-commits writes when the caller
-        does not open an explicit ``async with handle.transaction():`` block.
+        Auto-commits at exit when no exception was raised AND the caller has
+        leftover work outside ``transaction()``. On exception, any leftover
+        transaction state is rolled back to avoid silent partial writes.
         """
         if self._conn is None:
             await self.initialize()
@@ -114,8 +124,11 @@ class SQLiteStore:
         handle = DBHandle(self._conn)
         try:
             yield handle
-        finally:
-            # Best-effort flush for callers that did not use ``transaction()``
+        except Exception:
+            if self._conn.in_transaction:
+                await self._conn.rollback()
+            raise
+        else:
             if self._conn.in_transaction:
                 await self._conn.commit()
 

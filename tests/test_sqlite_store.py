@@ -1,6 +1,7 @@
 import os
 
 import anyio
+import pytest
 
 
 def test_sqlite_store_applies_pragmas(test_env):
@@ -61,5 +62,35 @@ def test_sqlite_store_persists_across_connections(test_env):
         assert row["v"] == "hello"
         await sqlite_mod.get_store().close()
         assert os.path.exists(sqlite_mod.settings.sqlite_path)
+
+    anyio.run(run)
+
+
+def test_transaction_rollbacks_on_exception(test_env):
+    async def run():
+        import memory_mcp.storage.sqlite as sqlite_mod
+        import importlib
+        importlib.reload(sqlite_mod)
+
+        async with sqlite_mod.get_db() as db:
+            await db.execute(
+                "CREATE TABLE smoke (id INTEGER PRIMARY KEY, v TEXT)"
+            )
+
+        class _Boom(Exception):
+            pass
+
+        with pytest.raises(_Boom):
+            async with sqlite_mod.get_db() as db:
+                async with db.transaction():
+                    await db.execute("INSERT INTO smoke (v) VALUES ('a')")
+                    await db.execute("INSERT INTO smoke (v) VALUES ('b')")
+                    raise _Boom("transaction must rollback")
+
+        async with sqlite_mod.get_db() as db:
+            rows = await db.fetchall("SELECT v FROM smoke")
+        assert rows == []
+
+        await sqlite_mod.get_store().close()
 
     anyio.run(run)
