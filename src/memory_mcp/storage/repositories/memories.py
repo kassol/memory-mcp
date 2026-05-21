@@ -19,6 +19,14 @@ def _placeholders(n: int) -> str:
 
 
 class MemoryRepository:
+    """SQLite-backed CRUD for the memories table.
+
+    Note: MemoryNode.embedding is owned by `storage.vector.VectorStore`.
+    Nodes returned by this repository carry `embedding=[]`; callers that
+    need the vector must merge it in via `VectorStore.get(memory_id)`
+    (M2 hybrid_search does this).
+    """
+
     def __init__(self, store: Optional[SQLiteStore] = None) -> None:
         self._store = store or get_store()
 
@@ -96,7 +104,12 @@ class MemoryRepository:
         return (cur.rowcount or 0) > 0
 
     async def fts_search(self, tokens: str, limit: int = 50) -> List[dict]:
-        """FTS5 search via the jieba-pre-tokenized memories_fts virtual table.
+        """FTS5 search via the memories_fts virtual table.
+
+        The FTS5 tokenizer is unicode61 (see migration 0001_initial_v2). Callers
+        are expected to pass `tokens` already pre-segmented by jieba (the
+        `engine.tokenizer.tokenize()` helper), matching how `memories.content_tokens`
+        is populated. M2 hybrid_search consumes this.
 
         Returns ``[{"memory_id", "bm25", "node"}]`` ordered by bm25 ascending
         (FTS5 returns lower bm25 = better match). Used by M2 hybrid_search.
@@ -104,7 +117,8 @@ class MemoryRepository:
         if not tokens.strip():
             return []
         sql = (
-            f"SELECT m.id AS memory_id, bm25(memories_fts) AS bm25, {_COLUMNS} "
+            f"SELECT bm25(memories_fts) AS bm25, "
+            f"{', '.join('m.' + c.strip() for c in _COLUMNS.split(','))} "
             f"FROM memories_fts JOIN memories m ON m.rowid = memories_fts.rowid "
             f"WHERE memories_fts MATCH ? ORDER BY bm25 ASC LIMIT ?"
         )
@@ -113,5 +127,5 @@ class MemoryRepository:
         out: list[dict] = []
         for r in rows:
             node = row_to_memory(r)
-            out.append({"memory_id": r["memory_id"], "bm25": r["bm25"], "node": node})
+            out.append({"memory_id": r["id"], "bm25": r["bm25"], "node": node})
         return out
