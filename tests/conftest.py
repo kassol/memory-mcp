@@ -19,15 +19,34 @@ def test_env(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMORY_MCP_EMBEDDING_DIM", "3")
     monkeypatch.setenv("MEMORY_MCP_EMBEDDING_MODEL", "test-embedding")
     monkeypatch.setenv("MEMORY_MCP_VECTOR_BACKEND", "memory")
+    monkeypatch.setenv("MEMORY_MCP_AUTO_MIGRATE", "true")
 
     import memory_mcp.config as config
     importlib.reload(config)
+
+    # Run migrations into the temp data dir BEFORE storage modules load
+    import memory_mcp.storage.migrate as migrate_mod
+    importlib.reload(migrate_mod)
+    migrate_mod.run_migrations()
+
+    import memory_mcp.storage.sqlite as sqlite_mod
+    importlib.reload(sqlite_mod)
+    import memory_mcp.storage.repositories.memories as repo_mem
+    import memory_mcp.storage.repositories.entities as repo_ent
+    import memory_mcp.storage.repositories.relations as repo_rel
+    importlib.reload(repo_mem)
+    importlib.reload(repo_ent)
+    importlib.reload(repo_rel)
 
     import memory_mcp.storage.vector as vector
     importlib.reload(vector)
 
     import memory_mcp.storage.graph as graph
     importlib.reload(graph)
+
+    import memory_mcp.engine.tokenizer as tokenizer
+    importlib.reload(tokenizer)
+    tokenizer.reset_for_tests()
 
     import memory_mcp.engine.embedding as embedding
     importlib.reload(embedding)
@@ -59,8 +78,6 @@ def test_env(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def tools(test_env):
-    import importlib
-
     import memory_mcp.tools.remember as remember
     import memory_mcp.tools.recall as recall
     import memory_mcp.tools.recall_all as recall_all
