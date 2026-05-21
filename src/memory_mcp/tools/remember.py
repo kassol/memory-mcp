@@ -1,18 +1,21 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from ..engine.models import MemoryNode, MutationType
+from ..config import settings
+from ..engine.conflict import conflict_detector
 from ..engine.embedding import embedding_service
 from ..engine.evolution import evolve_memory, infer_mutation_type
-from ..engine.conflict import conflict_detector
-from ..storage.vector import vector_store
+from ..engine.models import MemoryNode, MutationType, SourceRef
+from ..engine.tokenizer import tokenize
 from ..storage.graph import graph_store
-from ..config import settings
+from ..storage.vector import vector_store
+
 
 def _distance_to_relevance(distance: float | None) -> float | None:
     if distance is None:
         return None
     return 1 / (1 + distance)
+
 
 def _build_labels(conflict: bool, mutation_type: MutationType) -> list[str]:
     labels: list[str] = []
@@ -24,25 +27,40 @@ def _build_labels(conflict: bool, mutation_type: MutationType) -> list[str]:
         labels.append("reversal")
     return labels
 
+
+def _parse_source_refs(raw) -> list[SourceRef]:
+    if not raw:
+        return []
+    out: list[SourceRef] = []
+    for item in raw:
+        if isinstance(item, SourceRef):
+            out.append(item)
+        elif isinstance(item, dict) and item.get("thread_id"):
+            out.append(SourceRef(**item))
+    return out
+
+
 async def remember_tool(arguments: dict) -> dict:
     content = arguments.get("content")
     entity_key = arguments.get("entity_key")
     entity_type = arguments.get("entity_type")
     tags = arguments.get("tags", [])
     skip_semantic_merge = arguments.get("skip_semantic_merge", False)
+    origin_client = arguments.get("origin_client")
+    origin_session_id = arguments.get("origin_session_id")
+    source_thread_id = arguments.get("source_thread_id")
+    source_refs = _parse_source_refs(arguments.get("source_refs"))
+    title = arguments.get("title")
 
     if not content or not entity_key or not entity_type:
         raise ValueError("Missing required arguments: content, entity_key, entity_type")
 
-    # 1. Generate embedding
     embedding = await embedding_service.get_embedding(content)
-    
-    # 2. Check for existing current memory for this entity_key
+
     history = await vector_store.get_history(entity_key)
     current_node = next((n for n in history if n.is_current), None)
-    
+
     if current_node:
-        # Check if identical content (dup)
         if current_node.content == content:
             return {"status": "no_change", "memory_id": current_node.id}
 
@@ -66,6 +84,18 @@ async def remember_tool(arguments: dict) -> dict:
             conflict=conflict,
             conflict_with_id=current_node.id,
         )
+        if origin_client:
+            new_node.origin_client = origin_client
+        if origin_session_id:
+            new_node.origin_session_id = origin_session_id
+        if source_thread_id:
+            new_node.source_thread_id = source_thread_id
+        if source_refs:
+            new_node.source_refs = source_refs
+        if title:
+            new_node.title = title
+            new_node.title_tokens = tokenize(title)
+        await vector_store.update(new_node)
         await graph_store.upsert_entity(entity_key, entity_type, new_node.id)
         return {
             "status": "evolved",
@@ -78,7 +108,6 @@ async def remember_tool(arguments: dict) -> dict:
             "labels": _build_labels(new_node.conflict, new_node.mutation_type),
         }
 
-    # 3. Semantic similarity check for conflict detection when entity_key not found
     if not skip_semantic_merge:
         similar = await vector_store.search(
             query_vector=embedding,
@@ -104,6 +133,18 @@ async def remember_tool(arguments: dict) -> dict:
                         conflict=True,
                         conflict_with_id=candidate.id,
                     )
+                    if origin_client:
+                        new_node.origin_client = origin_client
+                    if origin_session_id:
+                        new_node.origin_session_id = origin_session_id
+                    if source_thread_id:
+                        new_node.source_thread_id = source_thread_id
+                    if source_refs:
+                        new_node.source_refs = source_refs
+                    if title:
+                        new_node.title = title
+                        new_node.title_tokens = tokenize(title)
+                    await vector_store.update(new_node)
                     await graph_store.upsert_entity(candidate.entity_key, candidate.entity_type, new_node.id)
                     return {
                         "status": "evolved",
@@ -118,18 +159,25 @@ async def remember_tool(arguments: dict) -> dict:
                         "input_entity_key": entity_key,
                     }
 
-    # 4. Initial memory
+    now = datetime.now(timezone.utc)
     new_node = MemoryNode(
         id=str(uuid4()),
         entity_key=entity_key,
         entity_type=entity_type,
         content=content,
+        content_tokens=tokenize(content),
+        title=title,
+        title_tokens=tokenize(title) if title else None,
         embedding=embedding,
         mutation_type=MutationType.INITIAL,
-        created_at=datetime.now(timezone.utc),
-        valid_from=datetime.now(timezone.utc),
+        created_at=now,
+        valid_from=now,
         is_current=True,
         tags=tags,
+        origin_client=origin_client,
+        origin_session_id=origin_session_id,
+        source_thread_id=source_thread_id,
+        source_refs=source_refs,
     )
     await vector_store.insert(new_node)
     await graph_store.upsert_entity(entity_key, entity_type, new_node.id)
@@ -137,5 +185,5 @@ async def remember_tool(arguments: dict) -> dict:
         "status": "created",
         "memory_id": new_node.id,
         "entity_key": entity_key,
-        "mutation_type": "initial"
+        "mutation_type": "initial",
     }

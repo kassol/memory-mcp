@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import sys
 from pathlib import Path
@@ -46,7 +47,14 @@ def test_env(tmp_path, monkeypatch):
     monkeypatch.setattr(embedding.embedding_service, "get_embedding", fake_embedding)
     monkeypatch.setattr(conflict.conflict_detector, "check_conflict", fake_conflict)
 
-    return config, vector, graph
+    yield config, vector, graph
+
+    # Close aiosqlite worker threads so pytest can exit cleanly.
+    import memory_mcp.storage.sqlite as sqlite_mod
+    store = sqlite_mod._default_store
+    if store is not None and store._conn is not None:
+        asyncio.run(store.close())
+    sqlite_mod._default_store = None
 
 
 @pytest.fixture()
