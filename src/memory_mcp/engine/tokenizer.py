@@ -7,12 +7,11 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
-_initialized = False
 _jieba_module = None
 
 
 def _get_jieba():
-    global _initialized, _jieba_module
+    global _jieba_module
     if _jieba_module is not None:
         return _jieba_module
     with _lock:
@@ -27,7 +26,6 @@ def _get_jieba():
             except Exception as exc:
                 logger.warning("Failed to load jieba user dict: %s", exc)
         _jieba_module = jieba
-        _initialized = True
         return _jieba_module
 
 
@@ -50,7 +48,6 @@ def tokenize(text: Optional[str]) -> str:
 
 def reset_for_tests() -> None:
     """Force re-initialization (used by tests after env change)."""
-    global _initialized, _jieba_module
+    global _jieba_module
     with _lock:
-        _initialized = False
         _jieba_module = None
