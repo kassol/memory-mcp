@@ -115,6 +115,6 @@ def test_get_by_ids_batch(test_env):
         for n in nodes:
             await repo.insert(n)
         loaded = await repo.get_by_ids([n.id for n in nodes])
-        assert {l.content for l in loaded} == {"C0", "C1", "C2"}
+        assert {node.content for node in loaded} == {"C0", "C1", "C2"}
 
     anyio.run(run)

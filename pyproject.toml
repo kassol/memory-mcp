@@ -36,3 +36,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/memory_mcp"]
+
+[tool.ruff]
+extend-exclude = [".claude", "tests/fixtures/v1_data"]
