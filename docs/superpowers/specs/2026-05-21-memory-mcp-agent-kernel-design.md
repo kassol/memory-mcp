@@ -166,7 +166,7 @@ CREATE TABLE memories (
 
   is_current BOOLEAN NOT NULL DEFAULT 1,
   confidence REAL NOT NULL DEFAULT 1.0,
-  review_status TEXT NOT NULL DEFAULT 'auto',  -- α: auto/reviewed/confirmed/challenged/legacy
+  review_status TEXT NOT NULL DEFAULT 'auto',  -- α: auto/reviewed/confirmed/challenged/legacy/archived
   archived_reason TEXT,
   archived_at TIMESTAMP,
   conflict BOOLEAN NOT NULL DEFAULT 0,
