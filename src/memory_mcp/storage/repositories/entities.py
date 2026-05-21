@@ -24,22 +24,16 @@ class EntityRepository:
         now = datetime.now(timezone.utc).isoformat()
         display_name = name or _infer_entity_name(entity_key)
         async with self._store.get_db() as db:
-            existing = await db.fetchone(
-                "SELECT entity_key FROM entities WHERE entity_key = ?",
-                (entity_key,),
+            await db.execute(
+                "INSERT INTO entities (entity_key, name, entity_type, current_memory_id, "
+                "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(entity_key) DO UPDATE SET "
+                "name = excluded.name, "
+                "entity_type = excluded.entity_type, "
+                "current_memory_id = excluded.current_memory_id, "
+                "updated_at = excluded.updated_at",
+                (entity_key, display_name, entity_type, current_memory_id, now, now),
             )
-            if existing is None:
-                await db.execute(
-                    "INSERT INTO entities (entity_key, name, entity_type, current_memory_id, "
-                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (entity_key, display_name, entity_type, current_memory_id, now, now),
-                )
-            else:
-                await db.execute(
-                    "UPDATE entities SET name = COALESCE(?, name), entity_type = ?, "
-                    "current_memory_id = ?, updated_at = ? WHERE entity_key = ?",
-                    (display_name, entity_type, current_memory_id, now, entity_key),
-                )
 
     async def clear_current_memory(self, entity_key: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
