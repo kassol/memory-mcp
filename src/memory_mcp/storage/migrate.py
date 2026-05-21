@@ -10,8 +10,20 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 
 
+def _repo_root() -> Path:
+    """Walk up from this module until pyproject.toml is found.
+
+    Resilient to file relocation; replaces fragile ``parents[N]`` math.
+    """
+    here = Path(__file__).resolve()
+    for parent in (here, *here.parents):
+        if (parent / "pyproject.toml").is_file():
+            return parent
+    raise RuntimeError("repo root with pyproject.toml not found")
+
+
 def _make_config() -> Config:
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = _repo_root()
     ini_path = repo_root / "alembic.ini"
     cfg = Config(str(ini_path))
     cfg.set_main_option("script_location", str(repo_root / "src" / "memory_mcp" / "storage" / "migrations"))
@@ -39,6 +51,9 @@ def current() -> str | None:
     from sqlalchemy import create_engine
 
     engine = create_engine(settings.alembic_url)
-    with engine.connect() as conn:
-        ctx = MigrationContext.configure(conn)
-        return ctx.get_current_revision()
+    try:
+        with engine.connect() as conn:
+            ctx = MigrationContext.configure(conn)
+            return ctx.get_current_revision()
+    finally:
+        engine.dispose()
