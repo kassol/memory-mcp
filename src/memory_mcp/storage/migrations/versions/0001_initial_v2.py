@@ -16,8 +16,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("PRAGMA foreign_keys = ON")
-
     # entities
     op.execute(
         """
