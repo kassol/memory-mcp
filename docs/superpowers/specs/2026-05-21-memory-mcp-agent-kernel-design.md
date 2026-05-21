@@ -55,6 +55,8 @@
 | D9 | Web UI 鉴权 | 全程 Bearer / cookie session | **cookie session（同时保留 Bearer）** |
 | D10 | Worker 部署 | 同进程 / 独立容器 | **同进程（asyncio + lifespan）** |
 | D11 | Sync 模式 | 服务端扫描 / 本地 CLI 推送 | **本地 CLI 推送**（服务端只接收） |
+| D12 | CLI 命令清单 | 全部新命令 vs 复用现有 | **复用 `mem recall --all`（不引入 `mem recall_all`）+ 新增 `mem db upgrade/downgrade/current/history` + `mem memory get/update/delete/merge` + `mem thread sync/import-history/import/search/get`** |
+| D13 | REST DTO 与路径规范 | 多种风格混用 vs 统一 | **分页响应统一 `items`（非 `results`）；by-id 路径 `/api/v1/memories/{id}` 不加 `/by-id/` 前缀；`/health` 返回 `{status, vector_backend, sqlite_path, schema_version}`** |
 
 ---
 
@@ -382,6 +384,7 @@ PRAGMA busy_timeout = 5000;      # 防瞬时锁
 # memories
 GET    /api/v1/memories?page=&size=&entity_type=&review_status=&origin_client=&q=
 GET    /api/v1/memories/{id}
+GET    /api/v1/memories/{id}/evolution        # Web UI MemoryDetail tab
 PATCH  /api/v1/memories/{id}
 DELETE /api/v1/memories/{id}?hard=
 POST   /api/v1/memories/bulk-delete           # body: {ids: [...]}
@@ -416,6 +419,13 @@ POST   /api/v1/search                         # body: {query, mode, filters, lim
 ```
 
 `/mcp` 保持不变。
+
+**统一约定（D13）**：
+
+- 所有分页响应封装 `{"items": [...], "total": N, "page": P, "size": S}`（**不用 `results` 字段**）。
+- `recall` 与 `POST /api/v1/search` 的命中列表仍叫 `results`（spec §5.4 历史命名），仅分页响应用 `items`。
+- `GET /api/v1/threads/{id}/messages` 每条消息附 `extracted_memory_ids: list[str]`，列出从该消息抽出的 memory_id（spec §7.1 Web UI 关联标记）。
+- `/health` 返回 `{status: "ok", vector_backend, sqlite_path, schema_version}` — M6 runbook 据此断言；旧 v1 `/health` 只有 `status` + `vector_backend`，便于 rollback 后区分。
 
 ### 5.3 Hybrid Search 算法
 
@@ -949,7 +959,7 @@ docker compose up -d --build
 | 集成 | MCP/REST/CLI 端到端 / stop hook → extraction → memory 写入回链 | pytest + httpx.AsyncClient |
 | migration | fixture v1 → 跑 migration → 断言 | pytest |
 | Web UI 人工 | Phase 1 关键路径：登录 / 搜索 / 编辑 / 合并 / 删除 / 图谱 | 浏览器 |
-| Web UI 自动 | Phase 1.5 加 Playwright | — |
+| Web UI 自动 | Phase 1.5 加 agent-browser 自动化脚本 | — |
 
 **Baseline**：现有 57 pytest 通过；Phase 1 完成时目标 200+。
 
@@ -994,7 +1004,7 @@ tests/fixtures/
 | LLM 自动 rerank | top-N 结果用 LLM 做最终排序，质量提升但成本高 |
 | 知识结晶 / Insight | Mastra 风格的 Observer + Reflector，定期生成跨记忆洞察 |
 | 跨设备同步 | Phase 1 单服务模式不支持多用户，未来若需要再考虑 |
-| Web UI 自动化测试 | Playwright e2e |
+| Web UI 自动化测试 | agent-browser e2e（agent-driven，不引入 Playwright 工具链） |
 | FTS5 jieba C 扩展 | 若 jieba 应用层分词性能不够，编译进 Dockerfile |
 | 多语言 embedding | 中英文之外的多语言支持 |
 | 浏览器扩展 | 选页面内容一键 import 到 Library |
