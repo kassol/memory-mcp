@@ -5,7 +5,7 @@ from logging.config import fileConfig
 from pathlib import Path
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, event, pool
 
 config = context.config
 
@@ -52,9 +52,22 @@ def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+
+    # Enable FK enforcement on every connection alembic opens. Using the engine
+    # "connect" event runs the PRAGMA on the raw DBAPI connection so it does
+    # not autobegin SQLAlchemy's connection-level transaction — autobegin would
+    # cause MigrationContext to treat us as already in an external transaction
+    # and silently downgrade begin_transaction() to a no-op, losing the
+    # alembic_version INSERT on the first upgrade.
+    @event.listens_for(connectable, "connect")
+    def _enable_fk(dbapi_connection, _):
+        cur = dbapi_connection.cursor()
+        try:
+            cur.execute("PRAGMA foreign_keys = ON")
+        finally:
+            cur.close()
+
     with connectable.connect() as connection:
-        # Ensure FK enforcement during migrations
-        connection.exec_driver_sql("PRAGMA foreign_keys = ON")
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
