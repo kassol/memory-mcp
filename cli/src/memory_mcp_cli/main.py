@@ -10,6 +10,46 @@ from .config import load_config
 
 app = typer.Typer(help="mem — CLI client for memory-mcp", add_completion=False)
 
+db_app = typer.Typer(help="Alembic schema management.")
+app.add_typer(db_app, name="db")
+
+
+@db_app.command("upgrade")
+def db_upgrade() -> None:
+    """Apply all pending migrations to head."""
+    from memory_mcp.storage import migrate as migrate_mod
+    migrate_mod.run_migrations()
+    typer.echo("Upgraded to head.")
+
+
+@db_app.command("downgrade")
+def db_downgrade(
+    revision: str = typer.Option("-1", "--revision", "-r", help="Target revision (default: -1 step back)"),
+) -> None:
+    """Roll back to a specific revision (use -1 for one step)."""
+    from memory_mcp.storage import migrate as migrate_mod
+    migrate_mod.downgrade(revision)
+    typer.echo(f"Downgraded to {revision}.")
+
+
+@db_app.command("current")
+def db_current() -> None:
+    """Print the currently applied revision (matches /health.schema_version)."""
+    from memory_mcp.storage import migrate as migrate_mod
+    rev = migrate_mod.current()
+    typer.echo(rev if rev is not None else "<none>")
+
+
+@db_app.command("history")
+def db_history() -> None:
+    """Print all known revisions newest-first."""
+    from memory_mcp.storage import migrate as migrate_mod
+    for entry in migrate_mod.history():
+        marker = " (head)" if entry["is_head"] else ""
+        down = entry["down_revision"] or "<base>"
+        typer.echo(f"{entry['revision']} <- {down}{marker}")
+
+
 _format_opt = typer.Option("json", "--format", "-f", help="Output format: json or text")
 
 

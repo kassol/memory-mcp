@@ -57,3 +57,20 @@ def current() -> str | None:
             return ctx.get_current_revision()
     finally:
         engine.dispose()
+
+
+def history() -> list[dict[str, object]]:
+    """List all alembic revisions in newest-first order."""
+    from alembic.script import ScriptDirectory
+
+    cfg = _make_config()
+    script_dir = ScriptDirectory.from_config(cfg)
+    head = script_dir.get_current_head()
+    out: list[dict[str, object]] = []
+    for rev in script_dir.walk_revisions():
+        out.append({
+            "revision": rev.revision,
+            "down_revision": rev.down_revision,
+            "is_head": rev.revision == head,
+        })
+    return out
