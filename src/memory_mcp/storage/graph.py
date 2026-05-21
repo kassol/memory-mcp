@@ -71,16 +71,24 @@ class GraphStore:
         entity = await self._entities.get(entity_key)
         if entity is None:
             return
-        if entity_key in self._graph.nodes:
-            self._graph.nodes[entity_key].update(entity)
-        else:
-            self._graph.add_node(entity_key, **entity)
+        try:
+            if entity_key in self._graph.nodes:
+                self._graph.nodes[entity_key].update(entity)
+            else:
+                self._graph.add_node(entity_key, **entity)
+        except Exception:
+            self._loaded = False
+            raise
 
     async def clear_current_memory(self, entity_key: str) -> None:
         await self._ensure_loaded()
         await self._entities.clear_current_memory(entity_key)
-        if entity_key in self._graph.nodes:
-            self._graph.nodes[entity_key]["current_memory_id"] = None
+        try:
+            if entity_key in self._graph.nodes:
+                self._graph.nodes[entity_key]["current_memory_id"] = None
+        except Exception:
+            self._loaded = False
+            raise
 
     async def list_entities(self) -> List[Dict[str, Any]]:
         await self._ensure_loaded()
@@ -101,35 +109,43 @@ class GraphStore:
             current_memory_id=None,
         )
         await self._relations.insert(relation)
-        for k in (relation.from_entity_key, relation.to_entity_key):
-            ent = await self._entities.get(k)
-            if ent is None:
-                continue
-            if k in self._graph.nodes:
-                self._graph.nodes[k].update(ent)
-            else:
-                self._graph.add_node(k, **ent)
-        self._graph.add_edge(
-            relation.from_entity_key,
-            relation.to_entity_key,
-            key=relation.id,
-            id=relation.id,
-            from_entity_key=relation.from_entity_key,
-            to_entity_key=relation.to_entity_key,
-            relation_type=relation.relation_type,
-            properties=relation.properties,
-            created_at=relation.created_at.isoformat(),
-        )
+        try:
+            for k in (relation.from_entity_key, relation.to_entity_key):
+                ent = await self._entities.get(k)
+                if ent is None:
+                    continue
+                if k in self._graph.nodes:
+                    self._graph.nodes[k].update(ent)
+                else:
+                    self._graph.add_node(k, **ent)
+            self._graph.add_edge(
+                relation.from_entity_key,
+                relation.to_entity_key,
+                key=relation.id,
+                id=relation.id,
+                from_entity_key=relation.from_entity_key,
+                to_entity_key=relation.to_entity_key,
+                relation_type=relation.relation_type,
+                properties=dict(relation.properties),
+                created_at=relation.created_at.isoformat(),
+            )
+        except Exception:
+            self._loaded = False
+            raise
 
     async def delete_relation(self, relation_id: str) -> bool:
         await self._ensure_loaded()
         deleted = await self._relations.delete(relation_id)
         if not deleted:
             return False
-        for u, v, k in list(self._graph.edges(keys=True)):
-            if k == relation_id:
-                self._graph.remove_edge(u, v, key=k)
-                break
+        try:
+            for u, v, k in list(self._graph.edges(keys=True)):
+                if k == relation_id:
+                    self._graph.remove_edge(u, v, key=k)
+                    break
+        except Exception:
+            self._loaded = False
+            raise
         return True
 
     async def get_relations(
