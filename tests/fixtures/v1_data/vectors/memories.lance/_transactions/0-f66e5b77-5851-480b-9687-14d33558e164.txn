@@ -1,0 +1,5 @@
+$f66e5b77-5851-480b-9687-14d33558e164²ƒ0vector ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:308id ÿÿÿÿÿÿÿÿÿ*string08%
+entity_key ÿÿÿÿÿÿÿÿÿ*string08&entity_type ÿÿÿÿÿÿÿÿÿ*string08"content ÿÿÿÿÿÿÿÿÿ*string08"payload ÿÿÿÿÿÿÿÿÿ*string08#
+is_current ÿÿÿÿÿÿÿÿÿ*bool08(mutation_type ÿÿÿÿÿÿÿÿÿ*string08"!
+lance.auto_cleanup.interval20"'
+lance.auto_cleanup.older_than14days
