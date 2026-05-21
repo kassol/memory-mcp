@@ -1,18 +1,18 @@
 from ..storage.vector import vector_store
 
+
 async def trace_tool(arguments: dict) -> dict:
     entity_key = arguments.get("entity_key")
     output_format = arguments.get("format", "timeline")
-    
+
     if not entity_key:
         raise ValueError("Missing required argument: entity_key")
-        
+
     history = await vector_store.get_history(entity_key)
-    
+
     if not history:
         return {"entity_key": entity_key, "chain": [], "total_versions": 0}
-        
-    # Sort just in case
+
     history.sort(key=lambda x: x.created_at)
     output_format = str(output_format).lower()
 
@@ -31,7 +31,7 @@ async def trace_tool(arguments: dict) -> dict:
                 "is_current": current_node.is_current,
             },
         }
-    
+
     chain = []
     for node in history:
         item = {
@@ -47,9 +47,5 @@ async def trace_tool(arguments: dict) -> dict:
         if node.mutation_reason:
             item["mutation_reason"] = node.mutation_reason
         chain.append(item)
-        
-    return {
-        "entity_key": entity_key,
-        "chain": chain,
-        "total_versions": len(chain)
-    }
+
+    return {"entity_key": entity_key, "chain": chain, "total_versions": len(chain)}
