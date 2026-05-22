@@ -16,21 +16,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # entities
-    op.execute(
-        """
-        CREATE TABLE entities (
-          entity_key TEXT PRIMARY KEY,
-          name TEXT,
-          entity_type TEXT NOT NULL,
-          current_memory_id TEXT,
-          created_at TIMESTAMP NOT NULL,
-          updated_at TIMESTAMP NOT NULL
-        )
-        """
-    )
-    op.execute("CREATE INDEX idx_entities_entity_type ON entities(entity_type)")
-
     # threads (created before memories for FK)
     op.execute(
         """
@@ -200,6 +185,21 @@ def upgrade() -> None:
         """
     )
 
+    # entities — created after memories so current_memory_id can FK to memories(id)
+    op.execute(
+        """
+        CREATE TABLE entities (
+          entity_key TEXT PRIMARY KEY,
+          name TEXT,
+          entity_type TEXT NOT NULL,
+          current_memory_id TEXT REFERENCES memories(id) ON DELETE SET NULL,
+          created_at TIMESTAMP NOT NULL,
+          updated_at TIMESTAMP NOT NULL
+        )
+        """
+    )
+    op.execute("CREATE INDEX idx_entities_entity_type ON entities(entity_type)")
+
     # relations
     op.execute(
         """
@@ -263,6 +263,8 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS idx_relations_to")
     op.execute("DROP INDEX IF EXISTS idx_relations_from")
     op.execute("DROP TABLE IF EXISTS relations")
+    op.execute("DROP INDEX IF EXISTS idx_entities_entity_type")
+    op.execute("DROP TABLE IF EXISTS entities")
     op.execute("DROP TRIGGER IF EXISTS memories_fts_au")
     op.execute("DROP TRIGGER IF EXISTS memories_fts_ad")
     op.execute("DROP TRIGGER IF EXISTS memories_fts_ai")
@@ -285,5 +287,3 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS idx_threads_started_at")
     op.execute("DROP INDEX IF EXISTS idx_threads_provider")
     op.execute("DROP TABLE IF EXISTS threads")
-    op.execute("DROP INDEX IF EXISTS idx_entities_entity_type")
-    op.execute("DROP TABLE IF EXISTS entities")
