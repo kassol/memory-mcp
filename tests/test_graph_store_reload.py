@@ -75,6 +75,51 @@ def test_depth_traversal_loads_from_sqlite(test_env):
     anyio.run(run)
 
 
+def test_add_relation_does_not_clobber_existing_current_memory_id(test_env):
+    """Regression for the bug fixed in 9f8940f: GraphStore.add_relation upserts
+    both endpoints with current_memory_id=None to ensure they exist, but that
+    must not reset a current_memory_id already set by a remember/evolve call."""
+    async def run():
+        graph_mod = _setup(test_env)
+        store = graph_mod.graph_store
+        from memory_mcp.engine.models import (
+            MemoryNode, MutationType, Relation, ReviewStatus,
+        )
+        # Insert a real memory + entity pinning to it.
+        mem_id = str(uuid4())
+        await store._entities._store.initialize()
+        from memory_mcp.storage.repositories.memories import MemoryRepository
+        mem_repo = MemoryRepository(store._entities._store)
+        await mem_repo.insert(MemoryNode(
+            id=mem_id,
+            entity_key="person:alice",
+            entity_type="person",
+            content="alice is a teammate",
+            embedding=[],
+            mutation_type=MutationType.INITIAL,
+            created_at=datetime.now(timezone.utc),
+            valid_from=datetime.now(timezone.utc),
+            is_current=True,
+            confidence=1.0,
+            review_status=ReviewStatus.AUTO,
+        ))
+        await store.upsert_entity("person:alice", "person", mem_id)
+        # Now add a relation — internally upserts both endpoints with None.
+        await store.add_relation(Relation(
+            id=str(uuid4()),
+            from_entity_key="person:alice",
+            to_entity_key="project:x",
+            relation_type="WORKS_ON",
+            created_at=datetime.now(timezone.utc),
+        ))
+        entities = await store.list_entities()
+        alice = next(e for e in entities if e["entity_key"] == "person:alice")
+        assert alice["current_memory_id"] == mem_id, \
+            f"add_relation clobbered current_memory_id: got {alice['current_memory_id']}"
+
+    anyio.run(run)
+
+
 def test_delete_relation(test_env):
     async def run():
         graph_mod = _setup(test_env)
