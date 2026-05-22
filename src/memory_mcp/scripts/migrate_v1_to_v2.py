@@ -151,14 +151,14 @@ def _backup(src: Path, dst: Path) -> None:
         tar.add(src, arcname=src.name)
 
 
-def _build_vector_backend() -> Any:
+def _build_vector_backend(vectors_dir: str) -> Any:
     backend = settings.vector_backend.strip().lower()
     if backend in {"lancedb", "lance", "auto"}:
         try:
-            return LanceVectorBackend(settings.vectors_dir)
+            return LanceVectorBackend(vectors_dir)
         except Exception as exc:
             typer.echo(f"Falling back to in-memory vector backend: {exc}")
-    return InMemoryVectorBackend(settings.vectors_dir)
+    return InMemoryVectorBackend(vectors_dir)
 
 
 async def migrate(
@@ -187,15 +187,19 @@ async def migrate(
         _backup(src, Path(backup))
 
     dst.mkdir(parents=True, exist_ok=True)
-    # Ensure schema is at head before we write
-    run_migrations()
+    # All writes are anchored on dst — never on global settings — so this
+    # function is safe to call from non-CLI contexts (tests, scripts) that
+    # haven't reloaded the config.
+    db_path = str(dst / "memory.sqlite3")
+    vectors_dir = str(dst / "vectors")
+    run_migrations(db_path=db_path)
 
-    store = SQLiteStore()
+    store = SQLiteStore(db_path=db_path)
     await store.initialize()
     mem_repo = MemoryRepository(store)
     ent_repo = EntityRepository(store)
     rel_repo = RelationRepository(store)
-    vector_backend = _build_vector_backend()
+    vector_backend = _build_vector_backend(vectors_dir)
 
     # 1. memories (parent must come before child due to FK ON DELETE SET NULL)
     sorted_memories = sorted(
@@ -274,7 +278,7 @@ async def migrate(
         try:
             import lancedb
 
-            db = lancedb.connect(settings.vectors_dir)
+            db = lancedb.connect(vectors_dir)
             tbl = db.open_table("memories")
             report.vector_rows = int(tbl.count_rows())  # type: ignore[attr-defined]
         except Exception:

@@ -22,22 +22,27 @@ def _repo_root() -> Path:
     raise RuntimeError("repo root with pyproject.toml not found")
 
 
-def _make_config() -> Config:
+def _make_config(db_path: str | None = None) -> Config:
     repo_root = _repo_root()
     ini_path = repo_root / "alembic.ini"
     cfg = Config(str(ini_path))
     cfg.set_main_option("script_location", str(repo_root / "src" / "memory_mcp" / "storage" / "migrations"))
-    cfg.set_main_option("sqlalchemy.url", settings.alembic_url)
+    url = f"sqlite:///{db_path}" if db_path else settings.alembic_url
+    cfg.set_main_option("sqlalchemy.url", url)
     return cfg
 
 
-def run_migrations() -> None:
+def run_migrations(db_path: str | None = None) -> None:
     """Apply all pending migrations to head. Called at FastAPI lifespan startup
     when MEMORY_MCP_AUTO_MIGRATE is true (the default).
+
+    ``db_path`` lets one-shot scripts (e.g. migrate_v1_to_v2) target an
+    explicit SQLite file without mutating global settings.
     """
-    os.makedirs(os.path.dirname(settings.sqlite_path) or ".", exist_ok=True)
-    cfg = _make_config()
-    logger.info("Running alembic upgrade head against %s", settings.sqlite_path)
+    target = db_path or settings.sqlite_path
+    os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+    cfg = _make_config(db_path)
+    logger.info("Running alembic upgrade head against %s", target)
     command.upgrade(cfg, "head")
 
 
