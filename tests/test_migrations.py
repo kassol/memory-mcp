@@ -81,6 +81,28 @@ def test_alembic_upgrade_creates_v2_schema(test_env):
     anyio.run(run)
 
 
+def test_entities_current_memory_id_has_fk_to_memories(test_env):
+    """Spec §4 requires entities.current_memory_id -> memories(id) ON DELETE SET NULL.
+    PRAGMA foreign_key_list is the authoritative way to assert SQLite stored the FK."""
+    async def run():
+        import memory_mcp.storage.migrate as migrate_mod
+        importlib.reload(migrate_mod)
+        migrate_mod.run_migrations()
+        import memory_mcp.storage.sqlite as sqlite_mod
+        importlib.reload(sqlite_mod)
+        async with sqlite_mod.get_db() as db:
+            fks = await db.fetchall("PRAGMA foreign_key_list(entities)")
+        await sqlite_mod.get_store().close()
+        matching = [
+            f for f in fks
+            if f["from"] == "current_memory_id" and f["table"] == "memories" and f["to"] == "id"
+        ]
+        assert len(matching) == 1, f"expected exactly one FK current_memory_id->memories(id); got {[dict(f) for f in fks]}"
+        assert matching[0]["on_delete"] == "SET NULL", f"on_delete must be SET NULL, got {matching[0]['on_delete']}"
+
+    anyio.run(run)
+
+
 def test_alembic_upgrade_is_idempotent(test_env):
     async def run():
         import memory_mcp.storage.migrate as migrate_mod
