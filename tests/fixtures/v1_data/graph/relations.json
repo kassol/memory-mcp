@@ -1,0 +1,28 @@
+[
+  {
+    "id": "d92da44b-2984-4baa-a9b2-97f3891dfe74",
+    "from_entity_key": "person:alice",
+    "to_entity_key": "project:memory-mcp",
+    "relation_type": "WORKS_ON",
+    "properties": {
+      "role": "collaborator"
+    },
+    "created_at": "2026-05-11T23:19:53.687525+00:00"
+  },
+  {
+    "id": "b6bddc38-fa3a-4f1d-97fc-0014c98ce628",
+    "from_entity_key": "project:memory-mcp",
+    "to_entity_key": "preference:editor",
+    "relation_type": "USES",
+    "properties": {},
+    "created_at": "2026-05-13T23:19:53.687542+00:00"
+  },
+  {
+    "id": "550d5ace-6b35-4658-85b0-bf7941b3e8d3",
+    "from_entity_key": "preference:editor",
+    "to_entity_key": "preference:theme",
+    "relation_type": "RELATED_TO",
+    "properties": {},
+    "created_at": "2026-05-16T23:19:53.687548+00:00"
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "entity_key": "preference:editor",
+    "entity_type": "preference",
+    "name": "editor",
+    "current_memory_id": "e2ced2ff-8b65-47ce-a891-52725c8ea84a",
+    "created_at": "2026-04-21T23:19:53.687111+00:00",
+    "updated_at": "2026-05-21T23:19:53.687127+00:00"
+  },
+  {
+    "entity_key": "fact:location",
+    "entity_type": "fact",
+    "name": "location",
+    "current_memory_id": "5bedb199-c9f2-4481-96b8-10ad590b1fa1",
+    "created_at": "2026-04-21T23:19:53.687133+00:00",
+    "updated_at": "2026-05-21T23:19:53.687135+00:00"
+  },
+  {
+    "entity_key": "project:memory-mcp",
+    "entity_type": "project",
+    "name": "memory-mcp",
+    "current_memory_id": "22cbf784-0890-41eb-84e5-3aaf77872020",
+    "created_at": "2026-04-21T23:19:53.687138+00:00",
+    "updated_at": "2026-05-21T23:19:53.687140+00:00"
+  },
+  {
+    "entity_key": "person:alice",
+    "entity_type": "person",
+    "name": "alice",
+    "current_memory_id": "efefbb20-81e1-440a-a22b-dd0579866ca6",
+    "created_at": "2026-04-21T23:19:53.687143+00:00",
+    "updated_at": "2026-05-21T23:19:53.687145+00:00"
+  },
+  {
+    "entity_key": "preference:theme",
+    "entity_type": "preference",
+    "name": "theme",
+    "current_memory_id": "d20edc57-bd6d-4106-bde5-2daa24059df7",
+    "created_at": "2026-04-21T23:19:53.687147+00:00",
+    "updated_at": "2026-05-21T23:19:53.687149+00:00"
+  }
+]

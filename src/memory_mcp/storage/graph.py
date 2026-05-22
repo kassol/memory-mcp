@@ -1,162 +1,161 @@
-import os
-import json
-from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any
+import asyncio
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
-from ..config import settings
 from ..engine.models import Relation
+from .repositories.entities import EntityRepository
+from .repositories.relations import RelationRepository
+from .sqlite import SQLiteStore, get_store
+
+
+def _infer_entity_type(entity_key: str) -> str:
+    if ":" in entity_key:
+        return entity_key.split(":", 1)[0]
+    return "unknown"
+
 
 class GraphStore:
-    def __init__(self):
-        self.graph_dir = os.path.join(settings.data_dir, "graph")
-        os.makedirs(self.graph_dir, exist_ok=True)
-        self.entities_path = os.path.join(self.graph_dir, "entities.json")
-        self.relations_path = os.path.join(self.graph_dir, "relations.json")
-        self.evolution_path = os.path.join(self.graph_dir, "evolution_chains.json")
-        
-        self.g = nx.MultiDiGraph()
-        self._load()
+    """Runtime graph view backed by SQLite.
 
-    def _load(self):
-        # Load Entities (Nodes)
-        if os.path.exists(self.entities_path):
-            with open(self.entities_path, 'r') as f:
-                try:
-                    entities = json.load(f)
-                    for e in entities:
-                        entity_key = e.get("entity_key") or e.get("id") or e.get("key")
-                        if not entity_key:
-                            continue
-                        node_data = dict(e)
-                        node_data["entity_key"] = entity_key
-                        self.g.add_node(entity_key, **node_data)
-                except json.JSONDecodeError:
-                    pass
+    On first read we hydrate a `nx.MultiDiGraph` from SQLite; writes go to SQLite
+    + the in-memory graph (double-write). Calling `reload()` re-hydrates the
+    graph from SQLite, which is how the M1 design avoids JSON persistence.
+    """
 
-        # Load Relations (Edges)
-        if os.path.exists(self.relations_path):
-            with open(self.relations_path, 'r') as f:
-                try:
-                    relations = json.load(f)
-                    for r in relations:
-                        self.g.add_edge(
-                            r['from_entity_key'],
-                            r['to_entity_key'],
-                            key=r['id'],
-                            **r
-                        )
-                except json.JSONDecodeError:
-                    pass
-    
-    def _save(self):
-        # Save Entities
-        nodes_data: list[dict[str, Any]] = []
-        for n, data in self.g.nodes(data=True):
-            # We only save Serializable data
-            # datetimes need conversion
-            dump_data = data.copy()
-            dump_data["entity_key"] = dump_data.get("entity_key", n)
-            nodes_data.append(dump_data)
-            
-        with open(self.entities_path, 'w') as f:
-            json.dump(nodes_data, f, default=str, indent=2)
+    def __init__(self, store: Optional[SQLiteStore] = None) -> None:
+        sqlite_store = store or get_store()
+        self._entities = EntityRepository(sqlite_store)
+        self._relations = RelationRepository(sqlite_store)
+        self._graph: nx.MultiDiGraph = nx.MultiDiGraph()
+        self._loaded: bool = False
+        self._lock = asyncio.Lock()
 
-        # Save Relations
-        edges_data = []
-        for u, v, k, data in self.g.edges(data=True, keys=True):
-            dump_data = data.copy()
-            edges_data.append(dump_data)
-            
-        with open(self.relations_path, 'w') as f:
-            json.dump(edges_data, f, default=str, indent=2)
+    async def _ensure_loaded(self) -> None:
+        if self._loaded:
+            return
+        async with self._lock:
+            if self._loaded:
+                return
+            await self._hydrate()
+            self._loaded = True
 
-    def _infer_entity_type(self, entity_key: str) -> str:
-        if ":" in entity_key:
-            return entity_key.split(":", 1)[0]
-        return "unknown"
+    async def _hydrate(self) -> None:
+        self._graph = nx.MultiDiGraph()
+        for entity in await self._entities.list_all():
+            self._graph.add_node(entity["entity_key"], **entity)
+        for rel in await self._relations.list_all():
+            self._graph.add_edge(
+                rel["from_entity_key"],
+                rel["to_entity_key"],
+                key=rel["id"],
+                **rel,
+            )
 
-    def _infer_entity_name(self, entity_key: str) -> str:
-        if ":" in entity_key:
-            return entity_key.split(":", 1)[1]
-        return entity_key
+    async def reload(self) -> None:
+        async with self._lock:
+            await self._hydrate()
+            self._loaded = True
 
+    # ---- Entity API -------------------------------------------------------
     async def upsert_entity(
         self,
         entity_key: str,
         entity_type: Optional[str],
         current_memory_id: Optional[str],
     ) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        if entity_key in self.g.nodes:
-            data = self.g.nodes[entity_key]
-            data["entity_key"] = entity_key
-            data["entity_type"] = entity_type or data.get("entity_type") or self._infer_entity_type(entity_key)
-            if current_memory_id is not None:
-                data["current_memory_id"] = current_memory_id
-            data["updated_at"] = now
-        else:
-            self.g.add_node(
-                entity_key,
-                entity_key=entity_key,
-                entity_type=entity_type or self._infer_entity_type(entity_key),
-                name=self._infer_entity_name(entity_key),
-                current_memory_id=current_memory_id,
-                created_at=now,
-                updated_at=now,
-            )
-        self._save()
+        await self._ensure_loaded()
+        ent_type = entity_type or _infer_entity_type(entity_key)
+        await self._entities.upsert(entity_key, ent_type, current_memory_id)
+        entity = await self._entities.get(entity_key)
+        if entity is None:
+            return
+        try:
+            if entity_key in self._graph.nodes:
+                self._graph.nodes[entity_key].update(entity)
+            else:
+                self._graph.add_node(entity_key, **entity)
+        except Exception:
+            self._loaded = False
+            raise
 
     async def clear_current_memory(self, entity_key: str) -> None:
-        if entity_key not in self.g.nodes:
-            return
-        data = self.g.nodes[entity_key]
-        data["current_memory_id"] = None
-        data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self._save()
+        await self._ensure_loaded()
+        await self._entities.clear_current_memory(entity_key)
+        try:
+            if entity_key in self._graph.nodes:
+                self._graph.nodes[entity_key]["current_memory_id"] = None
+        except Exception:
+            self._loaded = False
+            raise
 
     async def list_entities(self) -> List[Dict[str, Any]]:
-        entities: list[dict[str, Any]] = []
-        for n, data in self.g.nodes(data=True):
-            item = dict(data)
-            item["entity_key"] = item.get("entity_key", n)
-            entities.append(item)
-        return entities
+        await self._ensure_loaded()
+        # Source of truth is SQLite — return repo data, not nx attributes
+        return await self._entities.list_all()
 
-    async def add_relation(self, relation: Relation):
-        data = relation.model_dump()
-        # Convert datetime objects to string for JSON serialization within NetworkX attributes if needed
-        # Or just keep as object in memory and convert on save.
-        # NetworkX handles objects fine in memory.
-        
-        self.g.add_edge(
+    # ---- Relation API -----------------------------------------------------
+    async def add_relation(self, relation: Relation) -> None:
+        await self._ensure_loaded()
+        await self._entities.upsert(
             relation.from_entity_key,
-            relation.to_entity_key,
-            key=relation.id,
-            **data
-        )
-        await self.upsert_entity(
-            relation.from_entity_key,
-            self._infer_entity_type(relation.from_entity_key),
+            _infer_entity_type(relation.from_entity_key),
             current_memory_id=None,
         )
-        await self.upsert_entity(
+        await self._entities.upsert(
             relation.to_entity_key,
-            self._infer_entity_type(relation.to_entity_key),
+            _infer_entity_type(relation.to_entity_key),
             current_memory_id=None,
         )
+        await self._relations.insert(relation)
+        try:
+            for k in (relation.from_entity_key, relation.to_entity_key):
+                ent = await self._entities.get(k)
+                if ent is None:
+                    continue
+                if k in self._graph.nodes:
+                    self._graph.nodes[k].update(ent)
+                else:
+                    self._graph.add_node(k, **ent)
+            self._graph.add_edge(
+                relation.from_entity_key,
+                relation.to_entity_key,
+                key=relation.id,
+                id=relation.id,
+                from_entity_key=relation.from_entity_key,
+                to_entity_key=relation.to_entity_key,
+                relation_type=relation.relation_type,
+                properties=dict(relation.properties),
+                created_at=relation.created_at.isoformat(),
+            )
+        except Exception:
+            self._loaded = False
+            raise
 
     async def delete_relation(self, relation_id: str) -> bool:
-        for from_key, to_key, edge_key in list(self.g.edges(keys=True)):
-            if edge_key == relation_id:
-                self.g.remove_edge(from_key, to_key, key=edge_key)
-                self._save()
-                return True
-        return False
+        await self._ensure_loaded()
+        deleted = await self._relations.delete(relation_id)
+        if not deleted:
+            return False
+        try:
+            for u, v, k in list(self._graph.edges(keys=True)):
+                if k == relation_id:
+                    self._graph.remove_edge(u, v, key=k)
+                    break
+        except Exception:
+            self._loaded = False
+            raise
+        return True
 
-    async def get_relations(self, entity_key: str, relation_types: Optional[List[str]] = None, depth: int = 1) -> List[Dict]:
-        if entity_key not in self.g or depth < 1:
+    async def get_relations(
+        self,
+        entity_key: str,
+        relation_types: Optional[List[str]] = None,
+        depth: int = 1,
+    ) -> List[Dict[str, Any]]:
+        await self._ensure_loaded()
+        if entity_key not in self._graph or depth < 1:
             return []
 
         def _serialize(value: Any) -> Any:
@@ -164,7 +163,7 @@ class GraphStore:
                 return value.isoformat()
             return value
 
-        results: list[dict[str, Any]] = []
+        results: List[Dict[str, Any]] = []
         seen_edges: set[str] = set()
         visited = {entity_key}
         queue: list[tuple[str, int]] = [(entity_key, 0)]
@@ -173,70 +172,31 @@ class GraphStore:
             current, current_depth = queue.pop(0)
             if current_depth >= depth:
                 continue
-
-            # Outgoing edges
-            for u, v, k, data in self.g.out_edges(current, data=True, keys=True):
+            for u, v, k, data in self._graph.out_edges(current, data=True, keys=True):
                 if relation_types and data.get("relation_type") not in relation_types:
                     continue
                 edge_id = data.get("id", k)
                 if edge_id in seen_edges:
                     continue
                 seen_edges.add(edge_id)
-                item = dict(data)
-                item["from_entity_key"] = data.get("from_entity_key", u)
-                item["to_entity_key"] = data.get("to_entity_key", v)
-                results.append({k: _serialize(v) for k, v in item.items()})
+                item = {key: _serialize(val) for key, val in data.items()}
+                results.append(item)
                 if v not in visited:
                     visited.add(v)
                     queue.append((v, current_depth + 1))
-
-            # Incoming edges
-            for u, v, k, data in self.g.in_edges(current, data=True, keys=True):
+            for u, v, k, data in self._graph.in_edges(current, data=True, keys=True):
                 if relation_types and data.get("relation_type") not in relation_types:
                     continue
                 edge_id = data.get("id", k)
                 if edge_id in seen_edges:
                     continue
                 seen_edges.add(edge_id)
-                item = dict(data)
-                item["from_entity_key"] = data.get("from_entity_key", u)
-                item["to_entity_key"] = data.get("to_entity_key", v)
-                results.append({k: _serialize(v) for k, v in item.items()})
+                item = {key: _serialize(val) for key, val in data.items()}
+                results.append(item)
                 if u not in visited:
                     visited.add(u)
                     queue.append((u, current_depth + 1))
-
         return results
 
-    async def add_evolution_edge(self, from_id: str, to_id: str):
-        # Evolution is stored separately or as a specific edge type in the graph?
-        # PRD mentions "evolution_chains.json" in structure but also "Graph Store (NetworkX)".
-        # And "add_evolution_edge" in "evolve_memory".
-        # Let's simply track evolution parent/child in the graph but maybe with a special prefix or type?
-        # OR just use the MemoryNode parent_id logic which is already in VectorStore.
-        # If we need graph visualization of evolution, we can add it to the graph.
-        # But MemoryNodes are not Entities. The Entity is "preference:editor".
-        # So evolution happens *inside* the Entity's history.
-        # The GraphStore in PRD primarily links Entities.
-        
-        # However, 5.2 code says: `await graph_store.add_evolution_edge(from_id, to_id)`
-        # This implies we might want to track memory node relationships in a graph too?
-        # Or perhaps this is for a separate "Evolution Graph".
-        # Let's implement it by appending to a list or simple adjacency in memory if needed.
-        # Or Just use the `evolution_chains.json`.
-        
-        chain_entry = {"from": from_id, "to": to_id, "timestamp": datetime.now(timezone.utc).isoformat()}
-        
-        chains = []
-        if os.path.exists(self.evolution_path):
-            with open(self.evolution_path, 'r') as f:
-                try:
-                    chains = json.load(f)
-                except json.JSONDecodeError:
-                    pass
-        chains.append(chain_entry)
-        
-        with open(self.evolution_path, 'w') as f:
-            json.dump(chains, f, indent=2)
 
 graph_store = GraphStore()

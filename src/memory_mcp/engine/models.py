@@ -3,59 +3,93 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+
 class MutationType(str, Enum):
-    INITIAL = "initial"           # 首次记录
-    UPDATE = "update"             # 信息更新（同一事实的新值）
-    REFINEMENT = "refinement"     # 细化补充（更多细节）
-    CORRECTION = "correction"     # 纠正错误
-    REVERSAL = "reversal"         # 观点反转
-    EVOLUTION = "evolution"       # 自然演进
+    INITIAL = "initial"
+    UPDATE = "update"
+    REFINEMENT = "refinement"
+    CORRECTION = "correction"
+    REVERSAL = "reversal"
+    EVOLUTION = "evolution"
+
+
+class ReviewStatus(str, Enum):
+    AUTO = "auto"
+    REVIEWED = "reviewed"
+    CONFIRMED = "confirmed"
+    CHALLENGED = "challenged"
+    LEGACY = "legacy"
+    ARCHIVED = "archived"
+
+
+class SourceRef(BaseModel):
+    thread_id: str
+    message_id: Optional[str] = None
+
 
 class MemoryNode(BaseModel):
-    # 标识
-    id: str                               # UUID
-    entity_key: str                       # 唯一实体标识，如 "preference:programming_language"
-    entity_type: str                      # person | preference | fact | event | goal | project
-    
-    # 内容
-    content: str                          # 记忆内容（自然语言）
-    embedding: List[float]                # 向量表示（1536维）
-    
-    # 演化链
-    parent_id: Optional[str] = None       # 前一版本节点 ID（None = 初始记忆）
-    mutation_type: MutationType           # 变更类型
-    mutation_reason: Optional[str] = None # 变更原因/触发事件描述
-    
-    # 时间
-    created_at: datetime                  # 创建时间
-    valid_from: datetime                  # 生效时间
-    valid_until: Optional[datetime] = None # 失效时间（None = 当前有效）
-    
-    # 状态
-    is_current: bool                      # 是否为最新状态
-    confidence: float = 1.0               # 置信度 0-1
-    archived_reason: Optional[str] = None # 归档原因
-    archived_at: Optional[datetime] = None # 归档时间
-    conflict: bool = False                # 是否检测到冲突/矛盾
-    conflict_with_id: Optional[str] = None # 冲突来源节点（上一版本/相似节点）
-    
-    # 元数据
-    tags: List[str] = Field(default_factory=list) # 标签
-    source: str = "conversation"          # 来源：conversation | import | inference
+    # Identity
+    id: str
+    entity_key: str
+    entity_type: str
+
+    # Content (ε)
+    content: str
+    content_tokens: Optional[str] = None
+    title: Optional[str] = None
+    title_tokens: Optional[str] = None
+
+    # Embedding (vector lives in LanceDB; kept in-memory for serialization)
+    embedding: List[float] = Field(default_factory=list)
+
+    # Evolution
+    parent_id: Optional[str] = None
+    mutation_type: MutationType
+    mutation_reason: Optional[str] = None
+
+    # Time
+    created_at: datetime
+    valid_from: datetime
+    valid_until: Optional[datetime] = None
+
+    # State
+    is_current: bool
+    confidence: float = 1.0
+    review_status: ReviewStatus = ReviewStatus.AUTO  # α
+    archived_reason: Optional[str] = None
+    archived_at: Optional[datetime] = None
+    conflict: bool = False
+    conflict_with_id: Optional[str] = None
+
+    # Metadata
+    tags: List[str] = Field(default_factory=list)
+    source: str = "conversation"
+    origin_client: Optional[str] = None         # β
+    origin_session_id: Optional[str] = None     # β
+
+    # Source linkage (γ)
+    source_thread_id: Optional[str] = None
+    source_refs: List[SourceRef] = Field(default_factory=list)
+
+    # Access stats (δ)
+    access_count: int = 0
+    last_accessed_at: Optional[datetime] = None
+    reinforce_count: int = 0
+
 
 class Entity(BaseModel):
-    id: str
-    name: str                             # 人类可读名称
-    entity_key: str                       # 唯一标识
+    entity_key: str
+    name: Optional[str] = None
     entity_type: str
-    current_memory_id: Optional[str] = None # 当前最新记忆节点
+    current_memory_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
 
 class Relation(BaseModel):
     id: str
     from_entity_key: str
     to_entity_key: str
-    relation_type: str                    # KNOWS | PREFERS | WORKS_ON | RELATED_TO 等
+    relation_type: str
     properties: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime

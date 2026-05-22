@@ -32,6 +32,18 @@
 - 涉及线上服务能力的任务，只有更新到线上并完成线上验证后才算终结；仅完成本地代码、测试或文档不算完成
 
 ## 变更日志
+### 2026-05-21 M1 存储底座（v2 schema）
+- 引入 SQLite v2 主存储（aiosqlite + alembic 1.18 + WAL/FK/busy_timeout pragmas）
+- 新建 `0001_initial_v2` migration：memories / memories_fts / entities / relations / threads / thread_messages / thread_messages_fts / jobs / working_memory_cache + 全部索引 + FTS5 触发器
+- LanceDB 精简到 `(id, vector)`，元数据全部走 SQLite；`VectorStore.search` 改为「ANN 取候选 ID → SQLite WHERE id IN (...) 拼装 MemoryNode」
+- `GraphStore` 改为运行时按需把 `entities`/`relations` 加载进 `nx.MultiDiGraph`，写时双写，废弃 `data/graph/*.json` 持久化与 `evolution_chains.json`
+- `MemoryNode` 增加 v2 字段：title / title_tokens / content_tokens / review_status / origin_client / origin_session_id / source_thread_id / source_refs / access_count / last_accessed_at / reinforce_count
+- 应用层 jieba 分词，写入 memories 时自动填充 `content_tokens` / `title_tokens`，支持 `MEMORY_MCP_JIEBA_USER_DICT` 自定义词典
+- 新增 `python -m memory_mcp.scripts.migrate_v1_to_v2 --src ... --dst ... --backup ... --dry-run --verify` 一次性迁移脚本（review_status 全部标 `legacy`）
+- FastAPI lifespan 启动时自动跑 `alembic upgrade head`（`MEMORY_MCP_AUTO_MIGRATE` 控制）；`/health` 新增 `schema_version` 字段，`status` 由 `healthy` 改为 `ok`
+- CLI 新增 `mem db upgrade/downgrade/current/history` 子命令（M6 runbook 离线运维入口）
+- 7 个原有 MCP tools 对外契约保持不变；新字段全部默认值；hybrid search / memory_crud / threads / worker 留给 M2-M4
+
 ### 2026-04-29 Relation 删除能力与交付规则
 - 新增 `unrelate` MCP tool，用于按 `relation_id` 删除实体关系边
 - 新增 REST API `DELETE /api/v1/relations/{relation_id}`，返回 `deleted/not_found`
@@ -77,3 +89,11 @@
 - `MEMORY_MCP_VECTOR_BACKEND=lancedb` 下 LanceDB 初始化失败会直接中止启动；`memory` 与 `auto` 保留测试/兼容场景
 - `/health` 返回当前 `vector_backend`，便于部署后确认实际存储后端
 - Extraction Engine 返回单条候选写入失败的 `errors/failed`，便于排查部分写入失败
+
+### 2026-05-21 v2 Agent Kernel Phase 1 设计与实施计划
+- 新增 spec `docs/superpowers/specs/2026-05-21-memory-mcp-agent-kernel-design.md`（13 个核心决策 D1-D13），覆盖 SQLite 主+Lance 副存储收敛、v2 schema 9 字段扩展（α/β/γ/δ/ε 五组）、Threads 完整归档、Hybrid Search、Web UI 治理台、Background Worker、生产破坏性迁移
+- 新增 6 个 milestone plan（M1-M6，共 123 task / 579 step），每个 milestone 独立可 merge；待 M1 起实施
+- 关键架构方向（实施中陆续生效）：存储收敛 SQLite 主+Lance 副、MemoryNode v2 字段扩展、Threads per-provider adapter、RRF hybrid search、cookie session Web UI、asyncio 同进程 worker、本地 CLI 推送式 sync
+- 命名规范确立：分页响应字段 `items`（非 `results`）；REST by-id 路径 `/api/v1/memories/{id}`；CLI 引入 `mem db/memory/thread` 子命令簇；`/health` 字段固定 `{status, vector_backend, sqlite_path, schema_version}`
+- 经 codex 交叉评审 + fix subagent 修复跨 plan 契约：7 项 Blocking（SQLite 抽象、MemoryNode v2 类型序列化、Thread FK 顺序、Worker DB 路径、REST/SPA DTO、M6 runbook 依赖、migration --dst）+ 6 项 Recommended + 4 项 Nice-to-have 全部清理
+- Web UI 自动化 e2e 采用 agent-browser（不引入 Playwright 工具链）
