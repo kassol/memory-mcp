@@ -1,10 +1,11 @@
-import json
 import logging
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from ..config import settings
 from ..engine.models import MemoryNode
+from .repositories.memories import MemoryRepository
+from .sqlite import SQLiteStore, get_store
 
 logger = logging.getLogger(__name__)
 
@@ -15,184 +16,94 @@ def _l2_distance(a: list[float], b: list[float]) -> float:
     return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
 
 
-class InMemoryVectorStore:
-    def __init__(self, file_path: str) -> None:
-        self._file_path = file_path
-        self._nodes_by_id: dict[str, MemoryNode] = {}
-        self._load()
+class InMemoryVectorBackend:
+    """Pure-Python ANN backend used in tests and as a fallback when LanceDB is unavailable."""
 
-    def _load(self) -> None:
-        if not os.path.exists(self._file_path):
-            return
-        try:
-            with open(self._file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            for item in data:
-                node = MemoryNode.model_validate(item)
-                self._nodes_by_id[node.id] = node
-        except Exception as e:
-            logger.warning("Failed to load in-memory vector store: %s", e)
+    def __init__(self, vectors_dir: str) -> None:
+        self._vectors: dict[str, list[float]] = {}
 
-    def _save(self) -> None:
-        tmp_path = f"{self._file_path}.tmp"
-        data = [node.model_dump(mode="json") for node in self._nodes_by_id.values()]
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, self._file_path)
+    async def upsert(self, memory_id: str, vector: list[float]) -> None:
+        self._vectors[memory_id] = list(vector)
 
-    async def insert(self, node: MemoryNode):
-        self._nodes_by_id[node.id] = node
-        self._save()
+    async def delete(self, memory_id: str) -> None:
+        self._vectors.pop(memory_id, None)
 
-    async def update(self, node: MemoryNode):
-        self._nodes_by_id[node.id] = node
-        self._save()
-
-    async def search(
-        self,
-        query_vector: List[float],
-        limit: int = 10,
-        filter_current: bool = True,
-        entity_type: Optional[str] = None,
-    ) -> list[tuple[MemoryNode, float | None]]:
-        candidates = list(self._nodes_by_id.values())
-        if filter_current:
-            candidates = [n for n in candidates if n.is_current]
-        if entity_type:
-            candidates = [n for n in candidates if n.entity_type == entity_type]
-
-        scored: list[tuple[MemoryNode, float]] = [(n, _l2_distance(query_vector, n.embedding)) for n in candidates]
+    async def search(self, query_vector: list[float], limit: int = 10) -> list[Tuple[str, float]]:
+        scored: list[Tuple[str, float]] = []
+        for mid, vec in self._vectors.items():
+            try:
+                scored.append((mid, _l2_distance(query_vector, vec)))
+            except ValueError:
+                continue
         scored.sort(key=lambda x: x[1])
-        return [(n, d) for n, d in scored[:limit]]
-
-    async def get_by_id(self, node_id: str) -> Optional[MemoryNode]:
-        return self._nodes_by_id.get(node_id)
-
-    async def get_history(self, entity_key: str) -> List[MemoryNode]:
-        nodes = [n for n in self._nodes_by_id.values() if n.entity_key == entity_key]
-        return sorted(nodes, key=lambda x: x.created_at)
-
-    async def list_current(self, entity_type: Optional[str] = None, limit: int = 100) -> List[MemoryNode]:
-        nodes = [n for n in self._nodes_by_id.values() if n.is_current]
-        if entity_type:
-            nodes = [n for n in nodes if n.entity_type == entity_type]
-        nodes.sort(key=lambda x: x.created_at, reverse=True)
-        return nodes[:limit]
+        return scored[:limit]
 
 
-class LanceVectorStore:
+class LanceVectorBackend:
+    """LanceDB backend with the slim schema `(id, vector)` only (spec §4.6)."""
+
     def __init__(self, vectors_dir: str) -> None:
         import lancedb
         import pyarrow as pa
 
         self._pa = pa
-        self.db = lancedb.connect(vectors_dir)
-        self.table_name = "memories"
+        os.makedirs(vectors_dir, exist_ok=True)
+        self._db = lancedb.connect(vectors_dir)
+        self._table_name = "memories"
         self._init_table()
 
     def _init_table(self) -> None:
         pa = self._pa
-        if self.table_name not in self.db.table_names():
+        if self._table_name not in self._db.table_names():
             schema = pa.schema(
                 [
-                    pa.field("vector", pa.list_(pa.float32(), settings.embedding_dim)),
                     pa.field("id", pa.string()),
-                    pa.field("entity_key", pa.string()),
-                    pa.field("entity_type", pa.string()),
-                    pa.field("content", pa.string()),
-                    pa.field("payload", pa.string()),
-                    pa.field("is_current", pa.bool_()),
-                    pa.field("mutation_type", pa.string()),
+                    pa.field("vector", pa.list_(pa.float32(), settings.embedding_dim)),
                 ]
             )
-            self.db.create_table(self.table_name, schema=schema)
-        self.table = self.db.open_table(self.table_name)
+            self._db.create_table(self._table_name, schema=schema)
+        self._table = self._db.open_table(self._table_name)
 
-    async def insert(self, node: MemoryNode):
-        data = [
-            {
-                "vector": node.embedding,
-                "id": node.id,
-                "entity_key": node.entity_key,
-                "entity_type": node.entity_type,
-                "content": node.content,
-                "payload": node.model_dump_json(),
-                "is_current": node.is_current,
-                "mutation_type": node.mutation_type.value,
-            }
-        ]
-        self.table.add(data)
+    async def upsert(self, memory_id: str, vector: list[float]) -> None:
+        # LanceDB upsert: delete-then-add to keep this simple and version-agnostic
+        self._table.delete(f"id = '{memory_id}'")
+        self._table.add([{"id": memory_id, "vector": list(vector)}])
 
-    async def update(self, node: MemoryNode):
-        self.table.update(
-            where=f"id = '{node.id}'",
-            values={
-                "is_current": node.is_current,
-                "payload": node.model_dump_json(),
-            },
-        )
+    async def delete(self, memory_id: str) -> None:
+        self._table.delete(f"id = '{memory_id}'")
 
-    async def search(
-        self,
-        query_vector: List[float],
-        limit: int = 10,
-        filter_current: bool = True,
-        entity_type: Optional[str] = None,
-    ) -> list[tuple[MemoryNode, float | None]]:
-        query = self.table.search(query_vector).limit(limit)
-
-        filters = []
-        if filter_current:
-            filters.append("is_current = true")
-        if entity_type:
-            filters.append(f"entity_type = '{entity_type}'")
-
-        if filters:
-            query = query.where(" AND ".join(filters), prefilter=True)
-
-        results = query.to_list()
-        return [(MemoryNode.model_validate_json(r["payload"]), r.get("_distance")) for r in results]
-
-    async def get_by_id(self, node_id: str) -> Optional[MemoryNode]:
-        results = self.table.search(None).where(f"id = '{node_id}'").limit(1).to_list()
-        if results:
-            return MemoryNode.model_validate_json(results[0]["payload"])
-        return None
-
-    async def get_history(self, entity_key: str) -> List[MemoryNode]:
-        results = self.table.search(None).where(f"entity_key = '{entity_key}'").to_list()
-        nodes = [MemoryNode.model_validate_json(r["payload"]) for r in results]
-        return sorted(nodes, key=lambda x: x.created_at)
-
-    async def list_current(self, entity_type: Optional[str] = None, limit: int = 100) -> List[MemoryNode]:
-        query = self.table.search(None)
-        filters = ["is_current = true"]
-        if entity_type:
-            filters.append(f"entity_type = '{entity_type}'")
-        query = query.where(" AND ".join(filters))
-        if limit:
-            query = query.limit(limit)
-        results = query.to_list()
-        return [MemoryNode.model_validate_json(r["payload"]) for r in results]
+    async def search(self, query_vector: list[float], limit: int = 10) -> list[Tuple[str, float]]:
+        results = self._table.search(query_vector).limit(limit).to_list()
+        out: list[Tuple[str, float]] = []
+        for r in results:
+            mid = r.get("id")
+            distance = r.get("_distance")
+            if mid is None or distance is None:
+                continue
+            out.append((mid, float(distance)))
+        return out
 
 
 class VectorStore:
-    def __init__(self):
-        vectors_dir = os.path.join(settings.data_dir, "vectors")
-        os.makedirs(vectors_dir, exist_ok=True)
+    """High-level vector store: routes (id, vector) ops to backend, joins via MemoryRepository."""
+
+    def __init__(self, store: Optional[SQLiteStore] = None) -> None:
         self.backend_name = ""
+        self._repo = MemoryRepository(store or get_store())
+
+        os.makedirs(settings.vectors_dir, exist_ok=True)
 
         backend = settings.vector_backend.strip().lower()
         if backend == "memory":
-            self._impl = InMemoryVectorStore(os.path.join(vectors_dir, "memories.json"))
+            self._backend = InMemoryVectorBackend(settings.vectors_dir)
             self.backend_name = "memory"
             return
 
         if backend in {"lancedb", "lance"}:
             try:
-                self._impl = LanceVectorStore(vectors_dir)
-            except Exception as e:
-                raise RuntimeError("Failed to initialize LanceDB vector backend") from e
+                self._backend = LanceVectorBackend(settings.vectors_dir)
+            except Exception as exc:
+                raise RuntimeError("Failed to initialize LanceDB vector backend") from exc
             self.backend_name = "lancedb"
             return
 
@@ -200,19 +111,30 @@ class VectorStore:
             raise ValueError(f"Unsupported vector backend: {backend}")
 
         try:
-            self._impl = LanceVectorStore(vectors_dir)
+            self._backend = LanceVectorBackend(settings.vectors_dir)
             self.backend_name = "lancedb"
-        except Exception as e:
-            logger.warning("LanceDB unavailable, falling back to in-memory store: %s", e)
-            self._impl = InMemoryVectorStore(os.path.join(vectors_dir, "memories.json"))
+        except Exception as exc:
+            logger.warning("LanceDB unavailable, falling back to in-memory backend: %s", exc)
+            self._backend = InMemoryVectorBackend(settings.vectors_dir)
             self.backend_name = "memory"
 
-    async def insert(self, node: MemoryNode):
-        await self._impl.insert(node)
+    # ---- Write path -------------------------------------------------------
+    async def insert(self, node: MemoryNode) -> None:
+        await self._repo.insert(node)
+        if node.embedding:
+            await self._backend.upsert(node.id, node.embedding)
 
-    async def update(self, node: MemoryNode):
-        await self._impl.update(node)
+    async def update(self, node: MemoryNode) -> None:
+        await self._repo.update(node)
+        if node.embedding:
+            await self._backend.upsert(node.id, node.embedding)
 
+    async def delete(self, memory_id: str) -> bool:
+        await self._backend.delete(memory_id)
+        # SQLite hard-delete only when caller explicitly wants it; soft delete is via update
+        return await self._repo.hard_delete(memory_id)
+
+    # ---- Read path --------------------------------------------------------
     async def search(
         self,
         query_vector: List[float],
@@ -220,21 +142,40 @@ class VectorStore:
         filter_current: bool = True,
         entity_type: Optional[str] = None,
     ) -> list[tuple[MemoryNode, float | None]]:
-        return await self._impl.search(
-            query_vector=query_vector,
-            limit=limit,
-            filter_current=filter_current,
-            entity_type=entity_type,
-        )
+        # Over-fetch from ANN so that post-filtering keeps `limit` results when possible
+        ann_limit = max(limit * 4, 20)
+        candidates = await self._backend.search(query_vector, limit=ann_limit)
+        if not candidates:
+            return []
+        ids = [mid for mid, _ in candidates]
+        loaded = await self._repo.get_by_ids(ids)
+        by_id = {n.id: n for n in loaded}
+        out: list[tuple[MemoryNode, float | None]] = []
+        for mid, dist in candidates:
+            node = by_id.get(mid)
+            if node is None:
+                continue
+            if filter_current and not node.is_current:
+                continue
+            if entity_type and node.entity_type != entity_type:
+                continue
+            out.append((node, dist))
+            if len(out) >= limit:
+                break
+        return out
 
-    async def get_by_id(self, node_id: str) -> Optional[MemoryNode]:
-        return await self._impl.get_by_id(node_id)
+    async def get_by_id(self, memory_id: str) -> Optional[MemoryNode]:
+        return await self._repo.get_by_id(memory_id)
 
     async def get_history(self, entity_key: str) -> List[MemoryNode]:
-        return await self._impl.get_history(entity_key)
+        return await self._repo.get_history(entity_key)
 
-    async def list_current(self, entity_type: Optional[str] = None, limit: int = 100) -> List[MemoryNode]:
-        return await self._impl.list_current(entity_type=entity_type, limit=limit)
+    async def list_current(
+        self,
+        entity_type: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[MemoryNode]:
+        return await self._repo.list_current(entity_type=entity_type, limit=limit)
 
 
 vector_store = VectorStore()

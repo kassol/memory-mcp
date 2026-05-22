@@ -1,5 +1,6 @@
 import json
 import logging
+from contextlib import asynccontextmanager
 from urllib.parse import urlparse, unquote
 
 from mcp.server import Server
@@ -21,6 +22,7 @@ from starlette.middleware import Middleware
 from .api.routes import routes as api_routes
 from .config import settings
 from .storage.graph import graph_store
+from .storage.migrate import current as alembic_current, run_migrations
 from .storage.vector import vector_store
 from .tools import remember, recall, trace, forget, relate, unrelate, graph_query, recall_all
 from .transport.auth import AuthMiddleware
@@ -254,13 +256,33 @@ async def read_resource(uri: str) -> list[ReadResourceContents]:
         )
     ]
 
-async def health(request: Request):
-    return JSONResponse({"status": "healthy", "vector_backend": vector_store.backend_name})
-
 streamable_http_app = StreamableHttpApp(mcp_server, json_response=False)
 
+
+async def health(request: Request) -> JSONResponse:
+    """Authoritative /health shape consumed by M6 runbook checks."""
+    try:
+        schema_version = alembic_current()
+    except Exception:
+        schema_version = None
+    return JSONResponse({
+        "status": "ok",
+        "vector_backend": vector_store.backend_name,
+        "sqlite_path": settings.sqlite_path,
+        "schema_version": schema_version,
+    })
+
+
+@asynccontextmanager
+async def lifespan(starlette_app):
+    if settings.auto_migrate:
+        run_migrations()
+    async with streamable_http_app.lifespan(starlette_app):
+        yield
+
+
 app = Starlette(
-    lifespan=streamable_http_app.lifespan,
+    lifespan=lifespan,
     routes=[
         Route("/mcp", endpoint=streamable_http_app, methods=["GET", "POST", "DELETE"]),
         Route("/health", endpoint=health, methods=["GET"]),

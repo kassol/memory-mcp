@@ -4,3 +4,6 @@
 
 __pycache__
 data
+!tests/fixtures/v1_data/vectors/memories.lance/data/
+
+.claude/
