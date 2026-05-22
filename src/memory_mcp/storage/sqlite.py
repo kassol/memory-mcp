@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -93,8 +94,13 @@ class SQLiteStore:
     def __init__(self, db_path: Optional[str] = None) -> None:
         self._db_path = db_path or settings.sqlite_path
         self._conn: Optional[aiosqlite.Connection] = None
+        # Serializes every get_db() block — including lazy init — so two
+        # coroutines can't share the underlying aiosqlite connection's
+        # implicit transaction state and prematurely commit each other's
+        # partial writes.
+        self._lock = asyncio.Lock()
 
-    async def initialize(self) -> None:
+    async def _do_initialize(self) -> None:
         os.makedirs(os.path.dirname(self._db_path) or ".", exist_ok=True)
         if self._conn is not None:
             return
@@ -105,6 +111,10 @@ class SQLiteStore:
         # aiosqlite returns rows as tuples by default; opt-in to Row factory
         self._conn.row_factory = aiosqlite.Row
 
+    async def initialize(self) -> None:
+        async with self._lock:
+            await self._do_initialize()
+
     async def close(self) -> None:
         if self._conn is not None:
             await self._conn.close()
@@ -114,23 +124,27 @@ class SQLiteStore:
     async def get_db(self) -> AsyncIterator[DBHandle]:
         """Authoritative entry point — returns the unified DBHandle facade.
 
-        Auto-commits at exit when no exception was raised AND the caller has
-        leftover work outside ``transaction()``. On exception, any leftover
-        transaction state is rolled back to avoid silent partial writes.
+        Holds ``self._lock`` for the entire block so the shared aiosqlite
+        connection's transaction state can't be observed mid-flight by a
+        concurrent coroutine. Auto-commits at exit when no exception was
+        raised AND the caller has leftover work outside ``transaction()``.
+        On exception, any leftover transaction state is rolled back to
+        avoid silent partial writes.
         """
-        if self._conn is None:
-            await self.initialize()
-        assert self._conn is not None
-        handle = DBHandle(self._conn)
-        try:
-            yield handle
-        except Exception:
-            if self._conn.in_transaction:
-                await self._conn.rollback()
-            raise
-        else:
-            if self._conn.in_transaction:
-                await self._conn.commit()
+        async with self._lock:
+            if self._conn is None:
+                await self._do_initialize()
+            assert self._conn is not None
+            handle = DBHandle(self._conn)
+            try:
+                yield handle
+            except Exception:
+                if self._conn.in_transaction:
+                    await self._conn.rollback()
+                raise
+            else:
+                if self._conn.in_transaction:
+                    await self._conn.commit()
 
 
     @property
