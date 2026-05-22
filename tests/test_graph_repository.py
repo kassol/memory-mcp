@@ -13,15 +13,41 @@ def _setup(test_env):
     importlib.reload(sqlite_mod)
     import memory_mcp.storage.repositories.entities as ent_mod
     import memory_mcp.storage.repositories.relations as rel_mod
+    import memory_mcp.storage.repositories.memories as mem_mod
     importlib.reload(ent_mod)
     importlib.reload(rel_mod)
+    importlib.reload(mem_mod)
     store = sqlite_mod.SQLiteStore()
-    return ent_mod.EntityRepository(store), rel_mod.RelationRepository(store)
+    return (
+        ent_mod.EntityRepository(store),
+        rel_mod.RelationRepository(store),
+        mem_mod.MemoryRepository(store),
+    )
+
+
+async def _insert_memory(mem_repo, mem_id: str, entity_key: str) -> str:
+    from memory_mcp.engine.models import MemoryNode, MutationType, ReviewStatus
+    await mem_repo.insert(MemoryNode(
+        id=mem_id,
+        entity_key=entity_key,
+        entity_type=entity_key.split(":", 1)[0],
+        content="x",
+        embedding=[],
+        mutation_type=MutationType.INITIAL,
+        created_at=datetime.now(timezone.utc),
+        valid_from=datetime.now(timezone.utc),
+        is_current=True,
+        confidence=1.0,
+        review_status=ReviewStatus.AUTO,
+    ))
+    return mem_id
 
 
 def test_upsert_entity_insert_and_update(test_env):
     async def run():
-        ent_repo, _ = _setup(test_env)
+        ent_repo, _, mem_repo = _setup(test_env)
+        await _insert_memory(mem_repo, "m1", "person:alice")
+        await _insert_memory(mem_repo, "m2", "person:alice")
         await ent_repo.upsert(
             entity_key="person:alice",
             entity_type="person",
@@ -44,7 +70,8 @@ def test_upsert_entity_insert_and_update(test_env):
 
 def test_clear_current_memory(test_env):
     async def run():
-        ent_repo, _ = _setup(test_env)
+        ent_repo, _, mem_repo = _setup(test_env)
+        await _insert_memory(mem_repo, "m1", "person:alice")
         await ent_repo.upsert("person:alice", "person", "m1")
         await ent_repo.clear_current_memory("person:alice")
         loaded = await ent_repo.get("person:alice")
@@ -53,9 +80,24 @@ def test_clear_current_memory(test_env):
     anyio.run(run)
 
 
+def test_upsert_with_none_preserves_existing_current_memory_id(test_env):
+    """Regression: graph_store.add_relation upserts endpoints with
+    current_memory_id=None to ensure existence — that must not clobber the
+    real current_memory_id set by an earlier remember/evolve call."""
+    async def run():
+        ent_repo, _, mem_repo = _setup(test_env)
+        await _insert_memory(mem_repo, "mem-1", "person:alice")
+        await ent_repo.upsert("person:alice", "person", "mem-1")
+        await ent_repo.upsert("person:alice", "person", None)
+        loaded = await ent_repo.get("person:alice")
+        assert loaded["current_memory_id"] == "mem-1"
+
+    anyio.run(run)
+
+
 def test_relation_insert_and_delete(test_env):
     async def run():
-        ent_repo, rel_repo = _setup(test_env)
+        ent_repo, rel_repo, _ = _setup(test_env)
         from memory_mcp.engine.models import Relation
         await ent_repo.upsert("person:alice", "person", None)
         await ent_repo.upsert("project:x", "project", None)
@@ -84,7 +126,7 @@ def test_relation_insert_and_delete(test_env):
 
 def test_relation_fk_cascade_on_entity_delete(test_env):
     async def run():
-        ent_repo, rel_repo = _setup(test_env)
+        ent_repo, rel_repo, _ = _setup(test_env)
         from memory_mcp.engine.models import Relation
         await ent_repo.upsert("person:bob", "person", None)
         await ent_repo.upsert("project:y", "project", None)

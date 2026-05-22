@@ -24,13 +24,19 @@ class EntityRepository:
         now = datetime.now(timezone.utc).isoformat()
         display_name = name or _infer_entity_name(entity_key)
         async with self._store.get_db() as db:
+            # COALESCE preserves the existing current_memory_id when the
+            # caller passes None — graph_store.add_relation() upserts both
+            # endpoints with current_memory_id=None just to ensure they
+            # exist; without COALESCE that would clobber the entity's real
+            # current_memory_id set by an earlier remember/evolve call.
+            # Use clear_current_memory() to explicitly null it.
             await db.execute(
                 "INSERT INTO entities (entity_key, name, entity_type, current_memory_id, "
                 "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(entity_key) DO UPDATE SET "
                 "name = excluded.name, "
                 "entity_type = excluded.entity_type, "
-                "current_memory_id = excluded.current_memory_id, "
+                "current_memory_id = COALESCE(excluded.current_memory_id, entities.current_memory_id), "
                 "updated_at = excluded.updated_at",
                 (entity_key, display_name, entity_type, current_memory_id, now, now),
             )

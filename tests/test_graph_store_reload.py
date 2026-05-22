@@ -20,7 +20,8 @@ def test_upsert_entity_then_query(test_env):
     async def run():
         graph_mod = _setup(test_env)
         store = graph_mod.graph_store
-        await store.upsert_entity("person:alice", "person", "m1")
+        # Pass None so we don't need a memories row just to test entity upsert.
+        await store.upsert_entity("person:alice", "person", None)
         entities = await store.list_entities()
         assert any(e["entity_key"] == "person:alice" for e in entities)
 
