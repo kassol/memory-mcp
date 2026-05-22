@@ -7,19 +7,6 @@ PRAGMA synchronous = NORMAL;
 PRAGMA busy_timeout = 5000;
 
 -- ---------------------------------------------------------------------------
--- entities
--- ---------------------------------------------------------------------------
-CREATE TABLE entities (
-  entity_key TEXT PRIMARY KEY,
-  name TEXT,
-  entity_type TEXT NOT NULL,
-  current_memory_id TEXT,
-  created_at TIMESTAMP NOT NULL,
-  updated_at TIMESTAMP NOT NULL
-);
-CREATE INDEX idx_entities_entity_type ON entities(entity_type);
-
--- ---------------------------------------------------------------------------
 -- threads (created early so memories.source_thread_id FK is satisfied)
 -- ---------------------------------------------------------------------------
 CREATE TABLE threads (
@@ -147,6 +134,19 @@ CREATE TRIGGER memories_fts_au AFTER UPDATE ON memories BEGIN
   INSERT INTO memories_fts(rowid, content_tokens, title_tokens, entity_key)
   VALUES (new.rowid, new.content_tokens, new.title_tokens, new.entity_key);
 END;
+
+-- ---------------------------------------------------------------------------
+-- entities (created after memories so current_memory_id can FK to memories)
+-- ---------------------------------------------------------------------------
+CREATE TABLE entities (
+  entity_key TEXT PRIMARY KEY,
+  name TEXT,
+  entity_type TEXT NOT NULL,
+  current_memory_id TEXT REFERENCES memories(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+);
+CREATE INDEX idx_entities_entity_type ON entities(entity_type);
 
 -- ---------------------------------------------------------------------------
 -- relations
