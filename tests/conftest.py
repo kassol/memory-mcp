@@ -86,6 +86,13 @@ def test_env(tmp_path, monkeypatch):
     monkeypatch.setattr(embedding.embedding_service, "get_embedding", fake_embedding)
     monkeypatch.setattr(conflict.conflict_detector, "check_conflict", fake_conflict)
 
+    import memory_mcp.engine.merge as merge
+
+    async def fake_merge(_old: str, new: str):
+        return new, False
+
+    monkeypatch.setattr(merge, "merge_memories", fake_merge)
+
     yield config, vector, graph
 
     # Stop every SQLiteStore that has an open aiosqlite worker thread.

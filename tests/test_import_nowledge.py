@@ -1,5 +1,6 @@
 import importlib
 import json
+from datetime import datetime, timezone
 
 import anyio
 from typer.testing import CliRunner
@@ -51,23 +52,20 @@ def test_load_records_accepts_list_output_and_jsonl(tmp_path):
     assert imp.load_records(as_jsonl) == RECORDS
 
 
-def test_select_current_sorts_ascending():
+def test_sort_records_keeps_all_ascending():
     import memory_mcp.scripts.import_nowledge as imp
 
-    assert [r["id"] for r in imp.select_current(RECORDS, [])] == ["n1", "n2", "n3"]
+    records = RECORDS + [_rec("n0", "2026-05-01T07:00:00+08:00", "Old fact")]
+    assert [r["id"] for r in imp.sort_records(records)] == ["n0", "n1", "n2", "n3"]
 
 
-def test_select_current_drops_replaced_by_listed_memory():
+def test_sort_records_rejects_naive_created_at():
+    import pytest
+
     import memory_mcp.scripts.import_nowledge as imp
 
-    records = RECORDS + [_rec("n0", "2026-04-01T00:00:00.5+00:00", "Old fact"), _rec("n4", "2026-04-02T00:00:00+00:00", "")]
-    edges = [
-        {"older_id": "n1", "newer_id": "n3", "content_relation": "replaces"},
-        {"older_id": "n2", "newer_id": "n3", "content_relation": "enriches"},
-        # replacement is not listed (archived/forgotten), so n0 stays current
-        {"older_id": "n0", "newer_id": "gone", "content_relation": "replaces"},
-    ]
-    assert [r["id"] for r in imp.select_current(records, edges)] == ["n0", "n2", "n3"]
+    with pytest.raises(ValueError):
+        imp.sort_records(RECORDS + [_rec("n9", "2026-05-01T00:00:00", "No tz")])
 
 
 def test_import_writes_in_order_and_resumes(tools, test_env, monkeypatch, tmp_path):
@@ -75,7 +73,7 @@ def test_import_writes_in_order_and_resumes(tools, test_env, monkeypatch, tmp_pa
         imp, calls = _setup(monkeypatch)
         _, vector, _ = test_env
         state_path = tmp_path / "state.json"
-        records = imp.select_current(RECORDS, [])
+        records = imp.sort_records(RECORDS)
 
         first = await imp.run_import(records, state_path, limit=2)
         assert first["processed"] == 2 and first["created"] == 2 and first["failed"] == 0
@@ -94,6 +92,9 @@ def test_import_writes_in_order_and_resumes(tools, test_env, monkeypatch, tmp_pa
         assert current.origin_client == "nowledge" and current.origin_session_id == "n3"
         first_node = next(h for h in history if not h.is_current)
         assert first_node.tags == ["label-n1"]
+        # Original Nowledge creation times survive the import, including the evolution boundary.
+        assert first_node.created_at == datetime(2026, 5, 1, tzinfo=timezone.utc)
+        assert first_node.valid_until == current.created_at == current.valid_from == datetime(2026, 7, 1, tzinfo=timezone.utc)
 
     anyio.run(run)
 
@@ -102,7 +103,7 @@ def test_import_single_failure_continues_and_retries(tools, test_env, monkeypatc
     async def run():
         imp, _ = _setup(monkeypatch, fail_on={"Prefers Cursor as main editor"})
         state_path = tmp_path / "state.json"
-        records = imp.select_current(RECORDS, [])
+        records = imp.sort_records(RECORDS)
 
         report = await imp.run_import(records, state_path)
         assert report["failed"] == 1 and report["created"] == 1 and report["evolved"] == 1
@@ -125,9 +126,7 @@ def test_dry_run_does_not_call_llm_or_write(tools, test_env, monkeypatch, tmp_pa
     async def must_not_run(*_args, **_kwargs):
         raise AssertionError("dry-run must not import")
 
-    edges_by_id = {"n1": [{"older_id": "n1", "newer_id": "n3", "content_relation": "replaces"}]}
     monkeypatch.setattr(imp, "run_import", must_not_run)
-    monkeypatch.setattr(imp, "fetch_evolves", lambda mid: edges_by_id.get(mid, []))
     input_path = tmp_path / "export.json"
     input_path.write_text(json.dumps({"memories": RECORDS}))
     state_path = tmp_path / "state.json"
@@ -138,8 +137,7 @@ def test_dry_run_does_not_call_llm_or_write(tools, test_env, monkeypatch, tmp_pa
     assert result.exit_code == 0, result.output
     out = result.output
     summary = json.loads(out[out.index("{") : out.index("}") + 1])
-    assert summary["total"] == 3 and summary["excluded"] == 1 and summary["current"] == 2
-    assert summary["earliest_created_at"] == "2026-06-01T00:00:00+00:00"
+    assert summary["total"] == 3 and summary["already_done_in_state"] == 0
+    assert summary["earliest_created_at"] == "2026-05-01T00:00:00+00:00"
     assert summary["latest_created_at"] == "2026-07-01T00:00:00+00:00"
     assert calls == [] and not state_path.exists()
-    assert json.loads((tmp_path / "export.json.evolves.json").read_text()) == edges_by_id["n1"]

@@ -7,7 +7,7 @@ MESSAGES = [
     {"role": "assistant", "content": "Got it, I'll remember that."},
 ]
 
-VALID_LLM_RESPONSE = '[{"entity_key": "preference:editor", "entity_type": "preference", "content": "Prefers Cursor as main editor"}, {"entity_key": "fact:location", "entity_type": "fact", "content": "Lives in Shanghai"}]'
+VALID_LLM_RESPONSE = '[{"content": "Prefers Cursor as main editor"}, {"content": "Lives in Shanghai"}, {"content": ""}, {"entity_key": "x:y"}, "bare string"]'
 
 ASSIGNED_KEYS = {
     "Prefers Cursor as main editor": ("preference:editor", "preference"),
@@ -22,7 +22,7 @@ def _patch_assign(monkeypatch, extraction_mod):
     monkeypatch.setattr(extraction_mod, "assign_entity_key", fake_assign)
 
 
-CODE_FENCE_LLM_RESPONSE = '```json\n[{"entity_key": "preference:editor", "entity_type": "preference", "content": "Prefers Cursor as main editor"}]\n```'
+CODE_FENCE_LLM_RESPONSE = '```json\n[{"content": "Prefers Cursor as main editor"}]\n```'
 
 
 def test_extract_memories_from_messages(tools, test_env, monkeypatch):
@@ -37,7 +37,8 @@ def test_extract_memories_from_messages(tools, test_env, monkeypatch):
         _patch_assign(monkeypatch, extraction_mod)
 
         result = await extraction_mod.extract_memories(MESSAGES)
-        assert result["total"] == 2
+        assert result["total"] == 2 and result["failed"] == 0
+        assert "entity_key" not in extraction_mod._EXTRACTION_PROMPT
         keys = {r["entity_key"] for r in result["results"]}
         assert "preference:editor" in keys
         assert "fact:location" in keys
@@ -164,7 +165,7 @@ def test_extract_uses_assigned_key_and_reuses_embedding(tools, test_env, monkeyp
         importlib.reload(extraction_mod)
 
         async def fake_call_llm(_messages):
-            return '[{"entity_key": "preference:code_editor", "entity_type": "preference", "content": "Prefers Cursor as main editor"}]'
+            return '[{"content": "Prefers Cursor as main editor"}]'
 
         embed_calls = []
 
@@ -192,10 +193,10 @@ def test_extract_uses_assigned_key_and_reuses_embedding(tools, test_env, monkeyp
     anyio.run(run)
 
 
-def test_extract_collects_conflict_check_errors(tools, test_env, monkeypatch):
+def test_extract_collects_merge_errors(tools, test_env, monkeypatch):
     async def run():
-        import memory_mcp.engine.conflict as conflict_mod
         import memory_mcp.engine.extraction as extraction_mod
+        import memory_mcp.engine.merge as merge_mod
         importlib.reload(extraction_mod)
         remember = tools[0]
 
@@ -203,13 +204,13 @@ def test_extract_collects_conflict_check_errors(tools, test_env, monkeypatch):
             {"content": "Prefers Vim as main editor", "entity_key": "preference:editor", "entity_type": "preference"}
         )
 
-        async def broken_conflict(_old, _new):
-            raise conflict_mod.ConflictCheckError("Conflict check returned HTTP 503")
+        async def broken_merge(_old, _new):
+            raise merge_mod.MergeError("LLM merge failed: HTTP 503")
 
         async def fake_call_llm(_messages):
             return VALID_LLM_RESPONSE
 
-        monkeypatch.setattr(conflict_mod.conflict_detector, "check_conflict", broken_conflict)
+        monkeypatch.setattr(merge_mod, "merge_memories", broken_merge)
         monkeypatch.setattr(extraction_mod, "_call_llm", fake_call_llm)
         _patch_assign(monkeypatch, extraction_mod)
 

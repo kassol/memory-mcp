@@ -37,12 +37,12 @@ def test_remember_exact_match_conflict_marks_correction(tools, test_env, monkeyp
     async def run():
         remember, _, _, _, _, _, _ = tools
 
-        import memory_mcp.engine.conflict as conflict_mod
+        import memory_mcp.engine.merge as merge_mod
 
-        async def always_conflict(_old: str, _new: str):
-            return True
+        async def always_conflict(_old: str, new: str):
+            return new, True
 
-        monkeypatch.setattr(conflict_mod.conflict_detector, "check_conflict", always_conflict)
+        monkeypatch.setattr(merge_mod, "merge_memories", always_conflict)
 
         await remember.remember_tool(
             {
@@ -68,12 +68,12 @@ def test_remember_exact_match_conflict_marks_reversal(tools, test_env, monkeypat
     async def run():
         remember, _, _, _, _, _, _ = tools
 
-        import memory_mcp.engine.conflict as conflict_mod
+        import memory_mcp.engine.merge as merge_mod
 
-        async def always_conflict(_old: str, _new: str):
-            return True
+        async def always_conflict(_old: str, new: str):
+            return new, True
 
-        monkeypatch.setattr(conflict_mod.conflict_detector, "check_conflict", always_conflict)
+        monkeypatch.setattr(merge_mod, "merge_memories", always_conflict)
 
         await remember.remember_tool(
             {

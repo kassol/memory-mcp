@@ -3,11 +3,10 @@
 Input: the output of ``nmem --json m list -n 10000`` (``{"memories": [...]}``),
 a bare JSON array, or JSONL with one memory object per line.
 
-Only current memories are imported, oldest ``created_at`` first. ``m list`` already
-hides archived/forgotten memories; replaced ones are dropped using the ``replaces``
-EVOLVES edges (``nmem graph evolves``, cached in ``--evolves``). Each one gets an
-entity_key from ``assign_entity_key`` and is written through ``remember_tool`` so
-it joins existing evolution chains and conflict detection.
+Every listed memory is imported (``m list`` already hides archived/forgotten ones),
+oldest ``created_at`` first. Each one gets an entity_key from ``assign_entity_key``
+and is written through ``remember_tool`` with its original ``created_at``, so it
+joins existing evolution chains, where a reused key merges old and new content.
 
 Resumable: ``--state`` records imported Nowledge ids (skipped on rerun) and the
 latest failure per id (retried on rerun).
@@ -21,7 +20,6 @@ import asyncio
 import json
 import subprocess
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -44,37 +42,16 @@ def load_records(path: Path) -> list[dict[str, Any]]:
     return data
 
 
-def fetch_evolves(memory_id: str) -> list[dict[str, Any]]:
-    """EVOLVES edges touching one memory, via the read-only `nmem graph evolves`."""
-    out = subprocess.run(
-        ["nmem", "--json", "graph", "evolves", "-n", "200", memory_id], capture_output=True, text=True, check=True
-    ).stdout
-    data = json.loads(out)
-    if data["total"] > len(data["edges"]):
-        raise RuntimeError(f"EVOLVES edges truncated for {memory_id}: {len(data['edges'])}/{data['total']}")
-    return data["edges"]
+def created_at(record: dict[str, Any]) -> datetime:
+    value = datetime.fromisoformat(record["created_at"])
+    if value.tzinfo is None:
+        raise ValueError(f"created_at has no timezone: {record['id']} {record['created_at']!r}")
+    return value
 
 
-def load_or_collect_evolves(path: Path, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """`m list` carries no supersede info, so collect EVOLVES edges once and cache them at `path`."""
-    if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
-    typer.echo(f"Collecting EVOLVES edges for {len(records)} memories into {path} ...", err=True)
-    with ThreadPoolExecutor(8) as pool:
-        edges = [e for es in pool.map(fetch_evolves, [r["id"] for r in records]) for e in es]
-    path.write_text(json.dumps(edges, ensure_ascii=False), encoding="utf-8")
-    return edges
-
-
-def select_current(records: list[dict[str, Any]], edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Drop memories replaced by a newer listed memory; return the rest oldest first.
-
-    `m list` already hides archived/forgotten memories, but still lists replaced ones.
-    """
-    listed = {r["id"] for r in records}
-    replaced = {e["older_id"] for e in edges if e["content_relation"] == "replaces" and e["newer_id"] in listed}
-    current = [r for r in records if r["id"] not in replaced and r.get("content")]
-    return sorted(current, key=lambda r: datetime.fromisoformat(r["created_at"]))
+def sort_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Oldest first, so later Nowledge memories evolve earlier ones."""
+    return sorted(records, key=created_at)
 
 
 def load_state(path: Path) -> dict[str, Any]:
@@ -118,6 +95,7 @@ async def import_one(record: dict[str, Any]) -> dict[str, Any]:
             "skip_semantic_merge": True,
         },
         embedding=vector,
+        created_at=created_at(record),
     )
 
 
@@ -173,27 +151,20 @@ def main(
     input_path: Path = typer.Option(..., "--input", help="nmem --json m list output (JSON or JSONL)"),
     state: Path = typer.Option(..., "--state", help="Resume state file (created if missing)"),
     limit: Optional[int] = typer.Option(None, "--limit", help="Process at most N pending memories"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Parse, filter and sort only; no LLM calls, no writes"),
-    evolves: Optional[Path] = typer.Option(
-        None, "--evolves", help="EVOLVES edge cache (default <input>.evolves.json; collected via nmem if missing)"
-    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Parse and sort only; no LLM calls, no writes"),
 ) -> None:
     """CLI entry point: python -m memory_mcp.scripts.import_nowledge --input ... --state ..."""
-    records = load_records(input_path)
-    edges = load_or_collect_evolves(evolves or input_path.with_name(input_path.name + ".evolves.json"), records)
-    current = select_current(records, edges)
+    records = sort_records(load_records(input_path))
 
     if dry_run:
         summary = {
             "total": len(records),
-            "excluded": len(records) - len(current),
-            "current": len(current),
-            "earliest_created_at": current[0]["created_at"] if current else None,
-            "latest_created_at": current[-1]["created_at"] if current else None,
-            "already_done_in_state": len(set(load_state(state)["done"]) & {r["id"] for r in current}),
+            "earliest_created_at": records[0]["created_at"] if records else None,
+            "latest_created_at": records[-1]["created_at"] if records else None,
+            "already_done_in_state": len(set(load_state(state)["done"]) & {r["id"] for r in records}),
         }
         typer.echo(json.dumps(summary, indent=2, ensure_ascii=False))
-        for r in current[:5]:
+        for r in records[:5]:
             typer.echo(f"{r['created_at']}  {r['id']}  {r.get('title') or r['content'][:60]}")
         return
 
@@ -202,7 +173,7 @@ def main(
 
     if settings.auto_migrate:
         run_migrations()
-    report = asyncio.run(_run_and_close(current, state, limit))
+    report = asyncio.run(_run_and_close(records, state, limit))
     typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
 
 

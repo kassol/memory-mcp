@@ -146,11 +146,11 @@ def test_remember_propagates_conflict_check_error(tools, test_env, monkeypatch):
             raise conflict_mod.ConflictCheckError("Conflict check request failed")
 
         monkeypatch.setattr(conflict_mod.conflict_detector, "check_conflict", broken)
+        # A different key with the same embedding takes the semantic merge path.
         with pytest.raises(conflict_mod.ConflictCheckError):
-            await remember.remember_tool(
-                {"content": "Lives in Shanghai", "entity_key": "fact:home_city", "entity_type": "fact"}
-            )
+            await remember.remember_tool({"content": "Lives in Shanghai", "entity_key": "fact:city", "entity_type": "fact"})
         history = await vector.vector_store.get_history("fact:home_city")
         assert [h.content for h in history] == ["Lives in Beijing"]
+        assert await vector.vector_store.get_history("fact:city") == []
 
     anyio.run(run)

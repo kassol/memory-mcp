@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from ..config import settings
+from ..engine import merge
 from ..engine.conflict import conflict_detector
 from ..engine.embedding import embedding_service
 from ..engine.evolution import evolve_memory, infer_mutation_type
@@ -40,8 +41,19 @@ def _parse_source_refs(raw) -> list[SourceRef]:
     return out
 
 
-async def remember_tool(arguments: dict, *, embedding: list[float] | None = None) -> dict:
-    """`embedding` lets in-process callers reuse a precomputed vector; never exposed via MCP/REST."""
+async def _merge_with(old_content: str, content: str, embedding: list[float]) -> tuple[str, bool, list[float]]:
+    """Merge into the old version; the stored vector must describe the merged text."""
+    merged, conflict = await merge.merge_memories(old_content, content)
+    if merged not in (content, old_content):  # old_content means no_change; nothing gets stored
+        embedding = await embedding_service.get_embedding(merged)
+    return merged, conflict, embedding
+
+
+async def remember_tool(
+    arguments: dict, *, embedding: list[float] | None = None, created_at: datetime | None = None
+) -> dict:
+    """`embedding` (precomputed vector of `content`) and `created_at` (original creation time)
+    are for in-process callers only; never exposed via MCP/REST."""
     content = arguments.get("content")
     entity_key = arguments.get("entity_key")
     entity_type = arguments.get("entity_type")
@@ -66,7 +78,9 @@ async def remember_tool(arguments: dict, *, embedding: list[float] | None = None
         if current_node.content == content:
             return {"status": "no_change", "memory_id": current_node.id}
 
-        llm_conflict = await conflict_detector.check_conflict(current_node.content, content)
+        merged, llm_conflict, merged_embedding = await _merge_with(current_node.content, content, embedding)
+        if merged == current_node.content:
+            return {"status": "no_change", "memory_id": current_node.id}
         suggested_type = infer_mutation_type(current_node.content, content)
 
         if llm_conflict:
@@ -79,12 +93,14 @@ async def remember_tool(arguments: dict, *, embedding: list[float] | None = None
         conflict = llm_conflict or mutation_type_override in {MutationType.CORRECTION, MutationType.REVERSAL}
 
         new_node = await evolve_memory(
-            content,
+            merged,
             current_node,
-            embedding,
+            merged_embedding,
             mutation_type_override=mutation_type_override,
             conflict=conflict,
             conflict_with_id=current_node.id,
+            created_at=created_at,
+            tags=tags,
         )
         if origin_client:
             new_node.origin_client = origin_client
@@ -123,17 +139,22 @@ async def remember_tool(arguments: dict, *, embedding: list[float] | None = None
             if relevance is not None and relevance >= settings.similarity_threshold:
                 is_conflict = await conflict_detector.check_conflict(candidate.content, content)
                 if is_conflict:
+                    merged, _, merged_embedding = await _merge_with(candidate.content, content, embedding)
+                    if merged == candidate.content:
+                        return {"status": "no_change", "memory_id": candidate.id}
                     suggested_type = infer_mutation_type(candidate.content, content)
                     mutation_type_override = (
                         MutationType.REVERSAL if suggested_type == MutationType.REVERSAL else MutationType.CORRECTION
                     )
                     new_node = await evolve_memory(
-                        content,
+                        merged,
                         candidate,
-                        embedding,
+                        merged_embedding,
                         mutation_type_override=mutation_type_override,
                         conflict=True,
                         conflict_with_id=candidate.id,
+                        created_at=created_at,
+                        tags=tags,
                     )
                     if origin_client:
                         new_node.origin_client = origin_client
@@ -161,7 +182,7 @@ async def remember_tool(arguments: dict, *, embedding: list[float] | None = None
                         "input_entity_key": entity_key,
                     }
 
-    now = datetime.now(timezone.utc)
+    now = created_at or datetime.now(timezone.utc)
     new_node = MemoryNode(
         id=str(uuid4()),
         entity_key=entity_key,
