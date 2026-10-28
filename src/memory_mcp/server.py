@@ -3,14 +3,21 @@ import logging
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse, unquote
 
-from mcp.server import Server
-from mcp.server.lowlevel.helper_types import ReadResourceContents
+import jsonschema
+from mcp.server import Server, ServerRequestContext
 from mcp.types import (
+    CallToolRequestParams,
+    CallToolResult,
+    ListResourcesResult,
+    ListResourceTemplatesResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    ReadResourceRequestParams,
+    ReadResourceResult,
     Resource,
     ResourceTemplate,
     TextContent,
-    ImageContent,
-    EmbeddedResource,
+    TextResourceContents,
     Tool,
 )
 from starlette.applications import Starlette
@@ -33,13 +40,8 @@ from .transport.streamable_http import StreamableHttpApp
 logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
 logger = logging.getLogger("memory-mcp")
 
-# Initialize MCP Server
-mcp_server = Server("memory-mcp")
-
-# Register Tools
-@mcp_server.list_tools()
-async def list_tools() -> list[Tool]:
-    return [
+async def list_tools(ctx: ServerRequestContext, params: PaginatedRequestParams | None) -> ListToolsResult:
+    return ListToolsResult(tools=[
         Tool(
             name="remember",
             description="Store a new memory. The system automatically handles evolution and conflict detection.",
@@ -145,10 +147,26 @@ async def list_tools() -> list[Tool]:
                 "required": ["entity_key"]
             }
         )
-    ]
+    ])
 
-@mcp_server.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageContent | EmbeddedResource]:
+
+def _text_result(payload: dict) -> CallToolResult:
+    return CallToolResult(content=[TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))])
+
+
+async def call_tool(ctx: ServerRequestContext, params: CallToolRequestParams) -> CallToolResult:
+    name = params.name
+    arguments = params.arguments or {}
+    # mcp 2.0 dropped the lowlevel jsonschema input check; keep the 1.x error shape for clients.
+    tool = next((t for t in (await list_tools(ctx, None)).tools if t.name == name), None)
+    if tool is not None:
+        try:
+            jsonschema.validate(instance=arguments, schema=tool.input_schema)
+        except jsonschema.ValidationError as e:
+            return CallToolResult(
+                content=[TextContent(type="text", text=f"Input validation error: {e.message}")],
+                is_error=True,
+            )
     try:
         result = {}
         if name == "remember":
@@ -170,14 +188,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
         else:
             raise ValueError(f"Unknown tool: {name}")
 
-        return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
+        return _text_result(result)
     except Exception as e:
         logger.error(f"Error executing tool {name}: {e}")
-        return [TextContent(type="text", text=json.dumps({"error": str(e)}, ensure_ascii=False))]
+        return _text_result({"error": str(e)})
 
-@mcp_server.list_resources()
-async def list_resources() -> list[Resource]:
-    return [
+async def list_resources(ctx: ServerRequestContext, params: PaginatedRequestParams | None) -> ListResourcesResult:
+    return ListResourcesResult(resources=[
         Resource(
             name="current-memories",
             title="Current Memories",
@@ -192,11 +209,12 @@ async def list_resources() -> list[Resource]:
             description="Entity metadata list",
             mimeType="application/json",
         ),
-    ]
+    ])
 
-@mcp_server.list_resource_templates()
-async def list_resource_templates() -> list[ResourceTemplate]:
-    return [
+async def list_resource_templates(
+    ctx: ServerRequestContext, params: PaginatedRequestParams | None
+) -> ListResourceTemplatesResult:
+    return ListResourceTemplatesResult(resource_templates=[
         ResourceTemplate(
             name="entity-memory",
             title="Entity Memory",
@@ -204,7 +222,7 @@ async def list_resource_templates() -> list[ResourceTemplate]:
             description="Evolution chain and current memory for an entity",
             mimeType="application/json",
         )
-    ]
+    ])
 
 def _parse_memory_uri(uri: str) -> str:
     parsed = urlparse(str(uri))
@@ -213,8 +231,11 @@ def _parse_memory_uri(uri: str) -> str:
         path = f"/{parsed.netloc}{path}"
     return unquote(path)
 
-@mcp_server.read_resource()
-async def read_resource(uri: str) -> list[ReadResourceContents]:
+def _json_resource(uri: str, text: str) -> ReadResourceResult:
+    return ReadResourceResult(contents=[TextResourceContents(uri=uri, text=text, mime_type="application/json")])
+
+async def read_resource(ctx: ServerRequestContext, params: ReadResourceRequestParams) -> ReadResourceResult:
+    uri = params.uri
     path = _parse_memory_uri(uri)
     if path == "/current":
         memories = await vector_store.list_current(limit=100)
@@ -228,10 +249,10 @@ async def read_resource(uri: str) -> list[ReadResourceContents]:
             }
             for node in memories
         ]
-        return [ReadResourceContents(content=json.dumps(payload, ensure_ascii=False), mime_type="application/json")]
+        return _json_resource(uri, json.dumps(payload, ensure_ascii=False))
     if path == "/entities":
         entities = await graph_store.list_entities()
-        return [ReadResourceContents(content=json.dumps(entities, ensure_ascii=False), mime_type="application/json")]
+        return _json_resource(uri, json.dumps(entities, ensure_ascii=False))
     if path.startswith("/entity/"):
         entity_key = path.removeprefix("/entity/")
         history = await vector_store.get_history(entity_key)
@@ -248,13 +269,17 @@ async def read_resource(uri: str) -> list[ReadResourceContents]:
             }
             for node in history
         ]
-        return [ReadResourceContents(content=json.dumps(payload, ensure_ascii=False), mime_type="application/json")]
-    return [
-        ReadResourceContents(
-            content=json.dumps({"error": "Resource not found"}, ensure_ascii=False),
-            mime_type="application/json",
-        )
-    ]
+        return _json_resource(uri, json.dumps(payload, ensure_ascii=False))
+    return _json_resource(uri, json.dumps({"error": "Resource not found"}, ensure_ascii=False))
+
+mcp_server = Server(
+    "memory-mcp",
+    on_list_tools=list_tools,
+    on_call_tool=call_tool,
+    on_list_resources=list_resources,
+    on_list_resource_templates=list_resource_templates,
+    on_read_resource=read_resource,
+)
 
 streamable_http_app = StreamableHttpApp(mcp_server, json_response=False)
 

@@ -32,6 +32,14 @@
 - 涉及线上服务能力的任务，只有更新到线上并完成线上验证后才算终结；仅完成本地代码、测试或文档不算完成
 
 ## 变更日志
+### 2026-10-28 MCP Python SDK 迁移到 2.x
+- 依赖约束 `mcp>=2.0,<3`；`requirements.lock`（`pip freeze | LC_ALL=C sort`，以旧锁为约束重解）与 `uv.lock` 同步更新
+- `server.py` 由 1.x 装饰器注册改为 2.x `Server(..., on_list_tools/on_call_tool/on_list_resources/on_list_resource_templates/on_read_resource)` 构造参数，handler 签名 `(ctx, params)`，返回完整 Result 类型
+- 2.x lowlevel 不再做 tool 入参 jsonschema 校验，`call_tool` 自行校验并保持 1.x 报错形态（`is_error=True` + `Input validation error: ...`）
+- 对外 MCP 契约不变：8 个 tool、参数 schema、JSON 字符串返回、resources、`/mcp` 端点与 Bearer 鉴权；`transport/` 无需改动（`StreamableHTTPSessionManager` 签名未变）
+- `tests/test_transport.py` 改用 2.x 进程内 `mcp.Client` 走真实协议分发，新增契约测试（tool 列表、校验报错、resources）
+- 修复非 editable 安装（Dockerfile `pip install --no-deps .`）启动即崩：`storage/migrate.py` 改为按包内路径定位 migrations，`alembic.ini` 仅承载日志配置、找不到时省略（原先向上找 pyproject.toml 失败抛 `RuntimeError`）
+
 ### 2026-05-21 M1 存储底座（v2 schema）
 - 引入 SQLite v2 主存储（aiosqlite + alembic 1.18 + WAL/FK/busy_timeout pragmas）
 - 新建 `0001_initial_v2` migration：memories / memories_fts / entities / relations / threads / thread_messages / thread_messages_fts / jobs / working_memory_cache + 全部索引 + FTS5 触发器
