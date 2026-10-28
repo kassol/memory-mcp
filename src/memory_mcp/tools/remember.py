@@ -40,7 +40,8 @@ def _parse_source_refs(raw) -> list[SourceRef]:
     return out
 
 
-async def remember_tool(arguments: dict) -> dict:
+async def remember_tool(arguments: dict, *, embedding: list[float] | None = None) -> dict:
+    """`embedding` lets in-process callers reuse a precomputed vector; never exposed via MCP/REST."""
     content = arguments.get("content")
     entity_key = arguments.get("entity_key")
     entity_type = arguments.get("entity_type")
@@ -55,7 +56,8 @@ async def remember_tool(arguments: dict) -> dict:
     if not content or not entity_key or not entity_type:
         raise ValueError("Missing required arguments: content, entity_key, entity_type")
 
-    embedding = await embedding_service.get_embedding(content)
+    if embedding is None:
+        embedding = await embedding_service.get_embedding(content)
 
     history = await vector_store.get_history(entity_key)
     current_node = next((n for n in history if n.is_current), None)

@@ -1,10 +1,10 @@
 import json
 import re
 
-import httpx
-
-from ..config import settings
 from ..tools.remember import remember_tool
+from .embedding import embedding_service
+from .key_assignment import assign_entity_key
+from .llm import chat
 
 
 class ExtractionError(RuntimeError):
@@ -34,27 +34,7 @@ async def _call_llm(messages: list[dict]) -> str:
     conversation_text = "\n".join(
         f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages
     )
-    prompt = _EXTRACTION_PROMPT + conversation_text
-
-    headers = {
-        "Authorization": f"Bearer {settings.openrouter_api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://memory-mcp.app",
-        "X-Title": "Memory MCP",
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{settings.openrouter_base_url}/chat/completions",
-            headers=headers,
-            json={
-                "model": settings.llm_model,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"].strip()
+    return await chat(_EXTRACTION_PROMPT + conversation_text)
 
 
 def _parse_llm_output(text: str) -> list[dict]:
@@ -98,12 +78,18 @@ async def extract_memories(messages: list[dict]) -> dict:
         if not entity_key or not entity_type or not content:
             continue
         try:
-            result = await remember_tool({
-                "entity_key": entity_key,
-                "entity_type": entity_type,
-                "content": content,
-                "skip_semantic_merge": True,
-            })
+            # The extraction LLM cannot see stored keys; reassign against current memories.
+            embedding = await embedding_service.get_embedding(content)
+            entity_key, entity_type = await assign_entity_key(content, embedding)
+            result = await remember_tool(
+                {
+                    "entity_key": entity_key,
+                    "entity_type": entity_type,
+                    "content": content,
+                    "skip_semantic_merge": True,
+                },
+                embedding=embedding,
+            )
             results.append(result)
         except Exception as exc:
             errors.append(
