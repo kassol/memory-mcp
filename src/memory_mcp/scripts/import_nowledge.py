@@ -99,6 +99,22 @@ async def import_one(record: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+async def already_imported(memory_id: str) -> bool:
+    """The DB is the source of truth: a crash after the write but before save_state must not resubmit.
+
+    shortcut: the evolve path stamps origin_session_id in a second write right after the insert;
+    a crash between those two writes still resubmits once (merge of identical content -> no_change).
+    """
+    from ..storage.sqlite import get_db
+
+    async with get_db() as db:
+        row = await db.fetchone(
+            "SELECT 1 FROM memories WHERE origin_client = ? AND origin_session_id = ? LIMIT 1",
+            (ORIGIN_CLIENT, memory_id),
+        )
+    return row is not None
+
+
 async def run_import(records: list[dict[str, Any]], state_path: Path, limit: Optional[int] = None) -> dict[str, Any]:
     state = load_state(state_path)
     done = set(state["done"])
@@ -112,7 +128,7 @@ async def run_import(records: list[dict[str, Any]], state_path: Path, limit: Opt
     run_failed = 0
     for record in pending:
         try:
-            result = await import_one(record)
+            result = {"status": "already_in_db"} if await already_imported(record["id"]) else await import_one(record)
         except Exception as exc:
             run_failed += 1
             failed[record["id"]] = {"id": record["id"], "error": f"{type(exc).__name__}: {exc}"}
@@ -130,6 +146,7 @@ async def run_import(records: list[dict[str, Any]], state_path: Path, limit: Opt
         "created": statuses["created"],
         "evolved": statuses["evolved"],
         "no_change": statuses["no_change"],
+        "already_in_db": statuses["already_in_db"],
         "conflicts": conflicts,
         "failed": run_failed,
         "skipped_already_done": len(records) - len([r for r in records if r["id"] not in done]),

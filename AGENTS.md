@@ -47,7 +47,7 @@
 - `check_conflict` 在请求失败、非 200、响应畸形、答案非 YES/NO 时抛 `ConflictCheckError`，不再当作「无冲突」
 - 复用 key 时合并演化（`engine/merge.py` `merge_memories`）：`remember` 的两条演化路径在演化前让 LLM 把旧 current 与新内容合并为一条（保留不冲突的事实、冲突处以新内容为准、去重、保留 `[YYYY-MM]` 日期标注），新版本存合并结果并按合并文本重算 embedding；同 key 路径由这次合并调用同时给出 conflict（替代 `check_conflict`），语义合并路径仍先由 `check_conflict` 决定是否演化；合并结果与旧 current 相同返回 `no_change`；tags 取旧版与新输入的并集；合并失败抛 `MergeError`，不写库、不回退为整体替换。MCP / REST `remember` 同样生效，对外参数与返回字段不变
 - `remember_tool` / `evolve_memory` 新增仅进程内可用的 `created_at` 参数：新节点 `created_at`/`valid_from` 与被演化旧节点的 `valid_until` 用该时间，未传时为当前时间；不暴露给 MCP/REST
-- 新增 `python -m memory_mcp.scripts.import_nowledge --input <nmem --json m list 输出> --state <state.json> [--limit N] [--dry-run]`：`m list` 列出的全部记忆按 `created_at`（必须带时区）升序逐条分配 key 后经 `remember_tool`（`skip_semantic_merge`）写入，透传原 `created_at`、`origin_client=nowledge`、`origin_session_id=<Nowledge id>`、labels 作 tags；state 文件记录已完成与失败 id，可断点续跑；`--dry-run` 只解析排序，不调 LLM、不写库、不建 state 文件
+- 新增 `python -m memory_mcp.scripts.import_nowledge --input <nmem --json m list 输出> --state <state.json> [--limit N] [--dry-run]`：`m list` 列出的全部记忆按 `created_at`（必须带时区）升序逐条分配 key 后经 `remember_tool`（`skip_semantic_merge`）写入，透传原 `created_at`、`origin_client=nowledge`、`origin_session_id=<Nowledge id>`、labels 作 tags；state 文件记录已完成与失败 id，可断点续跑；每条处理前先查库（`origin_client=nowledge` 且 `origin_session_id` 命中即视为已导入），写库后、存 state 前中断也不会重复提交；`--dry-run` 只解析排序，不调 LLM、不写库、不建 state 文件
 
 ### 2026-05-21 M1 存储底座（v2 schema）
 - 引入 SQLite v2 主存储（aiosqlite + alembic 1.18 + WAL/FK/busy_timeout pragmas）

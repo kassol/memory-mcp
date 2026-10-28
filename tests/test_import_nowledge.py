@@ -99,6 +99,24 @@ def test_import_writes_in_order_and_resumes(tools, test_env, monkeypatch, tmp_pa
     anyio.run(run)
 
 
+def test_crash_before_state_save_does_not_resubmit(tools, test_env, monkeypatch, tmp_path):
+    async def run():
+        imp, calls = _setup(monkeypatch)
+        state_path = tmp_path / "state.json"
+        records = imp.sort_records(RECORDS)
+
+        # Written to the DB, then the machine dies before the state file records it.
+        await imp.import_one(records[0])
+        assert not state_path.exists()
+
+        report = await imp.run_import(records, state_path)
+        assert calls == ["Lives in Beijing", "Prefers Cursor as main editor", "Lives in Shanghai"]
+        assert report["already_in_db"] == 1 and report["created"] == 1 and report["evolved"] == 1
+        assert json.loads(state_path.read_text())["done"] == ["n1", "n2", "n3"]
+
+    anyio.run(run)
+
+
 def test_import_single_failure_continues_and_retries(tools, test_env, monkeypatch, tmp_path):
     async def run():
         imp, _ = _setup(monkeypatch, fail_on={"Prefers Cursor as main editor"})
