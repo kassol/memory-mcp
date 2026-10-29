@@ -17,9 +17,10 @@ New version:
 {new}
 
 Rules:
-- Keep every fact from both versions that does not conflict.
+- Keep every durable fact from both versions that does not conflict: decisions, conclusions, root causes, preferences, settings, procedures.
 - Where the versions conflict, the new version wins.
-- Remove duplicates and keep the result concise.
+- Drop old facts the new version makes obsolete, such as earlier progress snapshots or intermediate status; keep only the latest state.
+- Remove duplicates. Keep the result at most 1500 characters.
 - Keep existing date annotations such as [2026-05] as they are.
 
 Also decide whether the new version contradicts any fact in the old version.
@@ -34,7 +35,7 @@ async def merge_memories(old_content: str, new_content: str) -> tuple[str, bool]
     try:
         text = await chat(_MERGE_PROMPT.format(old=old_content, new=new_content))
     except Exception as exc:
-        raise MergeError("LLM merge failed") from exc
+        raise MergeError(f"LLM merge failed: {exc!r}") from exc
 
     match = re.search(r"\{.*\}", text, re.DOTALL)
     try:

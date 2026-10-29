@@ -159,3 +159,38 @@ def test_dry_run_does_not_call_llm_or_write(tools, test_env, monkeypatch, tmp_pa
     assert summary["earliest_created_at"] == "2026-05-01T00:00:00+00:00"
     assert summary["latest_created_at"] == "2026-07-01T00:00:00+00:00"
     assert calls == [] and not state_path.exists()
+
+
+def test_dry_run_interleaves_inputs_and_skips_archive_dumps(tools, test_env, monkeypatch, tmp_path):
+    imp, _ = _setup(monkeypatch)
+    nowledge = tmp_path / "nowledge.json"
+    nowledge.write_text(json.dumps({"memories": RECORDS + [
+        _rec("memory-mcp-full-archive-2026-05-20-part-001", "2026-05-20T00:00:00+00:00", "dump"),
+    ]}))
+    v1 = tmp_path / "v1.jsonl"
+    v1.write_text(json.dumps(_rec("v1a", "2025-12-21T00:00:00+00:00", "Old v1 fact", origin_client="memory-mcp-v1")))
+
+    result = CliRunner().invoke(
+        imp.app, ["--input", str(nowledge), "--input", str(v1), "--state", str(tmp_path / "s.json"), "--dry-run"]
+    )
+    assert result.exit_code == 0, result.output
+    out = result.output
+    summary = json.loads(out[out.index("{") : out.index("}") + 1])
+    assert summary["total"] == 4 and summary["earliest_created_at"] == "2025-12-21T00:00:00+00:00"
+    assert "full-archive" not in out
+
+
+def test_record_origin_client_is_stored_and_used_for_resume(tools, test_env, monkeypatch, tmp_path):
+    async def run():
+        imp, calls = _setup(monkeypatch)
+        _, vector, _ = test_env
+        KEYS["Old v1 fact"] = ("fact:old_v1", "fact")
+        record = _rec("v1a", "2025-12-21T00:00:00+00:00", "Old v1 fact", origin_client="memory-mcp-v1", labels=["t"])
+
+        await imp.import_one(record)
+        report = await imp.run_import([record], tmp_path / "state.json")
+        assert report["already_in_db"] == 1 and calls == ["Old v1 fact"]
+        node = (await vector.vector_store.get_history("fact:old_v1"))[0]
+        assert node.origin_client == "memory-mcp-v1" and node.origin_session_id == "v1a"
+
+    anyio.run(run)

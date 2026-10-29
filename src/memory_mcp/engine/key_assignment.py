@@ -69,7 +69,7 @@ async def assign_entity_key(content: str, embedding: list[float] | None = None) 
     try:
         text = await chat(prompt)
     except Exception as exc:
-        raise KeyAssignmentError("LLM key assignment failed") from exc
+        raise KeyAssignmentError(f"LLM key assignment failed: {exc!r}") from exc
 
     data = _parse_output(text)
     entity_key = data.get("entity_key")

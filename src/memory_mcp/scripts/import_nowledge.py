@@ -28,7 +28,9 @@ import typer
 
 app = typer.Typer(help="Import Nowledge Mem memories into memory-mcp.")
 
-ORIGIN_CLIENT = "nowledge"
+ORIGIN_CLIENT = "nowledge"  # default; a record may carry its own origin_client (e.g. memory-mcp v1 rows)
+# Raw dumps of the old memory-mcp, ~20 unrelated memories per record; v1 rows are imported one by one instead.
+ARCHIVE_ID_PREFIX = "memory-mcp-full-archive-"
 
 
 def load_records(path: Path) -> list[dict[str, Any]]:
@@ -37,8 +39,8 @@ def load_records(path: Path) -> list[dict[str, Any]]:
         data = json.loads(text)
     except json.JSONDecodeError:
         return [json.loads(line) for line in text.splitlines() if line.strip()]
-    if isinstance(data, dict):
-        data = data["memories"]
+    if isinstance(data, dict):  # a one-line JSONL file is also a single JSON object
+        data = data["memories"] if "memories" in data else [data]
     return data
 
 
@@ -90,7 +92,7 @@ async def import_one(record: dict[str, Any]) -> dict[str, Any]:
             "entity_type": entity_type,
             "tags": labels,
             "title": record.get("title") or None,
-            "origin_client": ORIGIN_CLIENT,
+            "origin_client": record.get("origin_client", ORIGIN_CLIENT),
             "origin_session_id": record["id"],
             "skip_semantic_merge": True,
         },
@@ -99,7 +101,7 @@ async def import_one(record: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-async def already_imported(memory_id: str) -> bool:
+async def already_imported(record: dict[str, Any]) -> bool:
     """The DB is the source of truth: a crash after the write but before save_state must not resubmit.
 
     shortcut: the evolve path stamps origin_session_id in a second write right after the insert;
@@ -110,7 +112,7 @@ async def already_imported(memory_id: str) -> bool:
     async with get_db() as db:
         row = await db.fetchone(
             "SELECT 1 FROM memories WHERE origin_client = ? AND origin_session_id = ? LIMIT 1",
-            (ORIGIN_CLIENT, memory_id),
+            (record.get("origin_client", ORIGIN_CLIENT), record["id"]),
         )
     return row is not None
 
@@ -128,7 +130,7 @@ async def run_import(records: list[dict[str, Any]], state_path: Path, limit: Opt
     run_failed = 0
     for record in pending:
         try:
-            result = {"status": "already_in_db"} if await already_imported(record["id"]) else await import_one(record)
+            result = {"status": "already_in_db"} if await already_imported(record) else await import_one(record)
         except Exception as exc:
             run_failed += 1
             failed[record["id"]] = {"id": record["id"], "error": f"{type(exc).__name__}: {exc}"}
@@ -165,13 +167,17 @@ async def _run_and_close(records: list[dict[str, Any]], state_path: Path, limit:
 
 @app.command()
 def main(
-    input_path: Path = typer.Option(..., "--input", help="nmem --json m list output (JSON or JSONL)"),
+    input_paths: list[Path] = typer.Option(
+        ..., "--input", help="nmem --json m list output (JSON or JSONL); repeat to interleave sources by created_at"
+    ),
     state: Path = typer.Option(..., "--state", help="Resume state file (created if missing)"),
     limit: Optional[int] = typer.Option(None, "--limit", help="Process at most N pending memories"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Parse and sort only; no LLM calls, no writes"),
 ) -> None:
     """CLI entry point: python -m memory_mcp.scripts.import_nowledge --input ... --state ..."""
-    records = sort_records(load_records(input_path))
+    records = sort_records(
+        [r for p in input_paths for r in load_records(p) if not r["id"].startswith(ARCHIVE_ID_PREFIX)]
+    )
 
     if dry_run:
         summary = {
