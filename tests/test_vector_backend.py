@@ -52,3 +52,41 @@ def test_vector_backend_only_stores_id_and_vector(test_env):
         assert ids[0][0] == "mem-1"
 
     anyio.run(run)
+
+
+def test_vector_index_keeps_current_versions_only(tools, test_env):
+    """Stale versions must not crowd the ANN candidates that recall and key assignment filter to current."""
+    import anyio
+
+    async def run():
+        remember = tools[0]
+        _, vector, _ = test_env
+        fact = {"entity_key": "fact:home", "entity_type": "fact"}
+        await remember.remember_tool({**fact, "content": "Lives in Beijing"})
+        await remember.remember_tool({**fact, "content": "Lives in Shanghai"})
+
+        history = await vector.vector_store.get_history("fact:home")
+        indexed = set(vector.vector_store._backend._vectors)
+        assert indexed == {h.id for h in history if h.is_current} and len(history) == 2
+
+    anyio.run(run)
+
+
+def test_lance_backend_compacts_fragments(tmp_path, monkeypatch):
+    import anyio
+
+    pytest.importorskip("lancedb")  # miniconda's lancedb breaks on numpy 2; the lock venv runs it
+
+    import memory_mcp.storage.vector as vector_mod
+
+    monkeypatch.setattr(vector_mod.settings, "embedding_dim", 3)
+    monkeypatch.setattr(vector_mod, "COMPACT_EVERY_WRITES", 10)
+    backend = vector_mod.LanceVectorBackend(str(tmp_path))
+
+    async def run():
+        for i in range(10):
+            await backend.upsert(f"m{i}", [0.1, 0.2, float(i)])
+
+    anyio.run(run)
+    assert backend._table.stats()["fragment_stats"]["num_fragments"] == 1
+    assert backend._table.count_rows() == 10

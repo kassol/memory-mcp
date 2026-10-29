@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import timedelta
 from typing import List, Optional, Tuple
 
 from ..config import settings
@@ -8,6 +9,8 @@ from .repositories.memories import MemoryRepository
 from .sqlite import SQLiteStore, get_store
 
 logger = logging.getLogger(__name__)
+
+COMPACT_EVERY_WRITES = 200
 
 
 def _l2_distance(a: list[float], b: list[float]) -> float:
@@ -50,6 +53,7 @@ class LanceVectorBackend:
         os.makedirs(vectors_dir, exist_ok=True)
         self._db = lancedb.connect(vectors_dir)
         self._table_name = "memories"
+        self._writes = 0
         self._init_table()
 
     def _init_table(self) -> None:
@@ -68,9 +72,22 @@ class LanceVectorBackend:
         # LanceDB upsert: delete-then-add to keep this simple and version-agnostic
         self._table.delete(f"id = '{memory_id}'")
         self._table.add([{"id": memory_id, "vector": list(vector)}])
+        self._after_write()
 
     async def delete(self, memory_id: str) -> None:
         self._table.delete(f"id = '{memory_id}'")
+        self._after_write()
+
+    def _after_write(self) -> None:
+        # Every add writes a new fragment and version; without compaction a 9k-row import
+        # left ~9.5k fragments and searches slowed from ~5 s to ~22 s per imported memory.
+        self._writes += 1
+        if self._writes % COMPACT_EVERY_WRITES == 0:
+            self.optimize()
+
+    def optimize(self) -> None:
+        # Keep an hour of versions so a concurrent reader's snapshot stays readable.
+        self._table.optimize(cleanup_older_than=timedelta(hours=1))
 
     async def search(self, query_vector: list[float], limit: int = 10) -> list[Tuple[str, float]]:
         results = self._table.search(query_vector).limit(limit).to_list()
@@ -119,15 +136,18 @@ class VectorStore:
             self.backend_name = "memory"
 
     # ---- Write path -------------------------------------------------------
+    # The vector index holds current memories only: every search filters to current, and
+    # stale versions crowding the ANN candidates would hide the current one. A memory's
+    # content (and vector) never changes in place; new content is a new node via insert.
     async def insert(self, node: MemoryNode) -> None:
         await self._repo.insert(node)
-        if node.embedding:
+        if node.embedding and node.is_current:
             await self._backend.upsert(node.id, node.embedding)
 
     async def update(self, node: MemoryNode) -> None:
         await self._repo.update(node)
-        if node.embedding:
-            await self._backend.upsert(node.id, node.embedding)
+        if not node.is_current:
+            await self._backend.delete(node.id)
 
     async def delete(self, memory_id: str) -> bool:
         await self._backend.delete(memory_id)
