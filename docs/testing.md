@@ -1,7 +1,7 @@
 # Testing Guide
 
 ## Scope
-- Tools: remember, recall, recall_all, trace, forget, relate, graph_query
+- MCP tools: remember, recall, forget, trace (recall_all / relate / unrelate / graph_query stay REST/CLI only)
 - Engine: evolution inference and conflict handling
 - Storage: vector/graph persistence
 
@@ -26,5 +26,5 @@ If you want to run without LanceDB, set `MEMORY_MCP_VECTOR_BACKEND=memory`.
 1. Start server: `python -m memory_mcp`
 2. Health check: `curl http://localhost:8765/health`
 3. Initialize MCP session via POST `/mcp`
-4. Call tools in order: remember -> recall -> trace -> forget -> relate -> graph_query
+4. Call tools in order: remember (content only) -> recall -> trace -> forget (memory_id from recall) -> recall
 5. Expect valid JSON responses and archived memories excluded from recall

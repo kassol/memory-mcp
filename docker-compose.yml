@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   memory-mcp:
     build:
@@ -7,6 +5,9 @@ services:
       dockerfile: Dockerfile
     container_name: memory-mcp
     restart: unless-stopped
+    # Loopback only: the host's reverse proxy (1Panel OpenResty, host network) fronts it.
+    ports:
+      - "127.0.0.1:18765:8765"
     volumes:
       - ./data:/app/data
       - ./.env:/app/.env:ro
@@ -18,12 +19,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: memory-mcp-tunnel
-    restart: unless-stopped
-    # If using tunnel token
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - memory-mcp

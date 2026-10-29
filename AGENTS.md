@@ -42,6 +42,10 @@
 - `recall` 返回项新增 `memory_id`，供 `forget` 使用
 - `tests/test_transport.py` 契约测试改为 4 个工具 + 无 resources，并走通 remember（服务端分配 key）→ recall → forget → recall 流程
 
+### 2026-10-29 部署改为宿主机反代，去掉 cloudflared
+- 生产迁到 cc-la（1Panel OpenResty，host 网络）：`docker-compose.yml` 删除 cloudflared 服务，`memory-mcp` 只映射 `127.0.0.1:18765:8765`，由宿主机反代终结 HTTPS；`.env.example` / README 删除 `CLOUDFLARE_TUNNEL_TOKEN`
+- `docs/testing.md` 手工集成步骤同步为 4 个 MCP 工具
+
 ### 2026-10-28 MCP Python SDK 迁移到 2.x
 - 依赖约束 `mcp>=2.0,<3`；`requirements.lock`（`pip freeze | LC_ALL=C sort`，以旧锁为约束重解）与 `uv.lock` 同步更新
 - `server.py` 由 1.x 装饰器注册改为 2.x `Server(..., on_list_tools/on_call_tool/on_list_resources/on_list_resource_templates/on_read_resource)` 构造参数，handler 签名 `(ctx, params)`，返回完整 Result 类型

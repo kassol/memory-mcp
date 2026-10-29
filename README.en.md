@@ -34,13 +34,8 @@ Personal memory service powered by **MCP Streamable HTTP**. It combines **semant
 2. Build & run: `docker compose up -d --build`
 
 Notes:
-- `docker-compose.yml` **does not expose port 8765** by default.
-- For local debugging, add:
-  ```yaml
-  ports:
-    - "8765:8765"
-  ```
-- In production, expose HTTPS via **Cloudflare Tunnel / reverse proxy**.
+- `docker-compose.yml` binds the service to the host loopback address `127.0.0.1:18765` only.
+- In production, a reverse proxy on the host (for example 1Panel OpenResty) terminates HTTPS and forwards to `http://127.0.0.1:18765`.
 
 ## Environment Variables
 
@@ -58,8 +53,6 @@ See `.env.example`.
   - `MEMORY_MCP_VECTOR_BACKEND`: `lancedb` (default) / `memory` / `auto`
   - Production should use `lancedb`; LanceDB startup failure stops the service so existing memories stay visible as a deployment issue
   - `memory` is useful for tests; `auto` switches to `memory` after LanceDB initialization failure
-- **Cloudflare Tunnel (optional)**
-  - `CLOUDFLARE_TUNNEL_TOKEN`
 
 ## MCP Client Config (Example)
 

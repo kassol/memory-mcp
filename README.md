@@ -34,13 +34,8 @@
 2. 构建并启动：`docker compose up -d --build`
 
 说明：
-- 当前 `docker-compose.yml` **默认不暴露 8765**（避免直接公网暴露）。
-- 若你需要在宿主机直接访问（本地调试），请在 `memory-mcp` service 增加端口映射：
-  ```yaml
-  ports:
-    - "8765:8765"
-  ```
-- 生产环境建议通过 **Cloudflare Tunnel / 反向代理** 暴露 HTTPS。
+- `docker-compose.yml` 只把服务绑到宿主机回环地址 `127.0.0.1:18765`，不直接暴露公网。
+- 生产环境由宿主机上的反向代理（如 1Panel OpenResty）终结 HTTPS，上游指向 `http://127.0.0.1:18765`。
 
 ## 环境变量
 
@@ -65,8 +60,6 @@
   - `MEMORY_MCP_VECTOR_BACKEND`：`lancedb`（默认）/ `memory` / `auto`
   - 说明：生产建议使用 `lancedb`；LanceDB 启动失败会中止服务，避免旧记忆被静默隐藏
   - `memory` 适合测试；`auto` 会在 LanceDB 初始化失败时切换到 `memory`
-- **Cloudflare Tunnel（可选）**
-  - `CLOUDFLARE_TUNNEL_TOKEN`
 
 ## MCP 客户端配置示例
 
