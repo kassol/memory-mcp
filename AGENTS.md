@@ -48,6 +48,9 @@
 - 复用 key 时合并演化（`engine/merge.py` `merge_memories`）：`remember` 的两条演化路径在演化前让 LLM 把旧 current 与新内容合并为一条（保留不冲突的事实、冲突处以新内容为准、去重、保留 `[YYYY-MM]` 日期标注），新版本存合并结果并按合并文本重算 embedding；同 key 路径由这次合并调用同时给出 conflict（替代 `check_conflict`），语义合并路径仍先由 `check_conflict` 决定是否演化；合并结果与旧 current 相同返回 `no_change`；tags 取旧版与新输入的并集；合并失败抛 `MergeError`，不写库、不回退为整体替换。MCP / REST `remember` 同样生效，对外参数与返回字段不变
 - `remember_tool` / `evolve_memory` 新增仅进程内可用的 `created_at` 参数：新节点 `created_at`/`valid_from` 与被演化旧节点的 `valid_until` 用该时间，未传时为当前时间；不暴露给 MCP/REST
 - 新增 `python -m memory_mcp.scripts.import_nowledge --input <nmem --json m list 输出> --state <state.json> [--limit N] [--dry-run]`：`m list` 列出的全部记忆按 `created_at`（必须带时区）升序逐条分配 key 后经 `remember_tool`（`skip_semantic_merge`）写入，透传原 `created_at`、`origin_client=nowledge`、`origin_session_id=<Nowledge id>`、labels 作 tags；state 文件记录已完成与失败 id，可断点续跑；每条处理前先查库（`origin_client=nowledge` 且 `origin_session_id` 命中即视为已导入），写库后、存 state 前中断也不会重复提交；`--dry-run` 只解析排序，不调 LLM、不写库、不建 state 文件
+- 合并提示词改为「保留长期有效事实、丢弃被新版本淘汰的阶段性状态（如旧进度快照）、结果 ≤1500 字」：试跑中逐条合并进度日志会把单条记忆滚到 1.1 万字以上，单条导入耗时随之升到约 21 秒
+- 导入脚本 `--input` 可重复，多个来源按 `created_at` 穿插导入；记录可自带 `origin_client`（v1 线上数据用 `memory-mcp-v1`），续跑去重按 `origin_client + origin_session_id`；跳过 `memory-mcp-full-archive-*`（旧库整包转储，每条混装约 20 条无关记忆），v1 数据改为逐条导入
+- key 分配与合并失败的报错带上底层异常，便于区分网络错误与模型输出问题
 
 ### 2026-05-21 M1 存储底座（v2 schema）
 - 引入 SQLite v2 主存储（aiosqlite + alembic 1.18 + WAL/FK/busy_timeout pragmas）
