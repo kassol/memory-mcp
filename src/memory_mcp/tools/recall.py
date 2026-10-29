@@ -29,6 +29,7 @@ async def recall_tool(arguments: dict) -> dict:
     formatted_results = []
     for node, distance in results:
         res = {
+            "memory_id": node.id,
             "entity_key": node.entity_key,
             "content": node.content,
             "entity_type": node.entity_type,

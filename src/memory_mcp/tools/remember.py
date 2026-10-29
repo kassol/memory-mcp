@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from ..config import settings
-from ..engine import merge
+from ..engine import key_assignment, merge
 from ..engine.conflict import conflict_detector
 from ..engine.embedding import embedding_service
 from ..engine.evolution import evolve_memory, infer_mutation_type
@@ -52,7 +52,9 @@ async def _merge_with(old_content: str, content: str, embedding: list[float]) ->
 async def remember_tool(
     arguments: dict, *, embedding: list[float] | None = None, created_at: datetime | None = None
 ) -> dict:
-    """`embedding` (precomputed vector of `content`) and `created_at` (original creation time)
+    """Without entity_key/entity_type the server assigns them via `assign_entity_key`.
+
+    `embedding` (precomputed vector of `content`) and `created_at` (original creation time)
     are for in-process callers only; never exposed via MCP/REST."""
     content = arguments.get("content")
     entity_key = arguments.get("entity_key")
@@ -65,11 +67,18 @@ async def remember_tool(
     source_refs = _parse_source_refs(arguments.get("source_refs"))
     title = arguments.get("title")
 
-    if not content or not entity_key or not entity_type:
-        raise ValueError("Missing required arguments: content, entity_key, entity_type")
+    if not content:
+        raise ValueError("Missing required argument: content")
+    if bool(entity_key) != bool(entity_type):
+        raise ValueError("entity_key and entity_type must be given together")
 
     if embedding is None:
         embedding = await embedding_service.get_embedding(content)
+
+    if not entity_key:
+        entity_key, entity_type = await key_assignment.assign_entity_key(content, embedding)
+        # Key assignment already matched the nearest current memories; a second semantic match would duplicate it.
+        skip_semantic_merge = True
 
     history = await vector_store.get_history(entity_key)
     current_node = next((n for n in history if n.is_current), None)

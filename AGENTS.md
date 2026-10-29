@@ -26,12 +26,22 @@
 
 ## 全局规范
 - MCP Streamable HTTP 为主传输协议；REST API (`/api/v1/*`) 为 CLI/hooks 等非 MCP 客户端提供轻量接入，复用同一套 tool 函数
+- MCP 只暴露 agent 主动存取所需的 4 个工具（`remember` / `recall` / `forget` / `trace`），不注册 resources；运维与图谱类能力只走 REST / CLI
 - Tool 返回值统一为 JSON 字符串
 - 记忆数据持久化：向量存储 + 图存储并行
 - 变更必须更新本文件
 - 涉及线上服务能力的任务，只有更新到线上并完成线上验证后才算终结；仅完成本地代码、测试或文档不算完成
 
 ## 变更日志
+### 2026-10-29 MCP 接口收敛为 4 个工具
+- 动机：agent 只靠 MCP + 用户级 AGENTS.md 引导主动存取记忆。原 `remember` 要求调用方自起 `entity_key`，不同会话起的 key 会漂移，同一主题无法合并演化；8 个工具里多数与主动存取无关；`memory:///current`、`memory:///entities` 一次返回全部记忆，导入后 9000+ 条会撑爆客户端上下文。当时没有 MCP 客户端在用，不保留旧 MCP 契约
+- MCP 只剩 `remember(content, title?, tags?)`、`recall(query, limit?)`、`forget(memory_id, reason?)`、`trace(entity_key, format?)`，schema 均 `additionalProperties: false`（多传参数返回 `Input validation error`）；description 写明各自使用时机
+- 移除 MCP 的 `recall_all` / `relate` / `unrelate` / `graph_query` 工具与全部 resources / resource templates：`Server` 不再传 resources handler，initialize 不再声明 resources 能力，`resources/list` 返回 method not found。tool 函数、REST 路由、CLI 子命令保留
+- `remember_tool`：`entity_key` / `entity_type` 改为可选（必须成对出现）；缺省时用同一份 embedding 调 `assign_entity_key` 分配，并跳过语义合并路径（key 分配已对照过最相似的 current 记忆，与 Extraction 一致）。显式传 key 的调用方（导入脚本、Extraction）行为不变；REST `POST /api/v1/memories` 同样可不传 key
+- `forget_tool` 新增 `memory_id`：归档该条 current 记忆（写法与按 `entity_key` 归档相同）；id 不存在或不是 current 时抛错，MCP 返回 `{"error": ...}`；按 `entity_key` 的 REST / CLI 用法不变。未新增 REST 路由（`DELETE /api/v1/memories/{...}` 已被按 `entity_key` 归档占用）
+- `recall` 返回项新增 `memory_id`，供 `forget` 使用
+- `tests/test_transport.py` 契约测试改为 4 个工具 + 无 resources，并走通 remember（服务端分配 key）→ recall → forget → recall 流程
+
 ### 2026-10-28 MCP Python SDK 迁移到 2.x
 - 依赖约束 `mcp>=2.0,<3`；`requirements.lock`（`pip freeze | LC_ALL=C sort`，以旧锁为约束重解）与 `uv.lock` 同步更新
 - `server.py` 由 1.x 装饰器注册改为 2.x `Server(..., on_list_tools/on_call_tool/on_list_resources/on_list_resource_templates/on_read_resource)` 构造参数，handler 签名 `(ctx, params)`，返回完整 Result 类型

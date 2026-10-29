@@ -1,23 +1,15 @@
 import json
 import logging
 from contextlib import asynccontextmanager
-from urllib.parse import urlparse, unquote
 
 import jsonschema
 from mcp.server import Server, ServerRequestContext
 from mcp.types import (
     CallToolRequestParams,
     CallToolResult,
-    ListResourcesResult,
-    ListResourceTemplatesResult,
     ListToolsResult,
     PaginatedRequestParams,
-    ReadResourceRequestParams,
-    ReadResourceResult,
-    Resource,
-    ResourceTemplate,
     TextContent,
-    TextResourceContents,
     Tool,
 )
 from starlette.applications import Starlette
@@ -28,10 +20,9 @@ from starlette.middleware import Middleware
 
 from .api.routes import routes as api_routes
 from .config import settings
-from .storage.graph import graph_store
 from .storage.migrate import current as alembic_current, run_migrations
 from .storage.vector import vector_store
-from .tools import remember, recall, trace, forget, relate, unrelate, graph_query, recall_all
+from .tools import remember, recall, trace, forget
 from .transport.auth import AuthMiddleware
 from .transport.cors import CorsMiddleware
 from .transport.streamable_http import StreamableHttpApp
@@ -44,109 +35,70 @@ async def list_tools(ctx: ServerRequestContext, params: PaginatedRequestParams |
     return ListToolsResult(tools=[
         Tool(
             name="remember",
-            description="Store a new memory. The system automatically handles evolution and conflict detection.",
+            description=(
+                "Store one long-lived fact: a preference, decision, conclusion, root cause, or project convention. "
+                "One fact per call; skip transient task state. The server picks the entity key and merges the fact "
+                "into an existing memory on the same subject, so updates replace outdated versions."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "content": {"type": "string", "description": "The content to remember"},
-                    "entity_key": {"type": "string", "description": "Unique key for the entity (e.g., preference:editor)"},
-                    "entity_type": {
-                        "type": "string",
-                        "enum": ["person", "preference", "fact", "event", "goal", "project"],
-                        "description": "Entity type",
-                    },
-                    "tags": {"type": "array", "items": {"type": "string"}}
+                    "content": {"type": "string", "description": "The fact, self-contained and specific"},
+                    "title": {"type": "string", "description": "Optional short title"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
                 },
-                "required": ["content", "entity_key", "entity_type"]
+                "required": ["content"],
+                "additionalProperties": False,
             }
         ),
         Tool(
             name="recall",
-            description="Search for memories by semantic similarity.",
+            description=(
+                "Search current memories by meaning. Use it when you start a task and before you make a decision, "
+                "to reuse known preferences, decisions and past conclusions."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search query"},
-                    "entity_type": {"type": "string"},
+                    "query": {"type": "string", "description": "What you need to know"},
                     "limit": {"type": "integer", "default": 10},
-                    "include_evolution": {"type": "boolean", "default": False}
                 },
-                "required": ["query"]
-            }
-        ),
-        Tool(
-            name="recall_all",
-            description="Fetch all current memories for context loading.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "entity_type": {"type": "string"},
-                    "limit": {"type": "integer", "default": 100}
-                }
-            }
-        ),
-        Tool(
-            name="trace",
-            description="Trace the evolution history of a specific entity's memory.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "entity_key": {"type": "string"},
-                    "format": {"type": "string", "enum": ["timeline", "summary"], "default": "timeline"}
-                },
-                "required": ["entity_key"]
+                "required": ["query"],
+                "additionalProperties": False,
             }
         ),
         Tool(
             name="forget",
-            description="Archive a memory so it's no longer current.",
+            description=(
+                "Archive one current memory that is wrong or no longer valid. "
+                "Get memory_id from recall. To change a fact, call remember with the new fact instead."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "memory_id": {"type": "string"},
+                    "reason": {"type": "string", "description": "Why the memory is wrong or obsolete"},
+                },
+                "required": ["memory_id"],
+                "additionalProperties": False,
+            }
+        ),
+        Tool(
+            name="trace",
+            description=(
+                "Show the version history of one memory subject (entity_key from recall). "
+                "Use it when asked when or why a memory changed."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "entity_key": {"type": "string"},
-                    "reason": {"type": "string"}
+                    "format": {"type": "string", "enum": ["timeline", "summary"], "default": "timeline"},
                 },
-                "required": ["entity_key"]
+                "required": ["entity_key"],
+                "additionalProperties": False,
             }
         ),
-        Tool(
-            name="relate",
-            description="Create a relationship between two entities.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "from_entity_key": {"type": "string"},
-                    "to_entity_key": {"type": "string"},
-                    "relation_type": {"type": "string"},
-                    "properties": {"type": "object"}
-                },
-                "required": ["from_entity_key", "to_entity_key", "relation_type"]
-            }
-        ),
-        Tool(
-            name="unrelate",
-            description="Delete a relationship by relation id.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "relation_id": {"type": "string"}
-                },
-                "required": ["relation_id"]
-            }
-        ),
-        Tool(
-            name="graph_query",
-            description="Query relations for an entity.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "entity_key": {"type": "string"},
-                    "relation_types": {"type": "array", "items": {"type": "string"}},
-                    "depth": {"type": "integer", "default": 1}
-                },
-                "required": ["entity_key"]
-            }
-        )
     ])
 
 
@@ -173,18 +125,10 @@ async def call_tool(ctx: ServerRequestContext, params: CallToolRequestParams) ->
             result = await remember.remember_tool(arguments)
         elif name == "recall":
             result = await recall.recall_tool(arguments)
-        elif name == "recall_all":
-            result = await recall_all.recall_all_tool(arguments)
         elif name == "trace":
             result = await trace.trace_tool(arguments)
         elif name == "forget":
             result = await forget.forget_tool(arguments)
-        elif name == "relate":
-            result = await relate.relate_tool(arguments)
-        elif name == "unrelate":
-            result = await unrelate.unrelate_tool(arguments)
-        elif name == "graph_query":
-            result = await graph_query.graph_query_tool(arguments)
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -193,92 +137,10 @@ async def call_tool(ctx: ServerRequestContext, params: CallToolRequestParams) ->
         logger.error(f"Error executing tool {name}: {e}")
         return _text_result({"error": str(e)})
 
-async def list_resources(ctx: ServerRequestContext, params: PaginatedRequestParams | None) -> ListResourcesResult:
-    return ListResourcesResult(resources=[
-        Resource(
-            name="current-memories",
-            title="Current Memories",
-            uri="memory:///current",
-            description="All current active memories",
-            mimeType="application/json",
-        ),
-        Resource(
-            name="entities",
-            title="Entities",
-            uri="memory:///entities",
-            description="Entity metadata list",
-            mimeType="application/json",
-        ),
-    ])
-
-async def list_resource_templates(
-    ctx: ServerRequestContext, params: PaginatedRequestParams | None
-) -> ListResourceTemplatesResult:
-    return ListResourceTemplatesResult(resource_templates=[
-        ResourceTemplate(
-            name="entity-memory",
-            title="Entity Memory",
-            uriTemplate="memory:///entity/{entity_key}",
-            description="Evolution chain and current memory for an entity",
-            mimeType="application/json",
-        )
-    ])
-
-def _parse_memory_uri(uri: str) -> str:
-    parsed = urlparse(str(uri))
-    path = parsed.path or ""
-    if parsed.netloc:
-        path = f"/{parsed.netloc}{path}"
-    return unquote(path)
-
-def _json_resource(uri: str, text: str) -> ReadResourceResult:
-    return ReadResourceResult(contents=[TextResourceContents(uri=uri, text=text, mime_type="application/json")])
-
-async def read_resource(ctx: ServerRequestContext, params: ReadResourceRequestParams) -> ReadResourceResult:
-    uri = params.uri
-    path = _parse_memory_uri(uri)
-    if path == "/current":
-        memories = await vector_store.list_current(limit=100)
-        payload = [
-            {
-                "entity_key": node.entity_key,
-                "entity_type": node.entity_type,
-                "content": node.content,
-                "created_at": node.created_at.isoformat(),
-                "last_mutation": node.mutation_type.value,
-            }
-            for node in memories
-        ]
-        return _json_resource(uri, json.dumps(payload, ensure_ascii=False))
-    if path == "/entities":
-        entities = await graph_store.list_entities()
-        return _json_resource(uri, json.dumps(entities, ensure_ascii=False))
-    if path.startswith("/entity/"):
-        entity_key = path.removeprefix("/entity/")
-        history = await vector_store.get_history(entity_key)
-        payload = [
-            {
-                "id": node.id,
-                "entity_key": node.entity_key,
-                "entity_type": node.entity_type,
-                "content": node.content,
-                "mutation_type": node.mutation_type.value,
-                "mutation_reason": node.mutation_reason,
-                "created_at": node.created_at.isoformat(),
-                "is_current": node.is_current,
-            }
-            for node in history
-        ]
-        return _json_resource(uri, json.dumps(payload, ensure_ascii=False))
-    return _json_resource(uri, json.dumps({"error": "Resource not found"}, ensure_ascii=False))
-
 mcp_server = Server(
     "memory-mcp",
     on_list_tools=list_tools,
     on_call_tool=call_tool,
-    on_list_resources=list_resources,
-    on_list_resource_templates=list_resource_templates,
-    on_read_resource=read_resource,
 )
 
 streamable_http_app = StreamableHttpApp(mcp_server, json_response=False)
