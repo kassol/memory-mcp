@@ -1,6 +1,7 @@
 import re
 
 from ..config import settings
+from .llm import NO_REASONING
 import httpx
 
 # PRD mentions using "LLM Judgment" for conflict.
@@ -48,7 +49,8 @@ class ConflictDetector:
                     headers=headers,
                     json={
                         "model": self.model,
-                        "messages": [{"role": "user", "content": prompt}]
+                        "messages": [{"role": "user", "content": prompt}],
+                        **NO_REASONING,
                     },
                     timeout=10.0
                 )

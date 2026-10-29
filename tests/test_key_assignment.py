@@ -154,3 +154,30 @@ def test_remember_propagates_conflict_check_error(tools, test_env, monkeypatch):
         assert await vector.vector_store.get_history("fact:city") == []
 
     anyio.run(run)
+
+
+def test_llm_requests_disable_reasoning(tools, test_env, monkeypatch):
+    """Reasoning made merges 10-28 s and sometimes returned empty content; every LLM call turns it off."""
+    import httpx
+
+    import memory_mcp.engine.conflict as conflict_mod
+    import memory_mcp.engine.llm as llm
+
+    bodies = []
+
+    class FakeClient:
+        def __init__(self, *a, **k): ...
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): ...
+        async def post(self, url, json=None, **_):
+            bodies.append(json)
+            return httpx.Response(200, json={"choices": [{"message": {"content": "NO"}}]}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+
+    async def run():
+        await llm.chat("hi")
+        await conflict_mod.ConflictDetector().check_conflict("a", "b")
+
+    anyio.run(run)
+    assert [b["reasoning"] for b in bodies] == [{"enabled": False}] * 2

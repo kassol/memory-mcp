@@ -2,6 +2,10 @@ import httpx
 
 from ..config import settings
 
+# Key assignment, merge and conflict checks are short structured tasks. OpenRouter turns
+# reasoning on by default for some models; measured 10-28 s per merge with it, 2-3 s without.
+NO_REASONING = {"reasoning": {"enabled": False}}
+
 
 async def chat(prompt: str, timeout: float = 30.0) -> str:
     """Single-turn OpenRouter chat completion; raises on HTTP/transport errors."""
@@ -19,6 +23,7 @@ async def chat(prompt: str, timeout: float = 30.0) -> str:
             json={
                 "model": settings.llm_model,
                 "messages": [{"role": "user", "content": prompt}],
+                **NO_REASONING,
             },
             timeout=timeout,
         )
