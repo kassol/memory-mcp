@@ -59,6 +59,9 @@ def test_env(tmp_path, monkeypatch):
     import memory_mcp.engine.hybrid_search as hybrid_search
     importlib.reload(hybrid_search)
 
+    import memory_mcp.engine.maintenance as maintenance
+    importlib.reload(maintenance)
+
     # Reload every tool module so their captured graph_store / vector_store
     # references rebind to the freshly-created stores. Without this, a tool
     # imported in a previous test keeps its old SQLiteStore alive and its

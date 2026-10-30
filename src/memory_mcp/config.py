@@ -43,6 +43,9 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MEMORY_MCP_LLM_MODEL", "LLM_MODEL"),
     )
 
+    # Maintenance: LLM calls allowed in one run (POST /api/v1/maintenance/run)
+    maintenance_max_llm_calls: int = 100
+
     # Tokenizer
     jieba_user_dict_path: str | None = Field(
         default=None,

@@ -109,3 +109,30 @@ def test_lance_backend_sees_writes_from_another_process(tmp_path, monkeypatch):
         assert [mid for mid, _ in await service.search([0.1, 0.2, 0.3], limit=1)] == ["m1"]
 
     anyio.run(run)
+
+
+@pytest.mark.parametrize("backend_name", ["lance", "memory"])
+def test_cosine_neighbours_use_the_stored_vector(tmp_path, monkeypatch, backend_name):
+    """Neighbours are ranked by cosine similarity of stored vectors and exclude the memory itself."""
+    import anyio
+
+    import memory_mcp.storage.vector as vector_mod
+
+    if backend_name == "lance":
+        pytest.importorskip("lancedb")
+        monkeypatch.setattr(vector_mod.settings, "embedding_dim", 3)
+        backend = vector_mod.LanceVectorBackend(str(tmp_path))
+    else:
+        backend = vector_mod.InMemoryVectorBackend(str(tmp_path))
+
+    async def run():
+        await backend.upsert("a", [1.0, 0.0, 0.0])
+        await backend.upsert("b", [2.0, 2.0, 0.0])  # cosine 0.707, length does not matter
+        await backend.upsert("c", [0.0, 0.0, 5.0])  # cosine 0
+        await backend.upsert("d", [3.0, 0.3, 0.0])  # cosine 0.995
+        hits = await backend.cosine_neighbours("a", limit=2)
+        assert [mid for mid, _ in hits] == ["d", "b"]
+        assert [round(cos, 3) for _, cos in hits] == [0.995, 0.707]
+        assert await backend.cosine_neighbours("missing", limit=2) == []
+
+    anyio.run(run)

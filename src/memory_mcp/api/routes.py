@@ -160,6 +160,24 @@ async def handle_graph_query(request: Request) -> JSONResponse:
     return ok(result)
 
 
+# POST /api/v1/maintenance/run  — starts one run in the background (host cron calls this daily)
+async def handle_maintenance_run(request: Request) -> JSONResponse:
+    from ..engine import maintenance
+    try:
+        job_id = await maintenance.start()
+    except maintenance.AlreadyRunning as e:
+        return err(str(e), 409)
+    return JSONResponse({"ok": True, "data": {"job_id": job_id}}, status_code=202)
+
+
+# GET /api/v1/findings?status=&kind=
+async def handle_findings(request: Request) -> JSONResponse:
+    from ..engine import maintenance
+    params = request.query_params
+    items = await maintenance.list_findings(status=params.get("status"), kind=params.get("kind"))
+    return ok({"items": items, "total": len(items)})
+
+
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
@@ -170,4 +188,6 @@ routes = [
     Route("/api/v1/relations", endpoint=handle_relate, methods=["POST"]),
     Route("/api/v1/relations/{relation_id}", endpoint=handle_unrelate, methods=["DELETE"]),
     Route("/api/v1/graph/{entity_key:path}", endpoint=handle_graph_query, methods=["GET"]),
+    Route("/api/v1/maintenance/run", endpoint=handle_maintenance_run, methods=["POST"]),
+    Route("/api/v1/findings", endpoint=handle_findings, methods=["GET"]),
 ]

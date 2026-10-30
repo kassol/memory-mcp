@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from datetime import timedelta
@@ -40,6 +41,23 @@ class InMemoryVectorBackend:
                 continue
         scored.sort(key=lambda x: x[1])
         return scored[:limit]
+
+    async def cosine_neighbours(self, memory_id: str, limit: int) -> list[Tuple[str, float]]:
+        vec = self._vectors.get(memory_id)
+        if vec is None:
+            return []
+        scored = [
+            (mid, _cosine(vec, other))
+            for mid, other in self._vectors.items()
+            if mid != memory_id and len(other) == len(vec)
+        ]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return scored[:limit]
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    norm = (sum(x * x for x in a) * sum(y * y for y in b)) ** 0.5
+    return sum(x * y for x, y in zip(a, b)) / norm if norm else 0.0
 
 
 class LanceVectorBackend:
@@ -101,6 +119,21 @@ class LanceVectorBackend:
                 continue
             out.append((mid, float(distance)))
         return out
+
+    async def cosine_neighbours(self, memory_id: str, limit: int) -> list[Tuple[str, float]]:
+        # Synchronous LanceDB calls run in a thread so a maintenance run does not block
+        # foreground recall / remember on the event loop.
+        return await asyncio.to_thread(self._cosine_neighbours, memory_id, limit)
+
+    def _cosine_neighbours(self, memory_id: str, limit: int) -> list[Tuple[str, float]]:
+        rows = self._table.search().where(f"id = '{memory_id}'").select(["vector"]).limit(1).to_list()
+        if not rows:
+            return []
+        hits = (
+            self._table.search(rows[0]["vector"]).distance_type("cosine").limit(limit + 1).to_list()
+        )
+        # cosine distance = 1 - cosine similarity
+        return [(r["id"], 1 - float(r["_distance"])) for r in hits if r["id"] != memory_id][:limit]
 
 
 class VectorStore:
@@ -186,6 +219,10 @@ class VectorStore:
             if len(out) >= limit:
                 break
         return out
+
+    async def cosine_neighbours(self, memory_id: str, limit: int) -> list[Tuple[str, float]]:
+        """(memory_id, cosine similarity) of the nearest current memories, using the stored vector."""
+        return await self._backend.cosine_neighbours(memory_id, limit)
 
     async def get_by_id(self, memory_id: str) -> Optional[MemoryNode]:
         return await self._repo.get_by_id(memory_id)

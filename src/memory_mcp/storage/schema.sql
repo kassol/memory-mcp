@@ -1,4 +1,4 @@
--- memory-mcp v2 schema reference at head 0003_drop_threads (authoritative version: alembic versions/)
+-- memory-mcp v2 schema reference at head 0004_maintenance_findings (authoritative version: alembic versions/)
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -103,7 +103,7 @@ CREATE INDEX idx_relations_to ON relations(to_entity_key);
 CREATE INDEX idx_relations_type ON relations(relation_type);
 
 -- ---------------------------------------------------------------------------
--- jobs (worker queue, M4 will use)
+-- jobs (one row per maintenance run, job_type = 'maintenance')
 -- ---------------------------------------------------------------------------
 CREATE TABLE jobs (
   id TEXT PRIMARY KEY,
@@ -122,3 +122,28 @@ CREATE TABLE jobs (
 CREATE INDEX idx_jobs_pending ON jobs(scheduled_at) WHERE status = 'pending';
 CREATE INDEX idx_jobs_retry ON jobs(next_retry_at)
   WHERE status = 'pending' AND next_retry_at IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- maintenance findings (need review) and checks (already judged; see GLOSSARY.md)
+-- ---------------------------------------------------------------------------
+CREATE TABLE memory_findings (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  memory_id TEXT NOT NULL,
+  other_memory_id TEXT,
+  entity_key TEXT,
+  detail TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TIMESTAMP NOT NULL,
+  resolved_at TIMESTAMP
+);
+CREATE INDEX idx_memory_findings_status ON memory_findings(status, kind);
+
+-- subject: one memory id (internal, neighbours) or "<id>|<id>" sorted (pair)
+CREATE TABLE memory_checks (
+  check_type TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  outcome TEXT NOT NULL,
+  checked_at TIMESTAMP NOT NULL,
+  PRIMARY KEY (check_type, subject)
+);

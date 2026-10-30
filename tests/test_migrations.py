@@ -11,6 +11,8 @@ REQUIRED_TABLES = {
     "entities",
     "relations",
     "jobs",
+    "memory_findings",
+    "memory_checks",
     "alembic_version",
 }
 
@@ -28,6 +30,7 @@ REQUIRED_INDEXES = {
     "idx_relations_type",
     "idx_jobs_pending",
     "idx_jobs_retry",
+    "idx_memory_findings_status",
 }
 
 THREAD_OBJECTS = {
@@ -143,7 +146,7 @@ def test_head_drops_working_memory_cache_and_downgrade_restores_it(test_env):
             return _names(rows)
 
         migrate_mod.run_migrations()
-        assert migrate_mod.current() == "0003_drop_threads"
+        assert migrate_mod.current() == "0004_maintenance_findings"
         assert "working_memory_cache" not in await tables()
 
         migrate_mod.downgrade("0001_initial_v2")
@@ -221,7 +224,9 @@ def test_0003_drops_threads_and_keeps_memories_intact(test_env):
             assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
             assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
             names, columns = _schema(conn)
-            assert REQUIRED_TABLES <= names and REQUIRED_INDEXES <= names and REQUIRED_TRIGGERS <= names
+            maintenance = {"memory_findings", "memory_checks", "idx_memory_findings_status"}
+            assert REQUIRED_TABLES - maintenance <= names and REQUIRED_TRIGGERS <= names
+            assert REQUIRED_INDEXES - maintenance <= names
             assert THREAD_OBJECTS <= names if expect_threads else not (THREAD_OBJECTS & names)
             thread_columns = {"source_thread_id", "source_refs"}
             assert thread_columns <= columns if expect_threads else not (thread_columns & columns)
@@ -238,7 +243,7 @@ def test_0003_drops_threads_and_keeps_memories_intact(test_env):
         finally:
             conn.close()
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0003_drop_threads")
     assert migrate_mod.current() == "0003_drop_threads"
     check(expect_threads=False)
 
@@ -272,3 +277,41 @@ def test_0003_refuses_to_rebuild_when_memories_has_unknown_columns(test_env):
         con.close()
 
     anyio.run(run)
+
+
+def test_0004_adds_findings_and_checks_and_downgrade_removes_them(test_env):
+    from alembic import command
+
+    import memory_mcp.storage.migrate as migrate_mod
+    importlib.reload(migrate_mod)
+    cfg = migrate_mod._make_config()
+    db_path = migrate_mod.settings.sqlite_path
+    objects = {"memory_findings", "memory_checks", "idx_memory_findings_status"}
+
+    def names() -> set[str]:
+        conn = sqlite3.connect(db_path)
+        try:
+            return {r[0] for r in conn.execute("SELECT name FROM sqlite_master")}
+        finally:
+            conn.close()
+
+    command.upgrade(cfg, "head")
+    assert migrate_mod.current() == "0004_maintenance_findings"
+    assert objects <= names()
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("INSERT INTO memory_checks VALUES ('pair', 'a|b', 'compatible', '2026-10-30')")
+        try:
+            conn.execute("INSERT INTO memory_checks VALUES ('pair', 'a|b', 'duplicate', '2026-10-30')")
+            raise AssertionError("a subject must be judged once per check type")
+        except sqlite3.IntegrityError:
+            pass
+        conn.commit()
+    finally:
+        conn.close()
+
+    command.downgrade(cfg, "0003_drop_threads")
+    assert migrate_mod.current() == "0003_drop_threads"
+    assert not (objects & names())
+    command.upgrade(cfg, "head")
+    assert objects <= names()

@@ -22,6 +22,7 @@ from .api.routes import routes as api_routes
 from .config import settings
 from .storage.migrate import current as alembic_current, run_migrations
 from .storage.vector import vector_store
+from .engine import maintenance
 from .tools import remember, recall, trace, forget
 from .transport.auth import AuthMiddleware
 from .transport.cors import CorsMiddleware
@@ -167,7 +168,10 @@ async def lifespan(starlette_app):
     if settings.auto_migrate:
         run_migrations()
     async with streamable_http_app.lifespan(starlette_app):
-        yield
+        try:
+            yield
+        finally:
+            await maintenance.stop()
 
 
 app = Starlette(
