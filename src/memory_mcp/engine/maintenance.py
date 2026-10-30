@@ -6,6 +6,10 @@ and stops when its LLM budget is spent. Work left over is whatever has no check 
 the next run continues there without a cursor.
 
 Checks only create findings; nothing is archived or merged automatically.
+
+Cross-key pairs are judged for duplicates only. A cross-key contradiction check was tried on
+production data and dropped: 0 of 13 flagged pairs were real (they were separate runs of a
+recurring task), even with a prompt that excluded that case explicitly.
 """
 import asyncio
 import json
@@ -33,10 +37,18 @@ _INTERNAL_PROMPT = """You review one memory for an internal contradiction.
 Memory:
 {content}
 
-Does the memory state two mutually exclusive states of the same subject as both true now? Examples: "uses tool A" together with "switched from A to B"; "X is configured" together with "X was removed". Facts explicitly marked as past, different aspects of a subject, and added detail are not contradictions.
+An internal contradiction is two statements in this memory that give different values for the SAME property of the SAME object, and both are written as true now. Typical cause: an old fact left behind when a newer version was merged in. Examples: "uses tool A" together with "switched from A to B"; "X is configured" together with "X was removed"; one setting given two different values.
+
+These are NOT internal contradictions:
+- The memory reports a defect, open issue, to-do, or a gap between a requirement and the actual result. The memory describes that conflict; its own statements agree.
+- The statements are about different objects, different properties, or different scopes (for example a server limit and a client concurrency, a whole and one part, two separate tickets).
+- One statement is dated or marked as earlier, stopped or replaced, and the text makes the latest state clear.
+- Different wording for the same meaning, or added detail.
+
+Answer internal_contradiction only when you can copy both statements word for word from the memory.
 
 Output ONLY a JSON object, nothing else:
-{{"verdict": "internal_contradiction" or "consistent", "detail": "<one sentence naming the two conflicting statements, in the language of the memory; empty when consistent>"}}
+{{"verdict": "internal_contradiction" or "consistent", "detail": "<when internal_contradiction: quote both statements word for word and name the property, in the language of the memory; empty when consistent>"}}
 """
 
 _PAIR_PROMPT = """You compare two memories stored under different subjects.
@@ -48,12 +60,11 @@ Memory B:
 {b}
 
 Classify the pair:
-- "contradiction": they state facts that cannot both be true now.
 - "duplicate": they state the same facts, so one could replace the other.
-- "compatible": anything else, such as related, complementary or different aspects.
+- "compatible": anything else, such as related, complementary or different aspects, or separate runs of a recurring task.
 
 Output ONLY a JSON object, nothing else:
-{{"verdict": "contradiction" or "duplicate" or "compatible", "detail": "<one sentence naming the conflicting or repeated statements, in the language of the memories; empty when compatible>"}}
+{{"verdict": "duplicate" or "compatible", "detail": "<one sentence naming the repeated facts, in the language of the memories; empty when compatible>"}}
 """
 
 
@@ -161,7 +172,6 @@ class _Run:
             "internal_contradiction": 0,
             "neighbour_scans": 0,
             "pairs_checked": 0,
-            "contradiction": 0,
             "duplicate": 0,
         }
 
@@ -294,7 +304,7 @@ class _Run:
             try:
                 verdict, detail = await self._judge(
                     _PAIR_PROMPT.format(a=row["content"], b=other["content"]),
-                    {"contradiction", "duplicate", "compatible"},
+                    {"duplicate", "compatible"},
                     self.budget,
                 )
             except _BudgetSpent:

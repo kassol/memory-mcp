@@ -121,7 +121,7 @@ data/
 
 ## 后台维护
 
-维护检查找出需要人处理的记忆，结果称为「发现」（术语见 `GLOSSARY.md`）：跨 key 矛盾、跨 key 重复、内部矛盾、同 key 多条当前版本。检查只产生发现，不自动归档或合并。
+维护检查找出需要人处理的记忆，结果称为「发现」（术语见 `GLOSSARY.md`）：跨 key 重复、内部矛盾、同 key 多条当前版本。检查只产生发现，不自动归档或合并。
 
 - 服务不会自己启动维护。部署主机上用 cron 每日执行 `ops/run-maintenance.sh`（建议排在备份之后），它调用 `POST /api/v1/maintenance/run` 在后台跑一轮；已有一轮在跑时返回 409
 - 每轮 LLM 调用数上限由 `MEMORY_MCP_MAINTENANCE_MAX_LLM_CALLS` 控制（默认 100），没判完的留到下一轮

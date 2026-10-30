@@ -48,15 +48,16 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 
 ## 变更日志
 ### 2026-10-30 后台维护（#5）
-- 动机：`remember` 只保证同一 key 内一致。跨 key 的矛盾与重复、合并残留过时事实造成的内部矛盾、中断留下的同 key 多条 current，之前没有机制发现。原记忆系统因后台任务占满 CPU 被弃用，所以维护只在被调用时运行
+- 动机：`remember` 只保证同一 key 内一致。跨 key 重复、合并残留过时事实造成的内部矛盾、中断留下的同 key 多条 current，之前没有机制发现。原记忆系统因后台任务占满 CPU 被弃用，所以维护只在被调用时运行
 - 术语见 `GLOSSARY.md`：发现（Finding，需要人处理）与检查记录（Check，已判定过，含相容，只用于去重）
 - 新增 `engine/maintenance.py`：`POST /api/v1/maintenance/run` 在服务进程内后台跑一轮，返回 202 与 job id，已有一轮在跑时 409；没有进程内定时循环，由宿主机 cron 调 `ops/run-maintenance.sh`。每轮在 `jobs` 表写一行（`payload` 为各项统计，失败写 `error` 并打 warning 日志）。服务关闭时取消正在跑的一轮并记为 failed
-- 每轮顺序：自动关闭涉及记忆已非 current 的 open 发现；同 key 多条当前版本（SQL，open 或 dismissed 的不再重报）；内部矛盾（LLM，只查 `conflict=1` 的 current，线上 314 / 3903）；跨 key 矛盾与重复（LLM，每条记忆用已存向量取余弦最近 5 个、不同 key、余弦 ≥ `CROSS_KEY_MIN_COSINE=0.85`，每个无序对判一次）。旧规则 relevance ≥ 0.85 线上只匹配 6 对，余弦 0.85 约 121 对
+- 每轮顺序：自动关闭涉及记忆已非 current 的 open 发现；同 key 多条当前版本（SQL，open 或 dismissed 的不再重报）；内部矛盾（LLM，只查 `conflict=1` 的 current，线上 314 / 3903）；跨 key 重复（LLM，每条记忆用已存向量取余弦最近 5 个、不同 key、余弦 ≥ `CROSS_KEY_MIN_COSINE=0.85`，每个无序对判一次）。旧规则 relevance ≥ 0.85 线上只匹配 6 对，余弦 0.85 约 121 对
 - 预算：`MEMORY_MCP_MAINTENANCE_MAX_LLM_CALLS`（默认 100）。两类 LLM 检查各一半，一类用不完的给另一类；没判完的留到下一轮。不用游标，待办即「没有检查记录的」，记忆演化后新 id 自然重新检查。邻居扫描记录只在该记忆所有候选对都有检查记录后才写
 - LLM 输出不合法、请求失败或问题判定缺少 `detail` 时，记入本轮错误、不写检查记录，本轮跳过该项、下一轮重试；一条判不出的记忆不会挡住后面的检查。不当作相容
 - 新增 migration `0004_maintenance_findings`：`memory_findings`（open / resolved / dismissed）与 `memory_checks`（主键 `check_type + subject`，pair 的 subject 为排序后的两个 id）。不复用 `memories.conflict`（它表示「本版本由冲突合并产生」）
 - `VectorStore.cosine_neighbours`：用已存向量查余弦近邻，LanceDB 调用放在 `asyncio.to_thread`，不重算 embedding
 - REST：`GET /api/v1/findings?status=&kind=`（只含发现，不含检查记录）。标为误报的接口归 Web 治理台（#6）。MCP 不变
+- 线上首轮（积压 314 条 conflict=1 与 3903 条邻居扫描）：5 轮共 436 次 LLM 调用。邻居扫描阶段容器 CPU 中位约 230%、持续约 6 分钟，前台 recall 中位数不变、p95 668→830 ms、最大 2.5 s；清完积压后的轮次 CPU 峰值约 13%。全文抽查：跨 key 重复精确率 93%（14/15）；内部矛盾首版提示词 20%，收紧（同一对象同一属性、逐字引两段原文、排除缺陷记录 / 不同范围 / 已标明取代的演化）后 80%（含需人判断的边界项）；跨 key 矛盾 0%（13 条全是周期任务不同次执行），按决定去掉，配对只判重复 / 相容
 - 测试：`tests/test_maintenance.py`（含 REST 202/409、预算分配与续跑、判定失败不阻塞、自动关闭、recall 在维护运行中不被阻塞）、`tests/test_migrations.py`、`tests/test_vector_backend.py`
 
 ### 2026-10-30 recall 混合检索（#4）

@@ -101,7 +101,7 @@ On the deploy host, run `ops/backup-db.sh` daily from cron. It keeps the newest 
 
 ## Maintenance
 
-Maintenance checks find memories that a person should review. The results are called findings (terms in `GLOSSARY.md`): cross-key contradictions, cross-key duplicates, internal contradictions, and keys with more than one current version. Checks only create findings; they never archive or merge.
+Maintenance checks find memories that a person should review. The results are called findings (terms in `GLOSSARY.md`): cross-key duplicates, internal contradictions, and keys with more than one current version. Checks only create findings; they never archive or merge.
 
 - The service never starts maintenance by itself. On the deploy host, run `ops/run-maintenance.sh` daily from cron (after the backup). It calls `POST /api/v1/maintenance/run`, which runs one round in the background; it returns 409 while a round is in progress.
 - `MEMORY_MCP_MAINTENANCE_MAX_LLM_CALLS` limits LLM calls per round (default 100); work left over goes to the next round.

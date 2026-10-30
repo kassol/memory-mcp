@@ -63,7 +63,7 @@ async def _jobs():
 
 
 class FakeLLM:
-    """Answers by content: a memory with CLASH, or a pair where both sides carry CONTRA / DUP."""
+    """Answers by content: a memory with CLASH, or a pair where both sides carry DUP."""
 
     def __init__(self, monkeypatch):
         import memory_mcp.engine.maintenance as maintenance
@@ -78,8 +78,6 @@ class FakeLLM:
             return self.override
         if "Memory A" not in prompt:  # internal-contradiction prompt
             verdict = "internal_contradiction" if "CLASH" in prompt else "consistent"
-        elif prompt.count("CONTRA") == 2:
-            verdict = "contradiction"
         elif prompt.count("DUP") == 2:
             verdict = "duplicate"
         else:
@@ -147,8 +145,8 @@ def test_cross_key_pairs_judged_once_and_only_problems_become_findings(test_env,
 
         llm = FakeLLM(monkeypatch)
         near = [1.0, 0.0, 0.0]
-        a = await _add("fact:a", "deploy with CONTRA rsync", near)
-        b = await _add("fact:b", "deploy with CONTRA scp", [0.99, 0.1, 0.0])
+        await _add("fact:a", "deploy with rsync", near)
+        await _add("fact:b", "deploy with scp", [0.99, 0.1, 0.0])
         await _add("fact:a", "same key as a, never a cross-key pair", near, current=False)
         c = await _add("fact:c", "DUP note", [0.0, 1.0, 0.0])
         d = await _add("fact:d", "DUP note again", [0.05, 1.0, 0.0])
@@ -157,7 +155,7 @@ def test_cross_key_pairs_judged_once_and_only_problems_become_findings(test_env,
 
         await maintenance.run_once()
         found = {(f["kind"], frozenset((f["memory_id"], f["other_memory_id"]))) for f in await _findings()}
-        assert found == {("contradiction", frozenset((a, b))), ("duplicate", frozenset((c, d)))}
+        assert found == {("duplicate", frozenset((c, d)))}
         pair_prompts = [p for p in llm.prompts if "Memory A" in p]
         # a-b, c-d, c-e and d-e are above the cosine threshold; each unordered pair once.
         assert len(pair_prompts) == 4
@@ -360,13 +358,13 @@ def test_pair_finding_resolves_when_either_memory_evolves_and_new_version_is_che
         from memory_mcp.engine import maintenance
 
         llm = FakeLLM(monkeypatch)
-        a = await _add("fact:a", "CONTRA one", [1.0, 0.0, 0.0])
-        b = await _add("fact:b", "CONTRA two", [0.99, 0.1, 0.0])
+        a = await _add("fact:a", "DUP one", [1.0, 0.0, 0.0])
+        b = await _add("fact:b", "DUP two", [0.99, 0.1, 0.0])
         await maintenance.run_once()
         assert len(await _findings(status="open")) == 1
 
         await _archive(b)
-        b2 = await _add("fact:b", "CONTRA two, revised", [0.98, 0.15, 0.0])
+        b2 = await _add("fact:b", "DUP two, revised", [0.98, 0.15, 0.0])
         await maintenance.run_once()
         assert [f["memory_id"] for f in await _findings(status="resolved")] in ([a], [b])
         open_now = await _findings(status="open")
@@ -393,13 +391,13 @@ def test_one_unjudgeable_memory_does_not_block_the_rest(test_env, monkeypatch):
         monkeypatch.setattr(maintenance, "chat", flaky)
         await _add("tool:p", "POISON", conflict=True)
         await _add("tool:x", "CLASH", conflict=True)
-        await _add("fact:a", "CONTRA one", [1.0, 0.0, 0.0])
-        await _add("fact:b", "CONTRA two", [0.99, 0.1, 0.0])
+        await _add("fact:a", "DUP one", [1.0, 0.0, 0.0])
+        await _add("fact:b", "DUP two", [0.99, 0.1, 0.0])
 
         await maintenance.run_once()
         job = (await _jobs())[0]
         assert job["status"] == "failed" and job["error"].startswith("1 judgment(s) failed")
-        assert {f["kind"] for f in await _findings()} == {"internal_contradiction", "contradiction"}
+        assert {f["kind"] for f in await _findings()} == {"internal_contradiction", "duplicate"}
         async with get_db() as db:
             internal = await db.fetchall("SELECT outcome FROM memory_checks WHERE check_type = 'internal'")
         assert [r["outcome"] for r in internal] == ["internal_contradiction"]
@@ -492,8 +490,8 @@ def test_failed_pair_is_retried_next_run(test_env, monkeypatch):
         from memory_mcp.engine import maintenance
 
         llm = FakeLLM(monkeypatch)
-        a = await _add("fact:a", "CONTRA one", [1.0, 0.0, 0.0])
-        b = await _add("fact:b", "CONTRA two", [0.99, 0.1, 0.0])
+        a = await _add("fact:a", "DUP one", [1.0, 0.0, 0.0])
+        b = await _add("fact:b", "DUP two", [0.99, 0.1, 0.0])
         llm.override = "garbage"
         await maintenance.run_once()
         assert (await _jobs())[0]["status"] == "failed"
@@ -504,5 +502,21 @@ def test_failed_pair_is_retried_next_run(test_env, monkeypatch):
         assert [frozenset((f["memory_id"], f["other_memory_id"])) for f in await _findings()] == [
             frozenset((a, b))
         ]
+
+    anyio.run(run)
+
+
+def test_pairs_are_never_judged_contradictions(test_env, monkeypatch):
+    """Cross-key contradiction was dropped (0 of 13 correct in production); that verdict is unusable."""
+    async def run():
+        from memory_mcp.engine import maintenance
+
+        llm = FakeLLM(monkeypatch)
+        await _add("fact:a", "one", [1.0, 0.0, 0.0])
+        await _add("fact:b", "two", [0.99, 0.1, 0.0])
+        llm.override = json.dumps({"verdict": "contradiction", "detail": "x vs y"})
+        await maintenance.run_once()
+        assert (await _jobs())[0]["status"] == "failed"
+        assert await _findings() == []
 
     anyio.run(run)
