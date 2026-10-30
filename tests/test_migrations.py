@@ -245,3 +245,30 @@ def test_0003_drops_threads_and_keeps_memories_intact(test_env):
     command.downgrade(cfg, "0002_drop_working_memory_cache")
     assert migrate_mod.current() == "0002_drop_working_memory_cache"
     check(expect_threads=True)
+
+
+def test_0003_refuses_to_rebuild_when_memories_has_unknown_columns(test_env):
+    """An extra column would be dropped silently by the explicit-column copy; stop instead."""
+    async def run():
+        import pytest
+        import sqlite3
+
+        import memory_mcp.storage.migrate as migrate_mod
+        importlib.reload(migrate_mod)
+
+        migrate_mod.run_migrations()
+        migrate_mod.downgrade("0002_drop_working_memory_cache")
+        con = sqlite3.connect(migrate_mod.settings.sqlite_path)
+        con.execute("ALTER TABLE memories ADD COLUMN extra_note TEXT")
+        con.commit()
+        con.close()
+
+        with pytest.raises(RuntimeError, match="extra_note"):
+            migrate_mod.run_migrations()
+        assert migrate_mod.current() == "0002_drop_working_memory_cache"
+        con = sqlite3.connect(migrate_mod.settings.sqlite_path)
+        assert "extra_note" in {r[1] for r in con.execute("PRAGMA table_info(memories)")}
+        assert con.execute("SELECT count(*) FROM sqlite_master WHERE name = 'threads'").fetchone()[0] == 1
+        con.close()
+
+    anyio.run(run)

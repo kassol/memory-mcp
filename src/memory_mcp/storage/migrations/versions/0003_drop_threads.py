@@ -216,6 +216,15 @@ def _rebuild(with_threads: bool, before: tuple[str, ...]) -> None:
     )
     with op.get_context().autocommit_block():
         conn = op.get_bind()
+        # The copy lists columns explicitly; any column it does not name would be lost silently.
+        actual = {row[1] for row in conn.execute(text("PRAGMA table_info(memories)")).fetchall()}
+        expected = {c.strip() for c in _SHARED_COLUMNS.split(",")}
+        expected |= set() if with_threads else {"source_thread_id", "source_refs"}
+        if actual != expected:
+            raise RuntimeError(
+                f"memories columns differ from what 0003 copies; refusing to rebuild. "
+                f"unexpected={sorted(actual - expected)} missing={sorted(expected - actual)}"
+            )
         conn.execute(text("PRAGMA foreign_keys = OFF"))
         try:
             conn.execute(text("BEGIN"))
