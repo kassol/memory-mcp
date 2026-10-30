@@ -227,19 +227,17 @@ async def handle_correct(request: Request) -> JSONResponse:
 
 # POST /api/v1/memories/{memory_id}/archive  body {reason}
 async def handle_archive(request: Request) -> JSONResponse:
-    from ..tools import forget, governance
-    memory_id = request.path_params["memory_id"]
+    from ..tools import forget
     try:
         body = await _json_body(request)
-        memory = await governance.get_memory(memory_id)
-        if memory is None:
-            return err("Memory not found", 404)
-        if not memory["is_current"]:
-            return err(f"Memory {memory_id} is not current", 409)
-        arguments = {"memory_id": memory_id}
-        if body.get("reason"):
-            arguments["reason"] = body["reason"]
-        result = await forget.forget_tool(arguments)
+        reason = str(body.get("reason") or "").strip()
+        if not reason:
+            return err("Missing required field: reason")
+        result = await forget.forget_tool({"memory_id": request.path_params["memory_id"], "reason": reason})
+    except forget.MemoryNotFound as e:
+        return err(str(e), 404)
+    except forget.MemoryNotCurrent as e:
+        return err(str(e), 409)
     except ValueError as e:
         return err(str(e))
     except Exception as e:
@@ -256,6 +254,8 @@ async def handle_dismiss_finding(request: Request) -> JSONResponse:
         return err(str(e), 404)
     except maintenance.FindingNotOpen as e:
         return err(str(e), 409)
+    except Exception as e:
+        return err(str(e), 500)
     return ok(result)
 
 

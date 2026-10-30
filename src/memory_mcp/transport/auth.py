@@ -8,7 +8,8 @@ from ..config import settings
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # /ui/ serves only static files with no data; every data request from the page carries the token.
-        if request.url.path == "/health" or request.url.path.startswith("/ui/") or request.method == "OPTIONS":
+        path = request.url.path
+        if path in ("/health", "/ui") or path.startswith("/ui/") or request.method == "OPTIONS":
             return await call_next(request)
 
         auth_header = request.headers.get("Authorization")

@@ -11,6 +11,11 @@
 
   const $ = (id) => document.getElementById(id);
   const state = { view: "docket", findings: [], records: [], offset: 0, order: "created_at", type: "", query: "", selected: null, done: false };
+  // Every list load and every case-file load takes a ticket; a response whose ticket is no
+  // longer the latest belongs to a view, query or selection the person has already left.
+  const tickets = { list: 0, file: 0 };
+  const take = (kind) => ++tickets[kind];
+  const stale = (kind, ticket) => ticket !== tickets[kind];
 
   function el(tag, props, ...children) {
     const node = document.createElement(tag);
@@ -107,6 +112,8 @@
   function switchView(view) {
     state.view = view;
     state.selected = null;
+    take("list");
+    take("file");
     for (const tab of document.querySelectorAll(".tab")) {
       if (tab.dataset.view === view) tab.setAttribute("aria-current", "page");
       else tab.removeAttribute("aria-current");
@@ -142,8 +149,10 @@
     $("ledger-head").replaceChildren(el("div", { class: "meta", text: "待审的发现，按发现时间排列。逐条裁定：改正、归档或判为误报。" }));
     $("ledger-foot").replaceChildren();
     skeletonRows();
+    const ticket = take("list");
     try {
       const data = await api("/findings?status=open");
+      if (stale("list", ticket)) return;
       state.findings = data.items;
       $("docket-count").textContent = String(data.total);
       renderDocket();
@@ -176,10 +185,11 @@
     state.selected = index;
     selectRow(index);
     $("file").replaceChildren(el("div", { class: "skeleton" }), el("div", { class: "skeleton", style: "width:60%" }));
+    const ticket = take("file");
     try {
       const ids = [f.memory_id, f.other_memory_id].filter(Boolean);
       const records = await Promise.all(ids.map((id) => api("/memories/" + encodeURIComponent(id))));
-      if (state.view !== "docket" || state.selected !== index) return;
+      if (stale("file", ticket)) return;
       const pair = records.length > 1;
       // A correction replaces the card in place with the new version, so the person sees the
       // result they wrote; an archive re-renders the card as archived with its reason.
@@ -212,12 +222,13 @@
     try {
       await api("/findings/" + encodeURIComponent(finding.id) + "/dismiss", { method: "POST" });
       toast("已判为误报");
-      afterRuling(state.selected);
+      afterRuling(finding);
     } catch (err) { failed(err); button.disabled = false; }
   }
 
-  function afterRuling(index) {
-    if (state.view !== "docket") return;
+  function afterRuling(finding) {
+    const index = state.findings.indexOf(finding);
+    if (state.view !== "docket" || index < 0) return;
     state.findings.splice(index, 1);
     $("docket-count").textContent = String(state.findings.length);
     renderDocket();
@@ -243,23 +254,25 @@
   }
 
   async function loadRecords(reset) {
-    if (reset) { state.offset = 0; state.records = []; state.done = false; skeletonRows(); }
+    if (reset) { state.offset = 0; state.records = []; state.done = false; state.selected = null; skeletonRows(); }
     $("ledger-head").replaceChildren(...recordsHead());
+    const ticket = take("list");
     try {
       let items;
       if (state.query) {
         const q = new URLSearchParams({ query: state.query, limit: "30" });
         if (state.type) q.set("entity_type", state.type);
         items = (await api("/memories/search?" + q)).results;
+        if (stale("list", ticket)) return;
         state.done = true;
       } else {
         const q = new URLSearchParams({ limit: String(PAGE), offset: String(state.offset), order: state.order });
         if (state.type) q.set("entity_type", state.type);
         items = (await api("/memories?" + q)).results;
+        if (stale("list", ticket)) return;
         state.done = items.length < PAGE;
         state.offset += items.length;
       }
-      if (state.view !== "records") return;
       state.records = reset ? items : state.records.concat(items);
       renderRecords();
     } catch (err) { failed(err); }
@@ -298,9 +311,10 @@
 
   async function showRecordFile(memoryId, index) {
     $("file").replaceChildren(el("div", { class: "skeleton" }), el("div", { class: "skeleton", style: "width:60%" }));
+    const ticket = take("file");
     try {
       const r = await api("/memories/" + encodeURIComponent(memoryId));
-      if (state.view !== "records" || state.selected !== index) return;
+      if (stale("file", ticket)) return;
       $("file").replaceChildren(
         backButton(),
         el("div", { class: "records" }, recordCard(r, {

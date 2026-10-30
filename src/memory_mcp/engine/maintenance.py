@@ -358,15 +358,16 @@ class FindingNotOpen(ValueError):
 async def dismiss_finding(finding_id: str) -> dict:
     """A person judged an open finding a false positive; raises LookupError or FindingNotOpen."""
     async with get_db() as db:
-        row = await db.fetchone("SELECT status FROM memory_findings WHERE id = ?", (finding_id,))
-        if row is None:
-            raise LookupError(f"Finding not found: {finding_id}")
-        if row["status"] != "open":
-            raise FindingNotOpen(f"Finding {finding_id} is {row['status']}")
-        await db.execute(
-            "UPDATE memory_findings SET status = 'dismissed', resolved_at = ? WHERE id = ?",
+        # One conditional write, so a run that resolves the finding at the same time is not overwritten.
+        cur = await db.execute(
+            "UPDATE memory_findings SET status = 'dismissed', resolved_at = ? WHERE id = ? AND status = 'open'",
             (_now(), finding_id),
         )
+        if not cur.rowcount:
+            row = await db.fetchone("SELECT status FROM memory_findings WHERE id = ?", (finding_id,))
+            if row is None:
+                raise LookupError(f"Finding not found: {finding_id}")
+            raise FindingNotOpen(f"Finding {finding_id} is {row['status']}")
     return {"id": finding_id, "status": "dismissed"}
 
 

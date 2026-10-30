@@ -111,7 +111,7 @@ def test_archive_by_id_hides_memory_from_list_and_search(client):
     assert (detail["is_current"], detail["archived_reason"]) == (False, "wrong")
 
     assert client.post(f"/api/v1/memories/{mid}/archive", json={"reason": "x"}, headers=AUTH).status_code == 409
-    assert client.post("/api/v1/memories/no-such-id/archive", json={}, headers=AUTH).status_code == 404
+    assert client.post("/api/v1/memories/no-such-id/archive", json={"reason": "x"}, headers=AUTH).status_code == 404
     assert client.get(f"/api/v1/memories/{keep}", headers=AUTH).json()["data"]["is_current"] is True
 
 
@@ -221,3 +221,69 @@ def test_ui_files_ship_inside_the_package():
     assert (ui / "app.js").is_file()
     text = (ui / "app.js").read_text()
     assert "innerHTML" not in text  # memory text is rendered with textContent only (the token lives in the page)
+
+
+def test_correct_keeps_title_and_provenance(client):
+    res = client.post("/api/v1/memories", headers=AUTH, json={
+        "content": "Lives in Shanghai", "entity_key": "fact:city", "entity_type": "fact",
+        "title": "Home city", "origin_client": "cli",
+    })
+    old = res.json()["data"]["memory_id"]
+    new = client.post(f"/api/v1/memories/{old}/correct", json={"content": "Lives in Hangzhou"},
+                      headers=AUTH).json()["data"]["memory_id"]
+
+    from memory_mcp.storage.vector import vector_store
+
+    node = anyio.run(vector_store.get_by_id, new)
+    assert (node.title, node.origin_client) == ("Home city", "cli")
+
+
+def test_correct_with_unchanged_content_creates_no_version(client):
+    mid = _remember(client, "fact:city", "Lives in Shanghai")
+    res = client.post(f"/api/v1/memories/{mid}/correct", json={"content": "Lives in Shanghai"}, headers=AUTH)
+    assert res.status_code == 200
+    assert res.json()["data"]["memory_id"] == mid
+    assert len(client.get(f"/api/v1/memories/{mid}", headers=AUTH).json()["data"]["versions"]) == 1
+
+
+def test_archive_requires_a_reason(client):
+    mid = _remember(client, "fact:city", "Lives in Shanghai")
+    for body in ({}, {"reason": "  "}):
+        assert client.post(f"/api/v1/memories/{mid}/archive", json=body, headers=AUTH).status_code == 400
+    assert client.get(f"/api/v1/memories/{mid}", headers=AUTH).json()["data"]["is_current"] is True
+
+
+def test_ui_without_trailing_slash_redirects_to_the_page(test_env):
+    import importlib
+
+    import memory_mcp.server as server
+
+    importlib.reload(server)
+    with TestClient(server.app) as client:
+        res = client.get("/ui", follow_redirects=False)
+        assert res.status_code in (301, 307, 308)
+        assert res.headers["location"].endswith("/ui/")
+
+
+def test_dismiss_only_changes_an_open_finding(client):
+    """The status check and the write are one conditional UPDATE, so a concurrent auto-resolve is not overwritten."""
+    from datetime import datetime, timezone
+    from uuid import uuid4
+
+    from memory_mcp.storage.sqlite import get_db
+
+    a = _remember(client, "fact:a", "one")
+    fid = str(uuid4())
+
+    async def seed():
+        async with get_db() as db:
+            await db.execute(
+                "INSERT INTO memory_findings (id, kind, memory_id, detail, status, created_at) "
+                "VALUES (?, 'internal_contradiction', ?, 'x', 'resolved', ?)",
+                (fid, a, datetime.now(timezone.utc).isoformat()),
+            )
+
+    anyio.run(seed)
+    assert client.post(f"/api/v1/findings/{fid}/dismiss", headers=AUTH).status_code == 409
+    resolved = client.get("/api/v1/findings?status=resolved", headers=AUTH).json()["data"]["items"]
+    assert [f["id"] for f in resolved] == [fid]

@@ -51,8 +51,18 @@ async def correct_memory(memory_id: str, content: str) -> dict:
     if not node.is_current:
         raise NotCurrent(f"Memory {memory_id} is not current")
     content = content.strip()
+    if content == node.content:
+        return memory_view(node)
     embedding = await embedding_service.get_embedding(content)
+    # Only the text changes; title and provenance stay with the subject.
+    kept = {
+        "title": node.title,
+        "title_tokens": node.title_tokens,
+        "origin_client": node.origin_client,
+        "origin_session_id": node.origin_session_id,
+    }
     new_node = await evolve_memory(
-        content, node, embedding, mutation_type_override=MutationType.CORRECTION
+        content, node, embedding, mutation_type_override=MutationType.CORRECTION,
+        fields={k: v for k, v in kept.items() if v is not None},
     )
     return memory_view(new_node)
