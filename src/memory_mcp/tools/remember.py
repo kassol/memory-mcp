@@ -74,6 +74,19 @@ async def remember_tool(
 
     if embedding is None:
         embedding = await embedding_service.get_embedding(content)
+    # Written with the evolved node in one insert, so a crash cannot leave it without provenance.
+    provenance = {
+        k: v
+        for k, v in {
+            "origin_client": origin_client,
+            "origin_session_id": origin_session_id,
+            "source_thread_id": source_thread_id,
+            "source_refs": source_refs,
+            "title": title,
+            "title_tokens": tokenize(title) if title else None,
+        }.items()
+        if v
+    }
 
     if not entity_key:
         entity_key, entity_type = await key_assignment.assign_entity_key(content, embedding)
@@ -110,19 +123,8 @@ async def remember_tool(
             conflict_with_id=current_node.id,
             created_at=created_at,
             tags=tags,
+            fields=provenance,
         )
-        if origin_client:
-            new_node.origin_client = origin_client
-        if origin_session_id:
-            new_node.origin_session_id = origin_session_id
-        if source_thread_id:
-            new_node.source_thread_id = source_thread_id
-        if source_refs:
-            new_node.source_refs = source_refs
-        if title:
-            new_node.title = title
-            new_node.title_tokens = tokenize(title)
-        await vector_store.update(new_node)
         await graph_store.upsert_entity(entity_key, entity_type, new_node.id)
         return {
             "status": "evolved",
@@ -164,19 +166,8 @@ async def remember_tool(
                         conflict_with_id=candidate.id,
                         created_at=created_at,
                         tags=tags,
+                        fields=provenance,
                     )
-                    if origin_client:
-                        new_node.origin_client = origin_client
-                    if origin_session_id:
-                        new_node.origin_session_id = origin_session_id
-                    if source_thread_id:
-                        new_node.source_thread_id = source_thread_id
-                    if source_refs:
-                        new_node.source_refs = source_refs
-                    if title:
-                        new_node.title = title
-                        new_node.title_tokens = tokenize(title)
-                    await vector_store.update(new_node)
                     await graph_store.upsert_entity(candidate.entity_key, candidate.entity_type, new_node.id)
                     return {
                         "status": "evolved",

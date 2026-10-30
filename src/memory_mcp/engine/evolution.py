@@ -79,6 +79,7 @@ async def evolve_memory(
     conflict_with_id: str | None = None,
     created_at: datetime | None = None,
     tags: list[str] | None = None,
+    fields: dict | None = None,
 ) -> MemoryNode:
     mutation_type = mutation_type_override or infer_mutation_type(existing_node.content, new_content)
     mutation_reason = generate_mutation_reason(existing_node.content, new_content, mutation_type)
@@ -101,12 +102,13 @@ async def evolve_memory(
         conflict_with_id=conflict_with_id if conflict else None,
         # Content is merged, so tags are merged too.
         tags=existing_node.tags + [t for t in tags or [] if t not in existing_node.tags],
+        **(fields or {}),
     )
 
+    # Insert first: a stop in between leaves two current versions (visible), never zero.
+    await vector_store.insert(new_node)
     existing_node.is_current = False
     existing_node.valid_until = now
-
     await vector_store.update(existing_node)
-    await vector_store.insert(new_node)
     await graph_store.upsert_entity(new_node.entity_key, new_node.entity_type, new_node.id)
     return new_node

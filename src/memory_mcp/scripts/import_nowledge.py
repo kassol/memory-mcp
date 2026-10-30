@@ -102,11 +102,7 @@ async def import_one(record: dict[str, Any]) -> dict[str, Any]:
 
 
 async def already_imported(record: dict[str, Any]) -> bool:
-    """The DB is the source of truth: a crash after the write but before save_state must not resubmit.
-
-    shortcut: the evolve path stamps origin_session_id in a second write right after the insert;
-    a crash between those two writes still resubmits once (merge of identical content -> no_change).
-    """
+    """The DB is the source of truth: a crash after the write but before save_state must not resubmit."""
     from ..storage.sqlite import get_db
 
     async with get_db() as db:
