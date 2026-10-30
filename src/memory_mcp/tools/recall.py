@@ -33,7 +33,7 @@ async def recall_tool(arguments: dict) -> dict:
             res["vector_rank"] = hit.vector_rank
             res["fts_rank"] = hit.fts_rank
             res["graph_rank"] = hit.graph_rank
-            res["rrf_score"] = hit.score
+            res["rrf_score"] = hit.rrf_score
         formatted_results.append(res)
 
     return {"results": formatted_results, "total": len(formatted_results)}

@@ -117,6 +117,8 @@ def test_graph_neighbour_of_a_top_hit_is_recalled(test_env, monkeypatch):
             relation_type="WORKS_ON",
             created_at=datetime.now(timezone.utc),
         ))
+        # One candidate per source keeps Bob out of the vector list, so only the graph can add him.
+        monkeypatch.setattr(hybrid_search, "CANDIDATES_PER_SOURCE", 1)
         _embed_query_as(monkeypatch, [1.0, 0.0, 0.0])
 
         hits = await hybrid_search.search("Postgres", limit=5)
@@ -154,7 +156,7 @@ def test_rrf_sums_ranks_across_sources(test_env, monkeypatch):
         assert [h.node.entity_key for h in hits] == ["fact:both", "fact:vec_only"]
         both = hits[0]
         assert (both.vector_rank, both.fts_rank) == (2, 1)
-        assert both.score == 1 / (60 + 2) + 1 / (60 + 1)
+        assert both.rrf_score == both.score == 1 / (60 + 2) + 1 / (60 + 1)
 
     anyio.run(run)
 
@@ -169,5 +171,59 @@ def test_entity_type_filter(test_env, monkeypatch):
 
         hits = await hybrid_search.search("zebra", limit=5, entity_type="preference")
         assert [h.node.entity_key for h in hits] == ["preference:y"]
+
+    anyio.run(run)
+
+
+def test_graph_hop_adds_only_new_candidates_and_is_capped(test_env, monkeypatch):
+    """Seeds linked to each other or to themselves get no graph bonus; a hub's neighbours are capped."""
+    async def run():
+        from memory_mcp.engine import hybrid_search
+        from memory_mcp.engine.models import Relation
+        from memory_mcp.storage.graph import graph_store
+
+        async def link(a: str, b: str) -> None:
+            await graph_store.add_relation(Relation(
+                id=str(uuid4()), from_entity_key=a, to_entity_key=b,
+                relation_type="RELATED", created_at=datetime.now(timezone.utc),
+            ))
+
+        await _add("project:hub", "hub keyword", [1.0, 0.0, 0.0])
+        await _add("project:peer", "peer keyword", [1.0, 0.0, 0.0])
+        await link("project:hub", "project:peer")
+        await link("project:hub", "project:hub")
+        for i in range(hybrid_search.CANDIDATES_PER_SOURCE + 5):
+            await _add(f"fact:n{i}", f"neighbour {i}", [0.0, 0.0, 1.0])
+            await link("project:hub", f"fact:n{i}")
+        monkeypatch.setattr(hybrid_search, "CANDIDATES_PER_SOURCE", 2)
+        _embed_query_as(monkeypatch, [1.0, 0.0, 0.0])
+
+        hits = await hybrid_search.search("keyword", limit=100)
+        by_key = {h.node.entity_key: h for h in hits}
+        assert by_key["project:hub"].graph_rank is None
+        assert by_key["project:peer"].graph_rank is None
+        assert sum(1 for h in hits if h.graph_rank is not None) == 2
+
+    anyio.run(run)
+
+
+def test_time_decay_prefers_newer_memory_when_enabled(test_env, monkeypatch):
+    async def run():
+        from datetime import timedelta
+
+        from memory_mcp.engine import hybrid_search
+        from memory_mcp.storage.vector import vector_store
+
+        old_id = await _add("fact:old", "same words", [1.0, 0.0, 0.0])
+        new_id = await _add("fact:new", "same words", [1.0, 0.0, 0.0])
+        old = await vector_store.get_by_id(old_id)
+        old.valid_from -= timedelta(days=365)
+        await vector_store.update(old)
+        _embed_query_as(monkeypatch, [1.0, 0.0, 0.0])
+
+        monkeypatch.setattr(hybrid_search, "DECAY_LAMBDA", 0.01)
+        hits = await hybrid_search.search("same words", limit=2)
+        assert [h.node.id for h in hits] == [new_id, old_id]
+        assert hits[1].score < hits[1].rrf_score
 
     anyio.run(run)

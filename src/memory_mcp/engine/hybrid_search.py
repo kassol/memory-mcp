@@ -26,7 +26,8 @@ DECAY_LAMBDA = 0.0
 @dataclass
 class Hit:
     node: MemoryNode
-    score: float
+    rrf_score: float = 0.0
+    score: float = 0.0  # rrf_score after time decay; the ranking key
     vector_rank: Optional[int] = None
     fts_rank: Optional[int] = None
     graph_rank: Optional[int] = None
@@ -37,93 +38,83 @@ def build_fts_query(query: str) -> str:
 
     Quoting stops `-`, `:`, `"`, `*` and bare keywords such as OR from being read as FTS5 syntax.
     """
-    terms: list[str] = []
-    for token in tokenize(query).split():
-        if not any(ch.isalnum() for ch in token):
-            continue
-        term = '"' + token.replace('"', '""') + '"'
-        if term not in terms:
-            terms.append(term)
-    return " OR ".join(terms)
+    terms = [
+        '"' + token.replace('"', '""') + '"'
+        for token in tokenize(query).split()
+        if any(ch.isalnum() for ch in token)
+    ]
+    return " OR ".join(dict.fromkeys(terms))
 
 
-async def _graph_neighbours(seed_keys: list[str]) -> list[MemoryNode]:
-    """Current memories one relation away from the seeds, ordered by seed rank."""
-    neighbour_keys: list[str] = []
+async def _vector_candidates(query: str, entity_type: Optional[str]) -> list[MemoryNode]:
+    query_vector = await embedding_service.get_embedding(query)
+    # The vector index holds current memories only, so without a type filter nothing is dropped
+    # after ANN; the default 4x over-fetch would double the ANN time (200 vs 50 candidates).
+    hits = await vector_store.search(
+        query_vector,
+        limit=CANDIDATES_PER_SOURCE,
+        filter_current=True,
+        entity_type=entity_type,
+        overfetch=4 if entity_type else 1,
+    )
+    return [node for node, _ in hits]
+
+
+async def _fts_candidates(query: str, entity_type: Optional[str]) -> list[MemoryNode]:
+    fts_query = build_fts_query(query)
+    if not fts_query:
+        return []
+    rows = await MemoryRepository().fts_search(
+        fts_query, limit=CANDIDATES_PER_SOURCE, entity_type=entity_type
+    )
+    return [r["node"] for r in rows]
+
+
+async def _graph_candidates(seed_keys: list[str], entity_type: Optional[str]) -> list[MemoryNode]:
+    """Current memories one relation away from the seeds, ordered by seed rank.
+
+    Seeds themselves are excluded: an edge between two top hits would only boost them again.
+    """
+    neighbours: dict[str, None] = {}
     for seed in seed_keys:
         for edge in await graph_store.get_relations(seed, depth=1):
-            other = edge["to_entity_key"] if edge["from_entity_key"] == seed else edge["from_entity_key"]
-            if other not in neighbour_keys:
-                neighbour_keys.append(other)
-    if not neighbour_keys:
-        return []
-    return await MemoryRepository().get_current_by_entity_keys(neighbour_keys)
+            for key in (edge["from_entity_key"], edge["to_entity_key"]):
+                if key not in seed_keys:
+                    neighbours[key] = None
+    nodes = await MemoryRepository().get_current_by_entity_keys(list(neighbours))
+    if entity_type:
+        nodes = [n for n in nodes if n.entity_type == entity_type]
+    return nodes[:CANDIDATES_PER_SOURCE]
 
 
-def _rrf(hits: dict[str, Hit], ranked: list[MemoryNode], field: str) -> None:
+def _fuse(hits: dict[str, Hit], ranked: list[MemoryNode]) -> dict[str, int]:
+    """Add this source's RRF term to each hit; return {memory_id: rank} for the source."""
+    ranks: dict[str, int] = {}
     for rank, node in enumerate(ranked, start=1):
-        hit = hits.get(node.id)
-        if hit is None:
-            hit = hits[node.id] = Hit(node=node, score=0.0)
-        if getattr(hit, field) is not None:
-            continue
-        setattr(hit, field, rank)
-        hit.score += 1 / (RRF_K + rank)
+        ranks[node.id] = rank
+        hits.setdefault(node.id, Hit(node=node)).rrf_score += 1 / (RRF_K + rank)
+    return ranks
 
 
 def _decay(node: MemoryNode, now: datetime) -> float:
-    if DECAY_LAMBDA == 0:
-        return 1.0
     age_days = max((now - node.valid_from).total_seconds() / 86400, 0.0)
     return math.exp(-DECAY_LAMBDA * age_days)
 
 
 async def search(query: str, limit: int, entity_type: Optional[str] = None) -> list[Hit]:
-    query_vector = await embedding_service.get_embedding(query)
-    # The vector index holds current memories only, so without a type filter nothing is dropped
-    # after ANN; the default 4x over-fetch would double the ANN time (200 vs 50 candidates).
-    vector_nodes = [
-        node
-        for node, _ in await vector_store.search(
-            query_vector,
-            limit=CANDIDATES_PER_SOURCE,
-            filter_current=True,
-            entity_type=entity_type,
-            overfetch=4 if entity_type else 1,
-        )
-    ]
-
-    fts_query = build_fts_query(query)
-    fts_nodes = (
-        [
-            r["node"]
-            for r in await MemoryRepository().fts_search(
-                fts_query, limit=CANDIDATES_PER_SOURCE, entity_type=entity_type
-            )
-        ]
-        if fts_query
-        else []
-    )
-
+    """Current memories for `query`, best first; every source already returns current memories only."""
     hits: dict[str, Hit] = {}
-    _rrf(hits, vector_nodes, "vector_rank")
-    _rrf(hits, fts_nodes, "fts_rank")
+    for memory_id, rank in _fuse(hits, await _vector_candidates(query, entity_type)).items():
+        hits[memory_id].vector_rank = rank
+    for memory_id, rank in _fuse(hits, await _fts_candidates(query, entity_type)).items():
+        hits[memory_id].fts_rank = rank
 
-    seeds: list[str] = []
-    for hit in sorted(hits.values(), key=lambda h: h.score, reverse=True):
-        if hit.node.entity_key not in seeds:
-            seeds.append(hit.node.entity_key)
-        if len(seeds) == GRAPH_SEEDS:
-            break
-    _rrf(hits, await _graph_neighbours(seeds), "graph_rank")
+    ranked = sorted(hits.values(), key=lambda h: h.rrf_score, reverse=True)
+    seeds = list(dict.fromkeys(h.node.entity_key for h in ranked))[:GRAPH_SEEDS]
+    for memory_id, rank in _fuse(hits, await _graph_candidates(seeds, entity_type)).items():
+        hits[memory_id].graph_rank = rank
 
     now = datetime.now(timezone.utc)
-    results = [
-        hit
-        for hit in hits.values()
-        if hit.node.is_current and (not entity_type or hit.node.entity_type == entity_type)
-    ]
-    for hit in results:
-        hit.score *= _decay(hit.node, now)
-    results.sort(key=lambda h: h.score, reverse=True)
-    return results[:limit]
+    for hit in hits.values():
+        hit.score = hit.rrf_score * _decay(hit.node, now)
+    return sorted(hits.values(), key=lambda h: h.score, reverse=True)[:limit]
