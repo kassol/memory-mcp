@@ -54,8 +54,10 @@ async def list_tools(ctx: ServerRequestContext, params: PaginatedRequestParams |
         Tool(
             name="recall",
             description=(
-                "Search current memories by meaning. Use it when you start a task and before you make a decision, "
-                "to reuse known preferences, decisions and past conclusions."
+                "Search current memories by meaning and by exact words (names, versions, numbers). Use it when you "
+                "start a task and before you make a decision, to reuse known preferences, decisions and past "
+                "conclusions. Results are ordered by relevance; a larger relevance means a better match within the "
+                "same result list only, so do not compare it across calls."
             ),
             inputSchema={
                 "type": "object",

@@ -195,6 +195,22 @@ def test_recall_search(client):
     assert body["data"]["total"] >= 1
 
 
+def test_recall_search_explain_returns_source_ranks(client):
+    client.post(
+        "/api/v1/memories",
+        json={"content": "Prefer dark mode", "entity_key": "preference:theme", "entity_type": "preference"},
+        headers=AUTH,
+    )
+    plain = client.get("/api/v1/memories/search?query=dark+mode", headers=AUTH).json()["data"]
+    assert "fts_rank" not in plain["results"][0]
+
+    hit = client.get("/api/v1/memories/search?query=dark+mode&explain=1", headers=AUTH).json()["data"]["results"][0]
+    assert hit["vector_rank"] == 1
+    assert hit["fts_rank"] == 1
+    assert hit["graph_rank"] is None
+    assert hit["rrf_score"] == hit["relevance"] == 2 / 61
+
+
 def test_recall_search_missing_query_returns_error(client):
     resp = client.get("/api/v1/memories/search", headers=AUTH)
     assert resp.status_code == 400

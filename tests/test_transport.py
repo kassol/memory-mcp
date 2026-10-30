@@ -84,7 +84,13 @@ def test_mcp_remember_recall_forget_flow(test_env, monkeypatch):
 
             hits = _payload(await client.call_tool("recall", {"query": "editor"}))["results"]
             assert [h["memory_id"] for h in hits] == [created["memory_id"]]
-            assert {"memory_id", "entity_key", "content", "created_at"} <= set(hits[0])
+            assert set(hits[0]) == {
+                "memory_id", "entity_key", "content", "entity_type",
+                "created_at", "last_mutation", "relevance",
+            }
+
+            explain = await client.call_tool("recall", {"query": "editor", "explain": True})
+            assert explain.is_error
 
             forgotten = _payload(
                 await client.call_tool("forget", {"memory_id": created["memory_id"], "reason": "wrong"})

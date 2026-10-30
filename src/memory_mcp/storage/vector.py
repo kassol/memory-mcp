@@ -163,9 +163,10 @@ class VectorStore:
         limit: int = 10,
         filter_current: bool = True,
         entity_type: Optional[str] = None,
+        overfetch: int = 4,
     ) -> list[tuple[MemoryNode, float | None]]:
         # Over-fetch from ANN so that post-filtering keeps `limit` results when possible
-        ann_limit = max(limit * 4, 20)
+        ann_limit = max(limit * overfetch, 20)
         candidates = await self._backend.search(query_vector, limit=ann_limit)
         if not candidates:
             return []

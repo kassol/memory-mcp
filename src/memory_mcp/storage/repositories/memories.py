@@ -97,33 +97,65 @@ class MemoryRepository:
             rows = await db.fetchall(sql, params)
         return [row_to_memory(r) for r in rows]
 
+    async def get_current_by_entity_keys(self, entity_keys: Iterable[str]) -> List[MemoryNode]:
+        """Current memory of each key, in input key order; keys without one are skipped."""
+        keys = list(entity_keys)
+        if not keys:
+            return []
+        sql = (
+            f"SELECT {_COLUMNS} FROM memories "
+            f"WHERE is_current = 1 AND entity_key IN ({_placeholders(len(keys))})"
+        )
+        async with self._store.get_db() as db:
+            rows = await db.fetchall(sql, keys)
+        by_key: dict[str, List[MemoryNode]] = {}
+        for r in rows:
+            node = row_to_memory(r)
+            by_key.setdefault(node.entity_key, []).append(node)
+        return [node for k in keys for node in by_key.get(k, [])]
+
     async def hard_delete(self, memory_id: str) -> bool:
         """Used by VectorStore.delete and tools.memory_delete(hard=True)."""
         async with self._store.get_db() as db:
             cur = await db.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
         return (cur.rowcount or 0) > 0
 
-    async def fts_search(self, tokens: str, limit: int = 50) -> List[dict]:
-        """FTS5 search via the memories_fts virtual table.
+    async def fts_search(
+        self, tokens: str, limit: int = 50, entity_type: Optional[str] = None
+    ) -> List[dict]:
+        """FTS5 search over current memories via the memories_fts virtual table.
+
+        The FTS index covers every version; without the is_current filter old versions
+        would take the top `limit` slots.
 
         The FTS5 tokenizer is unicode61 (see migration 0001_initial_v2). Callers
         are expected to pass `tokens` already pre-segmented by jieba (the
         `engine.tokenizer.tokenize()` helper), matching how `memories.content_tokens`
-        is populated. M2 hybrid_search consumes this.
+        is populated. `tokens` is an FTS5 MATCH expression (see
+        `engine.hybrid_search.build_fts_query`).
 
         Returns ``[{"memory_id", "bm25", "node"}]`` ordered by bm25 ascending
-        (FTS5 returns lower bm25 = better match). Used by M2 hybrid_search.
+        (FTS5 returns lower bm25 = better match).
         """
         if not tokens.strip():
             return []
+        clauses = ["memories_fts MATCH ?", "m.is_current = 1"]
+        params: list = [tokens]
+        if entity_type:
+            clauses.append("m.entity_type = ?")
+            params.append(entity_type)
+        # CROSS JOIN pins memories_fts as the outer loop. With a plain JOIN the planner starts
+        # from idx_memories_current and runs the MATCH once per current row: 1.7-7.6 s at
+        # ~3.9k current rows, against ~10 ms this way.
         sql = (
             f"SELECT bm25(memories_fts) AS bm25, "
             f"{', '.join('m.' + c.strip() for c in _COLUMNS.split(','))} "
-            f"FROM memories_fts JOIN memories m ON m.rowid = memories_fts.rowid "
-            f"WHERE memories_fts MATCH ? ORDER BY bm25 ASC LIMIT ?"
+            f"FROM memories_fts CROSS JOIN memories m ON m.rowid = memories_fts.rowid "
+            f"WHERE {' AND '.join(clauses)} ORDER BY bm25 ASC LIMIT ?"
         )
+        params.append(int(limit))
         async with self._store.get_db() as db:
-            rows = await db.fetchall(sql, (tokens, int(limit)))
+            rows = await db.fetchall(sql, params)
         out: list[dict] = []
         for r in rows:
             node = row_to_memory(r)

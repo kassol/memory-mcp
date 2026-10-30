@@ -44,6 +44,8 @@ async def handle_recall(request: Request) -> JSONResponse:
             return err("limit must be an integer")
     if "include_evolution" in params:
         arguments["include_evolution"] = params["include_evolution"].lower() == "true"
+    if "explain" in params:
+        arguments["explain"] = params["explain"].lower() in {"1", "true"}
     try:
         result = await recall.recall_tool(arguments)
     except ValueError as e:
