@@ -13,7 +13,6 @@ REQUIRED_TABLES = {
     "thread_messages",
     "thread_messages_fts",
     "jobs",
-    "working_memory_cache",
     "alembic_version",
 }
 
@@ -122,5 +121,28 @@ def test_alembic_upgrade_without_ini(test_env, monkeypatch):
         monkeypatch.setattr(migrate_mod, "_find_ini", lambda: None)
         migrate_mod.run_migrations()
         assert migrate_mod.current() is not None
+
+    anyio.run(run)
+
+
+def test_head_drops_working_memory_cache_and_downgrade_restores_it(test_env):
+    async def run():
+        import memory_mcp.storage.migrate as migrate_mod
+        importlib.reload(migrate_mod)
+        import memory_mcp.storage.sqlite as sqlite_mod
+
+        async def tables():
+            importlib.reload(sqlite_mod)
+            async with sqlite_mod.get_db() as db:
+                rows = await db.fetchall("SELECT name FROM sqlite_master WHERE type='table'")
+            await sqlite_mod.get_store().close()
+            return _names(rows)
+
+        migrate_mod.run_migrations()
+        assert migrate_mod.current() == "0002_drop_working_memory_cache"
+        assert "working_memory_cache" not in await tables()
+
+        migrate_mod.downgrade("0001_initial_v2")
+        assert "working_memory_cache" in await tables()
 
     anyio.run(run)

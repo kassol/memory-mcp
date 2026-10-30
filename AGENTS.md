@@ -46,6 +46,9 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-10-30 删除 working_memory_cache 表
+- 新增 migration `0002_drop_working_memory_cache`：Working Memory 简报已删除，该表没有任何读写方；`downgrade` 按 0001 的定义重建空表。`schema.sql` 与 `tests/test_migrations.py` 同步，`/health.schema_version` 变为 `0002_drop_working_memory_cache`
+
 ### 2026-10-30 清理失效功能
 - 动机：服务只通过 MCP 的 4 个工具和用户级 AGENTS.md 引导使用，不再走 hook；v1 线上实例已退役、数据已迁完；Nowledge 已全量导入并停用。以下代码和文档已无使用方，留着只会误导读者
 - 删除 `claude-code-plugin/`（session-start / stop hook、skills、commands）

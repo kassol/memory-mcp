@@ -182,12 +182,3 @@ CREATE TABLE jobs (
 CREATE INDEX idx_jobs_pending ON jobs(scheduled_at) WHERE status = 'pending';
 CREATE INDEX idx_jobs_retry ON jobs(next_retry_at)
   WHERE status = 'pending' AND next_retry_at IS NOT NULL;
-
--- ---------------------------------------------------------------------------
--- working_memory_cache (briefing cache, M4 will use)
--- ---------------------------------------------------------------------------
-CREATE TABLE working_memory_cache (
-  cache_key TEXT PRIMARY KEY,
-  content TEXT NOT NULL,
-  generated_at TIMESTAMP NOT NULL
-);
