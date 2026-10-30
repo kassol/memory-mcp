@@ -115,11 +115,7 @@ def test_archive_by_id_hides_memory_from_list_and_search(client):
     assert client.get(f"/api/v1/memories/{keep}", headers=AUTH).json()["data"]["is_current"] is True
 
 
-def test_list_pages_and_orders_by_valid_from(client, monkeypatch):
-    from datetime import datetime, timedelta, timezone
-
-    import memory_mcp.engine.evolution as evolution
-
+def test_list_pages_and_orders_by_valid_from(client):
     ids = [_remember(client, f"fact:k{i}", f"memory {i}") for i in range(5)]
     # Correcting k0 gives it the newest valid_from while created_at order stays k0..k4 for originals.
     corrected = client.post(f"/api/v1/memories/{ids[0]}/correct", json={"content": "memory 0 fixed"},
