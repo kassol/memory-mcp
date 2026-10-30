@@ -6,3 +6,8 @@ __pycache__
 data
 
 .claude/
+
+# impeccable working files (screenshots, comps); surface briefs stay tracked
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/build/

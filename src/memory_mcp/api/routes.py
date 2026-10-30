@@ -67,6 +67,17 @@ async def handle_recall_all(request: Request) -> JSONResponse:
             arguments["limit"] = int(params["limit"])
         except ValueError:
             return err("limit must be an integer")
+    if "offset" in params:
+        try:
+            arguments["offset"] = int(params["offset"])
+        except ValueError:
+            return err("offset must be an integer")
+        if arguments["offset"] < 0:
+            return err("offset must not be negative")
+    if "order" in params:
+        if params["order"] not in {"created_at", "valid_from"}:
+            return err("order must be created_at or valid_from")
+        arguments["order"] = params["order"]
     try:
         result = await recall_all.recall_all_tool(arguments)
     except Exception as e:
@@ -178,9 +189,85 @@ async def handle_findings(request: Request) -> JSONResponse:
     return ok({"items": items, "total": len(items)})
 
 
+# GET /api/v1/memories/{memory_id}
+async def handle_get_memory(request: Request) -> JSONResponse:
+    from ..tools import governance
+    memory = await governance.get_memory(request.path_params["memory_id"])
+    if memory is None:
+        return err("Memory not found", 404)
+    return ok(memory)
+
+
+async def _json_body(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except Exception:
+        raise ValueError("Invalid JSON body")
+    if not isinstance(body, dict):
+        raise ValueError("Invalid JSON body")
+    return body
+
+
+# POST /api/v1/memories/{memory_id}/correct  body {content}
+async def handle_correct(request: Request) -> JSONResponse:
+    from ..tools import governance
+    try:
+        body = await _json_body(request)
+        result = await governance.correct_memory(request.path_params["memory_id"], body.get("content") or "")
+    except LookupError as e:
+        return err(str(e), 404)
+    except governance.NotCurrent as e:
+        return err(str(e), 409)
+    except ValueError as e:
+        return err(str(e))
+    except Exception as e:
+        return err(str(e), 500)
+    return ok(result)
+
+
+# POST /api/v1/memories/{memory_id}/archive  body {reason}
+async def handle_archive(request: Request) -> JSONResponse:
+    from ..tools import forget, governance
+    memory_id = request.path_params["memory_id"]
+    try:
+        body = await _json_body(request)
+        memory = await governance.get_memory(memory_id)
+        if memory is None:
+            return err("Memory not found", 404)
+        if not memory["is_current"]:
+            return err(f"Memory {memory_id} is not current", 409)
+        arguments = {"memory_id": memory_id}
+        if body.get("reason"):
+            arguments["reason"] = body["reason"]
+        result = await forget.forget_tool(arguments)
+    except ValueError as e:
+        return err(str(e))
+    except Exception as e:
+        return err(str(e), 500)
+    return ok(result)
+
+
+# POST /api/v1/findings/{finding_id}/dismiss  — a person marks an open finding a false positive
+async def handle_dismiss_finding(request: Request) -> JSONResponse:
+    from ..engine import maintenance
+    try:
+        result = await maintenance.dismiss_finding(request.path_params["finding_id"])
+    except LookupError as e:
+        return err(str(e), 404)
+    except maintenance.FindingNotOpen as e:
+        return err(str(e), 409)
+    return ok(result)
+
+
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
+    # By-id routes share the prefix with the {entity_key:path} routes. They differ by method or
+    # suffix (GET / archive / correct vs DELETE / trace), and Starlette prefers a route that
+    # matches the method, so the two shapes coexist. tests/test_governance.py covers the order.
+    Route("/api/v1/memories/{memory_id}", endpoint=handle_get_memory, methods=["GET"]),
+    Route("/api/v1/memories/{memory_id}/correct", endpoint=handle_correct, methods=["POST"]),
+    Route("/api/v1/memories/{memory_id}/archive", endpoint=handle_archive, methods=["POST"]),
     Route("/api/v1/memories", endpoint=handle_remember, methods=["POST"]),
     Route("/api/v1/memories", endpoint=handle_recall_all, methods=["GET"]),
     Route("/api/v1/memories/{entity_key:path}/trace", endpoint=handle_trace, methods=["GET"]),
@@ -190,4 +277,5 @@ routes = [
     Route("/api/v1/graph/{entity_key:path}", endpoint=handle_graph_query, methods=["GET"]),
     Route("/api/v1/maintenance/run", endpoint=handle_maintenance_run, methods=["POST"]),
     Route("/api/v1/findings", endpoint=handle_findings, methods=["GET"]),
+    Route("/api/v1/findings/{finding_id}/dismiss", endpoint=handle_dismiss_finding, methods=["POST"]),
 ]

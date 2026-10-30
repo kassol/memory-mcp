@@ -234,8 +234,12 @@ class VectorStore:
         self,
         entity_type: Optional[str] = None,
         limit: int = 100,
+        offset: int = 0,
+        order: str = "created_at",
     ) -> List[MemoryNode]:
-        return await self._repo.list_current(entity_type=entity_type, limit=limit)
+        return await self._repo.list_current(
+            entity_type=entity_type, limit=limit, offset=offset, order=order
+        )
 
 
 vector_store = VectorStore()

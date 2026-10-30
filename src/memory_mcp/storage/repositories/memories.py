@@ -81,7 +81,11 @@ class MemoryRepository:
         self,
         entity_type: Optional[str] = None,
         limit: int = 100,
+        offset: int = 0,
+        order: str = "created_at",
     ) -> List[MemoryNode]:
+        """Current memories: newest created first, or oldest valid_from first (stale ones first)."""
+        order_by = {"created_at": "created_at DESC, id", "valid_from": "valid_from ASC, id"}[order]
         clauses = ["is_current = 1"]
         params: list = []
         if entity_type:
@@ -90,9 +94,9 @@ class MemoryRepository:
         sql = (
             f"SELECT {_COLUMNS} FROM memories "
             f"WHERE {' AND '.join(clauses)} "
-            f"ORDER BY created_at DESC LIMIT ?"
+            f"ORDER BY {order_by} LIMIT ? OFFSET ?"
         )
-        params.append(int(limit))
+        params.extend([int(limit), int(offset)])
         async with self._store.get_db() as db:
             rows = await db.fetchall(sql, params)
         return [row_to_memory(r) for r in rows]

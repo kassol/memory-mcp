@@ -13,7 +13,10 @@ from mcp.types import (
     Tool,
 )
 from starlette.applications import Starlette
-from starlette.routing import Route
+from pathlib import Path
+
+from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 from starlette.responses import JSONResponse
 from starlette.requests import Request
 from starlette.middleware import Middleware
@@ -180,6 +183,8 @@ app = Starlette(
         Route("/mcp", endpoint=streamable_http_app, methods=["GET", "POST", "DELETE"]),
         Route("/health", endpoint=health, methods=["GET"]),
         *api_routes,
+        # Located next to this module so it resolves inside a non-editable install too.
+        Mount("/ui", app=StaticFiles(directory=Path(__file__).parent / "ui", html=True), name="ui"),
     ],
     middleware=[
         Middleware(CorsMiddleware),

@@ -75,7 +75,9 @@ def test_env(tmp_path, monkeypatch):
     import memory_mcp.tools.relate as _t_relate
     import memory_mcp.tools.unrelate as _t_unrelate
     import memory_mcp.tools.graph_query as _t_graph_query
-    for _m in (_t_remember, _t_recall, _t_recall_all, _t_trace, _t_forget, _t_relate, _t_unrelate, _t_graph_query):
+    import memory_mcp.tools.governance as _t_governance
+    for _m in (_t_remember, _t_recall, _t_recall_all, _t_trace, _t_forget, _t_relate, _t_unrelate, _t_graph_query,
+               _t_governance):
         importlib.reload(_m)
 
     import memory_mcp.engine.llm as llm

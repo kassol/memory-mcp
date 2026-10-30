@@ -351,6 +351,25 @@ async def _add_finding(db, kind: str, memory_id: str, other_memory_id: Optional[
     )
 
 
+class FindingNotOpen(ValueError):
+    """The finding is already resolved or dismissed."""
+
+
+async def dismiss_finding(finding_id: str) -> dict:
+    """A person judged an open finding a false positive; raises LookupError or FindingNotOpen."""
+    async with get_db() as db:
+        row = await db.fetchone("SELECT status FROM memory_findings WHERE id = ?", (finding_id,))
+        if row is None:
+            raise LookupError(f"Finding not found: {finding_id}")
+        if row["status"] != "open":
+            raise FindingNotOpen(f"Finding {finding_id} is {row['status']}")
+        await db.execute(
+            "UPDATE memory_findings SET status = 'dismissed', resolved_at = ? WHERE id = ?",
+            (_now(), finding_id),
+        )
+    return {"id": finding_id, "status": "dismissed"}
+
+
 async def list_findings(status: Optional[str] = None, kind: Optional[str] = None) -> list[dict]:
     clauses, params = [], []
     if status:
