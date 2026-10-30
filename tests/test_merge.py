@@ -63,6 +63,15 @@ def test_merge_parses_fenced_json(test_env, monkeypatch):
     anyio.run(run)
 
 
+def test_merge_accepts_literal_newlines_in_content(test_env, monkeypatch):
+    async def run():
+        # A raw newline inside the JSON string, as models emit it; strict JSON rejects this.
+        merge_mod, _ = _real_merge(monkeypatch, ['{"content": "line one\nline two", "conflict": false}'])
+        assert await merge_mod.merge_memories("a", "b") == ("line one\nline two", False)
+
+    anyio.run(run)
+
+
 def test_same_key_evolution_stores_merged_content(tools, test_env, monkeypatch):
     async def run():
         remember = tools[0]

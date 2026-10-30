@@ -82,6 +82,12 @@ async def assign_entity_key(content: str, embedding: list[float] | None = None) 
     if entity_key in existing:
         return entity_key, existing[entity_key]
 
-    if not _KEY_PATTERN.match(entity_key) or not entity_key.startswith(f"{entity_type}:"):
+    # Models sometimes emit "qwen3.6" / "cc-la" subjects or a type that disagrees with the key
+    # prefix; normalize instead of failing, and let the key prefix decide the type.
+    prefix, sep, subject = entity_key.strip().lower().partition(":")
+    normalized = f"{prefix}:{re.sub(r'[^a-z0-9_]+', '_', subject).strip('_')}"
+    if not sep or not _KEY_PATTERN.match(normalized):
         raise KeyAssignmentError(f"Invalid new entity_key {entity_key!r} for entity_type {entity_type!r}")
-    return entity_key, entity_type
+    if normalized in existing:
+        return normalized, existing[normalized]
+    return normalized, prefix

@@ -38,12 +38,14 @@ async def merge_memories(old_content: str, new_content: str) -> tuple[str, bool]
         raise MergeError(f"LLM merge failed: {exc!r}") from exc
 
     match = re.search(r"\{.*\}", text, re.DOTALL)
+    detail = "no JSON object found"
     try:
-        data = json.loads(match.group(0)) if match else None
-    except json.JSONDecodeError:
-        data = None
+        # strict=False: models often put literal newlines/tabs inside the merged content string.
+        data = json.loads(match.group(0), strict=False) if match else None
+    except json.JSONDecodeError as exc:
+        data, detail = None, f"{exc.msg} at {exc.pos}: {match.group(0)[max(0, exc.pos - 60):exc.pos + 40]!r}"
     if not isinstance(data, dict):
-        raise MergeError(f"Merge output is not a JSON object: {text[:200]!r}")
+        raise MergeError(f"Merge output is not a JSON object ({detail}): {text[:200]!r}")
     content = data.get("content")
     conflict = data.get("conflict")
     if not isinstance(content, str) or not content.strip() or not isinstance(conflict, bool):

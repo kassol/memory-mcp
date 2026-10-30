@@ -62,7 +62,7 @@ def test_assign_with_empty_store_lists_no_neighbors(tools, test_env, monkeypatch
         '{"entity_key": "fact:home_city"',
         '{"entity_key": "fact:home_city"}',
         '{"entity_key": "Home City", "entity_type": "fact"}',
-        '{"entity_key": "preference:home_city", "entity_type": "fact"}',
+        '{"entity_key": "fact:", "entity_type": "fact"}',
     ],
 )
 def test_assign_rejects_unusable_output(tools, test_env, monkeypatch, reply):
@@ -181,3 +181,19 @@ def test_llm_requests_disable_reasoning(tools, test_env, monkeypatch):
 
     anyio.run(run)
     assert [b["reasoning"] for b in bodies] == [{"enabled": False}] * 2
+
+
+@pytest.mark.parametrize(
+    "reply, expected",
+    [
+        ('{"entity_key": "fact:qwen3.6_35b-a3b", "entity_type": "fact"}', ("fact:qwen3_6_35b_a3b", "fact")),
+        ('{"entity_key": "decision:deploy_on_cc-la", "entity_type": "decision"}', ("decision:deploy_on_cc_la", "decision")),
+        ('{"entity_key": "fact:trace_retention", "entity_type": "decision"}', ("fact:trace_retention", "fact")),
+    ],
+)
+def test_assign_normalizes_new_keys(tools, test_env, monkeypatch, reply, expected):
+    async def run():
+        key_mod, _ = _key_mod(monkeypatch, reply)
+        assert await key_mod.assign_entity_key("Some new fact") == expected
+
+    anyio.run(run)
