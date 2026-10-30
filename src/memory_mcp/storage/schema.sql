@@ -1,5 +1,4 @@
 -- memory-mcp v2 schema reference (authoritative version: alembic versions/0001_initial_v2.py)
--- Spec: docs/superpowers/specs/2026-05-21-memory-mcp-agent-kernel-design.md §4
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;

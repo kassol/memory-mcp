@@ -43,7 +43,7 @@ class InMemoryVectorBackend:
 
 
 class LanceVectorBackend:
-    """LanceDB backend with the slim schema `(id, vector)` only (spec §4.6)."""
+    """LanceDB backend with the slim schema `(id, vector)` only; metadata lives in SQLite."""
 
     def __init__(self, vectors_dir: str) -> None:
         import lancedb

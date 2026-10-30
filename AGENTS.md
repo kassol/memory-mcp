@@ -54,6 +54,7 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 - 删除 Nowledge 导入：`scripts/import_nowledge.py`、`tests/test_import_nowledge.py`；`scripts/` 包已空，删除。`remember_tool` 的仅进程内参数 `embedding` / `created_at` 与 `evolve_memory` 的 `created_at` 只有导入脚本和 Extraction 在用，一并删除，新节点时间一律取当前时间
 - 删除 `docs/prd.md`（2024 年初版 PRD，架构与工具清单已过时）、`docs/behavioral-guidance.md`（基于 `mem` CLI 与 `mem wm` 的提示词，已被用户级 AGENTS.md 引导取代）
 - 文档与代码中的生产主机别名和面板名改为中性说法（仓库公开）
+- 删除 `docs/superpowers/`（2026-03 extension 与 2026-05 Agent Kernel 的 spec 和 M1–M6 plan）：M1 已落地，M6 已用其他方式完成，M3 不做；M2 混合检索、M4 后台维护、M5 Web 治理台中仍成立的部分已转为 GitHub issue #4、#5、#6
 ### 2026-10-30 Agent skills 配置
 - 新增 `docs/agents/`（issue-tracker / triage-labels / domain）与本文件 `## Agent skills` 一节：issue 走 GitHub Issues，分诊标签沿用默认五个（已在 GitHub 补建 needs-triage / needs-info / ready-for-agent / ready-for-human），领域文档为单上下文布局
 - 项目 backlog（含 C 档积压）以 GitHub Issues 为准
