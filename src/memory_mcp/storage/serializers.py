@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Any, Iterable
 
-from ..engine.models import MemoryNode, MutationType, ReviewStatus, SourceRef
+from ..engine.models import MemoryNode, MutationType, ReviewStatus
 
 
 def _dt(value: Any) -> datetime | None:
@@ -45,8 +45,6 @@ def memory_to_row(node: MemoryNode) -> dict[str, Any]:
         "source": node.source,
         "origin_client": node.origin_client,
         "origin_session_id": node.origin_session_id,
-        "source_thread_id": node.source_thread_id,
-        "source_refs": json.dumps([r.model_dump() for r in node.source_refs], ensure_ascii=False),
         "access_count": node.access_count,
         "last_accessed_at": _to_iso(node.last_accessed_at),
         "reinforce_count": node.reinforce_count,
@@ -56,7 +54,6 @@ def memory_to_row(node: MemoryNode) -> dict[str, Any]:
 def row_to_memory(row: Iterable[Any], embedding: list[float] | None = None) -> MemoryNode:
     data = dict(row)  # supports both sqlite3.Row and dict
     tags_raw = data.get("tags")
-    refs_raw = data.get("source_refs")
     return MemoryNode(
         id=data["id"],
         entity_key=data["entity_key"],
@@ -83,8 +80,6 @@ def row_to_memory(row: Iterable[Any], embedding: list[float] | None = None) -> M
         source=data.get("source") or "conversation",
         origin_client=data.get("origin_client"),
         origin_session_id=data.get("origin_session_id"),
-        source_thread_id=data.get("source_thread_id"),
-        source_refs=[SourceRef(**r) for r in (json.loads(refs_raw) if refs_raw else [])],
         access_count=int(data.get("access_count") or 0),
         last_accessed_at=_dt(data.get("last_accessed_at")),
         reinforce_count=int(data.get("reinforce_count") or 0),

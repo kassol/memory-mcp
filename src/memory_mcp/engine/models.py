@@ -22,11 +22,6 @@ class ReviewStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class SourceRef(BaseModel):
-    thread_id: str
-    message_id: Optional[str] = None
-
-
 class MemoryNode(BaseModel):
     # Identity
     id: str
@@ -66,10 +61,6 @@ class MemoryNode(BaseModel):
     source: str = "conversation"
     origin_client: Optional[str] = None         # β
     origin_session_id: Optional[str] = None     # β
-
-    # Source linkage (γ)
-    source_thread_id: Optional[str] = None
-    source_refs: List[SourceRef] = Field(default_factory=list)
 
     # Access stats (δ)
     access_count: int = 0

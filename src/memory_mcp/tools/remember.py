@@ -6,7 +6,7 @@ from ..engine import key_assignment, merge
 from ..engine.conflict import conflict_detector
 from ..engine.embedding import embedding_service
 from ..engine.evolution import evolve_memory, infer_mutation_type
-from ..engine.models import MemoryNode, MutationType, SourceRef
+from ..engine.models import MemoryNode, MutationType
 from ..engine.tokenizer import tokenize
 from ..storage.graph import graph_store
 from ..storage.vector import vector_store
@@ -29,18 +29,6 @@ def _build_labels(conflict: bool, mutation_type: MutationType) -> list[str]:
     return labels
 
 
-def _parse_source_refs(raw) -> list[SourceRef]:
-    if not raw:
-        return []
-    out: list[SourceRef] = []
-    for item in raw:
-        if isinstance(item, SourceRef):
-            out.append(item)
-        elif isinstance(item, dict) and item.get("thread_id"):
-            out.append(SourceRef(**item))
-    return out
-
-
 async def _merge_with(old_content: str, content: str, embedding: list[float]) -> tuple[str, bool, list[float]]:
     """Merge into the old version; the stored vector must describe the merged text."""
     merged, conflict = await merge.merge_memories(old_content, content)
@@ -58,8 +46,6 @@ async def remember_tool(arguments: dict) -> dict:
     skip_semantic_merge = arguments.get("skip_semantic_merge", False)
     origin_client = arguments.get("origin_client")
     origin_session_id = arguments.get("origin_session_id")
-    source_thread_id = arguments.get("source_thread_id")
-    source_refs = _parse_source_refs(arguments.get("source_refs"))
     title = arguments.get("title")
 
     if not content:
@@ -74,8 +60,6 @@ async def remember_tool(arguments: dict) -> dict:
         for k, v in {
             "origin_client": origin_client,
             "origin_session_id": origin_session_id,
-            "source_thread_id": source_thread_id,
-            "source_refs": source_refs,
             "title": title,
             "title_tokens": tokenize(title) if title else None,
         }.items()
@@ -191,8 +175,6 @@ async def remember_tool(arguments: dict) -> dict:
         tags=tags,
         origin_client=origin_client,
         origin_session_id=origin_session_id,
-        source_thread_id=source_thread_id,
-        source_refs=source_refs,
     )
     await vector_store.insert(new_node)
     await graph_store.upsert_entity(entity_key, entity_type, new_node.id)

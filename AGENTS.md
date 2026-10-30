@@ -90,6 +90,12 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 - `VectorStore` 向量索引只保留 current 记忆：`insert` 只写 current 节点的向量，`update` 把节点置为非 current 时删除其向量，不再重写未变化的向量（内容变化一律是新节点）。所有检索都过滤 current，旧版本留在索引里会挤占 ANN 候选，长演化链上甚至会让 current 那条落到候选之外
 - `LanceVectorBackend` 每 200 次写入执行一次 `optimize(cleanup_older_than=1h)`：原先每次写入新建一个 fragment 和 version，导入约 5.8k 条后积累 9479 个 fragment、18960 个 version、4.3GB，单条导入从约 5 秒退化到约 22 秒
 
+### 2026-10-30 删除线程表与线程溯源字段
+- 新增 migration `0003_drop_threads`：删除 `threads` / `thread_messages` / `thread_messages_fts` 及其索引与触发器，删除 `memories.source_thread_id` / `source_refs` 两列、`idx_memories_source_thread_id` 与指向 `threads` 的外键。线上这两张表与两列均无数据，代码也不再读写
+- SQLite 无法删除带外键的列，`memories` 按官方 12 步流程重建：在 alembic `autocommit_block` 里先关外键再显式 `BEGIN`（PRAGMA 在事务内不生效），`INSERT ... SELECT rowid, ...` 保留 rowid（`memories_fts` 是按 rowid 对应的 external-content 索引），重建索引与 FTS 触发器后执行 FTS `rebuild`，`foreign_key_check` 非空即回滚并报错，提交后重新开外键。downgrade 用同一流程恢复线程表与两列（取 NULL）
+- `MemoryNode` 删除 `source_thread_id` / `source_refs` 与 `SourceRef`；`remember` 不再读取这两个参数，REST 请求体带上时静默忽略；MCP schema 不变
+- `schema.sql` 同步为 0003 之后的结构；`tests/test_migrations.py` 覆盖升级、降级前后的行数、rowid 与 id 对应、FTS 命中、外键与完整性检查
+
 ### 2026-10-29 LLM 调用关闭推理
 - `engine/llm.py` `chat()` 与 `check_conflict` 的请求统一带 `reasoning: {enabled: false}`（`NO_REASONING`）：OpenRouter 对部分模型（如 deepseek-v4.1-flash）默认开启推理，实测单次合并 10–28 秒、推理 token 最多约 8000，且偶发 content 为空；关闭后 1.7–3.3 秒，输出长度相当
 

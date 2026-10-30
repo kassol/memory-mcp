@@ -108,6 +108,19 @@ def test_remember_creates_memory(client):
     assert body["data"]["status"] == "created"
 
 
+def test_remember_ignores_removed_thread_fields(client):
+    payload = {
+        "content": "Prefer Vim as editor",
+        "entity_key": "preference:editor",
+        "entity_type": "preference",
+        "source_thread_id": "t-1",
+        "source_refs": [{"thread_id": "t-1"}],
+    }
+    resp = client.post("/api/v1/memories", json=payload, headers=AUTH)
+    assert resp.status_code == 200
+    assert resp.json()["data"]["status"] == "created"
+
+
 def test_remember_missing_field_returns_error(client):
     resp = client.post("/api/v1/memories", json={"entity_key": "fact:x", "entity_type": "fact"}, headers=AUTH)
     assert resp.status_code == 400

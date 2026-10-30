@@ -1,65 +1,9 @@
--- memory-mcp v2 schema reference (authoritative version: alembic versions/0001_initial_v2.py)
+-- memory-mcp v2 schema reference at head 0003_drop_threads (authoritative version: alembic versions/)
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 PRAGMA busy_timeout = 5000;
-
--- ---------------------------------------------------------------------------
--- threads (created early so memories.source_thread_id FK is satisfied)
--- ---------------------------------------------------------------------------
-CREATE TABLE threads (
-  thread_id TEXT PRIMARY KEY,
-  source_provider TEXT NOT NULL,
-  source_ref TEXT,
-  title TEXT,
-  started_at TIMESTAMP,
-  ended_at TIMESTAMP,
-  message_count INTEGER NOT NULL DEFAULT 0,
-  summary TEXT,
-  metadata TEXT,
-  last_synced_mtime INTEGER,
-  last_synced_seq INTEGER,
-  created_at TIMESTAMP NOT NULL,
-  imported_at TIMESTAMP NOT NULL,
-  UNIQUE(source_provider, source_ref)
-);
-CREATE INDEX idx_threads_provider ON threads(source_provider);
-CREATE INDEX idx_threads_started_at ON threads(started_at DESC);
-
-CREATE TABLE thread_messages (
-  message_id TEXT PRIMARY KEY,
-  thread_id TEXT NOT NULL REFERENCES threads(thread_id) ON DELETE CASCADE,
-  seq INTEGER NOT NULL,
-  role TEXT NOT NULL,
-  content TEXT NOT NULL,
-  ts TIMESTAMP,
-  metadata TEXT,
-  UNIQUE(thread_id, seq)
-);
-CREATE INDEX idx_thread_messages_thread_id ON thread_messages(thread_id, seq);
-
-CREATE VIRTUAL TABLE thread_messages_fts USING fts5(
-  content,
-  role UNINDEXED,
-  content='thread_messages',
-  content_rowid='rowid',
-  tokenize='unicode61 remove_diacritics 2'
-);
-CREATE TRIGGER thread_messages_fts_ai AFTER INSERT ON thread_messages BEGIN
-  INSERT INTO thread_messages_fts(rowid, content, role)
-  VALUES (new.rowid, new.content, new.role);
-END;
-CREATE TRIGGER thread_messages_fts_ad AFTER DELETE ON thread_messages BEGIN
-  INSERT INTO thread_messages_fts(thread_messages_fts, rowid, content, role)
-  VALUES('delete', old.rowid, old.content, old.role);
-END;
-CREATE TRIGGER thread_messages_fts_au AFTER UPDATE ON thread_messages BEGIN
-  INSERT INTO thread_messages_fts(thread_messages_fts, rowid, content, role)
-  VALUES('delete', old.rowid, old.content, old.role);
-  INSERT INTO thread_messages_fts(rowid, content, role)
-  VALUES (new.rowid, new.content, new.role);
-END;
 
 -- ---------------------------------------------------------------------------
 -- memories (main v2 table)
@@ -95,9 +39,6 @@ CREATE TABLE memories (
   origin_client TEXT,
   origin_session_id TEXT,
 
-  source_thread_id TEXT REFERENCES threads(thread_id) ON DELETE SET NULL,
-  source_refs TEXT,
-
   access_count INTEGER NOT NULL DEFAULT 0,
   last_accessed_at TIMESTAMP,
   reinforce_count INTEGER NOT NULL DEFAULT 0
@@ -107,7 +48,6 @@ CREATE INDEX idx_memories_entity_type ON memories(entity_type);
 CREATE INDEX idx_memories_current ON memories(is_current) WHERE is_current = 1;
 CREATE INDEX idx_memories_review_status ON memories(review_status);
 CREATE INDEX idx_memories_origin_client ON memories(origin_client);
-CREATE INDEX idx_memories_source_thread_id ON memories(source_thread_id);
 CREATE INDEX idx_memories_created_at ON memories(created_at DESC);
 CREATE INDEX idx_memories_last_accessed_at ON memories(last_accessed_at DESC);
 
