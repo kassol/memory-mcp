@@ -209,9 +209,11 @@ def test_unusable_llm_output_fails_the_run_and_writes_no_check(test_env, monkeyp
         await maintenance.run_once()
         jobs = await _jobs()
         assert jobs[0]["status"] == "failed"
-        assert "JudgmentError" in jobs[0]["error"]
+        assert jobs[0]["error"].startswith("1 judgment(s) failed")
+        assert len(llm.prompts) == 1  # not retried within the run
         async with get_db() as db:
-            assert (await db.fetchone("SELECT count(*) AS n FROM memory_checks"))["n"] == 0
+            internal = await db.fetchone("SELECT count(*) AS n FROM memory_checks WHERE check_type = 'internal'")
+        assert internal["n"] == 0
 
         llm.override = None
         await maintenance.run_once()
@@ -370,5 +372,137 @@ def test_pair_finding_resolves_when_either_memory_evolves_and_new_version_is_che
         open_now = await _findings(status="open")
         assert [frozenset((f["memory_id"], f["other_memory_id"])) for f in open_now] == [frozenset((a, b2))]
         assert len([p for p in llm.prompts if "Memory A" in p]) == 2
+
+    anyio.run(run)
+
+
+def test_one_unjudgeable_memory_does_not_block_the_rest(test_env, monkeypatch):
+    async def run():
+        from memory_mcp.engine import maintenance
+        from memory_mcp.storage.sqlite import get_db
+
+        llm = FakeLLM(monkeypatch)
+        real = llm.__call__
+
+        async def flaky(prompt: str, timeout: float = 30.0) -> str:
+            if "POISON" in prompt:
+                llm.prompts.append(prompt)
+                return "not json"
+            return await real(prompt)
+
+        monkeypatch.setattr(maintenance, "chat", flaky)
+        await _add("tool:p", "POISON", conflict=True)
+        await _add("tool:x", "CLASH", conflict=True)
+        await _add("fact:a", "CONTRA one", [1.0, 0.0, 0.0])
+        await _add("fact:b", "CONTRA two", [0.99, 0.1, 0.0])
+
+        await maintenance.run_once()
+        job = (await _jobs())[0]
+        assert job["status"] == "failed" and job["error"].startswith("1 judgment(s) failed")
+        assert {f["kind"] for f in await _findings()} == {"internal_contradiction", "contradiction"}
+        async with get_db() as db:
+            internal = await db.fetchall("SELECT outcome FROM memory_checks WHERE check_type = 'internal'")
+        assert [r["outcome"] for r in internal] == ["internal_contradiction"]
+
+    anyio.run(run)
+
+
+def test_dismissed_multiple_current_is_not_reported_again(test_env, monkeypatch):
+    async def run():
+        from memory_mcp.engine import maintenance
+        from memory_mcp.storage.sqlite import get_db
+
+        FakeLLM(monkeypatch)
+        await _add("fact:deploy", "v1")
+        await _add("fact:deploy", "v2")
+        await maintenance.run_once()
+        async with get_db() as db:
+            await db.execute("UPDATE memory_findings SET status = 'dismissed'")
+        await maintenance.run_once()
+        assert [f["status"] for f in await _findings()] == ["dismissed"]
+
+    anyio.run(run)
+
+
+def test_problem_verdict_without_detail_is_unusable(test_env, monkeypatch):
+    async def run():
+        from memory_mcp.engine import maintenance
+
+        llm = FakeLLM(monkeypatch)
+        llm.override = '{"verdict": "internal_contradiction", "detail": " "}'
+        await _add("tool:x", "CLASH", conflict=True)
+        await maintenance.run_once()
+        assert (await _jobs())[0]["status"] == "failed"
+        assert await _findings() == []
+
+    anyio.run(run)
+
+
+def test_service_start_runs_nothing_without_a_call(test_env, monkeypatch):
+    async def run():
+        import importlib
+
+        import memory_mcp.server as server
+
+        llm = FakeLLM(monkeypatch)
+        importlib.reload(server)
+        await _add("tool:x", "CLASH", conflict=True)
+        async with server.app.router.lifespan_context(server.app):
+            await anyio.sleep(0.05)
+        assert await _jobs() == []
+        assert llm.prompts == []
+
+    anyio.run(run)
+
+
+def test_unused_internal_budget_goes_to_pairs(test_env, monkeypatch):
+    async def run():
+        from memory_mcp.engine import maintenance
+
+        monkeypatch.setattr(maintenance.settings, "maintenance_max_llm_calls", 4)
+        llm = FakeLLM(monkeypatch)
+        await _add("tool:t", "merged", conflict=True)
+        for i in range(4):
+            await _add(f"fact:p{i}", f"pair {i}", [1.0, 0.0, i / 100])
+
+        await maintenance.run_once()
+        internal = sum(1 for p in llm.prompts if "Memory A" not in p)
+        assert (internal, len(llm.prompts) - internal) == (1, 3)
+
+    anyio.run(run)
+
+
+def test_cancel_before_the_run_starts_still_closes_the_job(test_env, monkeypatch):
+    async def run():
+        from memory_mcp.engine import maintenance
+
+        FakeLLM(monkeypatch)
+        await maintenance.start()
+        await maintenance.stop()  # cancels before the task got a chance to run
+        job = (await _jobs())[0]
+        assert job["status"] == "failed"
+        assert not maintenance._running
+        await maintenance.run_once()
+
+    anyio.run(run)
+
+
+def test_failed_pair_is_retried_next_run(test_env, monkeypatch):
+    async def run():
+        from memory_mcp.engine import maintenance
+
+        llm = FakeLLM(monkeypatch)
+        a = await _add("fact:a", "CONTRA one", [1.0, 0.0, 0.0])
+        b = await _add("fact:b", "CONTRA two", [0.99, 0.1, 0.0])
+        llm.override = "garbage"
+        await maintenance.run_once()
+        assert (await _jobs())[0]["status"] == "failed"
+        assert await _findings() == []
+
+        llm.override = None
+        await maintenance.run_once()
+        assert [frozenset((f["memory_id"], f["other_memory_id"])) for f in await _findings()] == [
+            frozenset((a, b))
+        ]
 
     anyio.run(run)

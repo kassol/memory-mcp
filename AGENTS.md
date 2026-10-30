@@ -15,7 +15,7 @@
 - `tests/` - 服务端测试
 - `cli/` - CLI 客户端（独立包 memory-mcp-cli）
 - `docs/` - 项目文档
-- `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份）
+- `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
 
 ## 常用命令
@@ -47,6 +47,18 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-10-30 后台维护（#5）
+- 动机：`remember` 只保证同一 key 内一致。跨 key 的矛盾与重复、合并残留过时事实造成的内部矛盾、中断留下的同 key 多条 current，之前没有机制发现。原记忆系统因后台任务占满 CPU 被弃用，所以维护只在被调用时运行
+- 术语见 `GLOSSARY.md`：发现（Finding，需要人处理）与检查记录（Check，已判定过，含相容，只用于去重）
+- 新增 `engine/maintenance.py`：`POST /api/v1/maintenance/run` 在服务进程内后台跑一轮，返回 202 与 job id，已有一轮在跑时 409；没有进程内定时循环，由宿主机 cron 调 `ops/run-maintenance.sh`。每轮在 `jobs` 表写一行（`payload` 为各项统计，失败写 `error` 并打 warning 日志）。服务关闭时取消正在跑的一轮并记为 failed
+- 每轮顺序：自动关闭涉及记忆已非 current 的 open 发现；同 key 多条当前版本（SQL，open 或 dismissed 的不再重报）；内部矛盾（LLM，只查 `conflict=1` 的 current，线上 314 / 3903）；跨 key 矛盾与重复（LLM，每条记忆用已存向量取余弦最近 5 个、不同 key、余弦 ≥ `CROSS_KEY_MIN_COSINE=0.85`，每个无序对判一次）。旧规则 relevance ≥ 0.85 线上只匹配 6 对，余弦 0.85 约 121 对
+- 预算：`MEMORY_MCP_MAINTENANCE_MAX_LLM_CALLS`（默认 100）。两类 LLM 检查各一半，一类用不完的给另一类；没判完的留到下一轮。不用游标，待办即「没有检查记录的」，记忆演化后新 id 自然重新检查。邻居扫描记录只在该记忆所有候选对都有检查记录后才写
+- LLM 输出不合法、请求失败或问题判定缺少 `detail` 时，记入本轮错误、不写检查记录，本轮跳过该项、下一轮重试；一条判不出的记忆不会挡住后面的检查。不当作相容
+- 新增 migration `0004_maintenance_findings`：`memory_findings`（open / resolved / dismissed）与 `memory_checks`（主键 `check_type + subject`，pair 的 subject 为排序后的两个 id）。不复用 `memories.conflict`（它表示「本版本由冲突合并产生」）
+- `VectorStore.cosine_neighbours`：用已存向量查余弦近邻，LanceDB 调用放在 `asyncio.to_thread`，不重算 embedding
+- REST：`GET /api/v1/findings?status=&kind=`（只含发现，不含检查记录）。标为误报的接口归 Web 治理台（#6）。MCP 不变
+- 测试：`tests/test_maintenance.py`（含 REST 202/409、预算分配与续跑、判定失败不阻塞、自动关闭、recall 在维护运行中不被阻塞）、`tests/test_migrations.py`、`tests/test_vector_backend.py`
+
 ### 2026-10-30 recall 混合检索（#4）
 - 动机：纯向量对型号、版本号、数字这类字面信息不敏感。线上只读模拟（3903 条 current）：30 条「中文问法 + 稀有型号 / 版本串」查询，纯向量前 3 命中 3 条
 - 新增 `engine/hybrid_search.py` `search(query, limit, entity_type=None)`：向量、FTS5、图一跳三路各取前 50（`CANDIDATES_PER_SOURCE`），加权 RRF（`k=60`，FTS 权重 `FTS_WEIGHT=2`）融合。等权时上述查询前 3 命中 9 条，FTS ×2 时 14 条；7 条原本命中的查询不退化。参数为模块常量，不加环境变量

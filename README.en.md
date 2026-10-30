@@ -98,3 +98,17 @@ MIT License. See `LICENSE`.
 ## Backup
 
 On the deploy host, run `ops/backup-db.sh` daily from cron. It keeps the newest 7 snapshots of SQLite and the vector store under `data/backups/`. To restore, stop the service, copy `memory.sqlite3` and `vectors/` from a backup directory over the same files in `data/`, then start it again.
+
+## Maintenance
+
+Maintenance checks find memories that a person should review. The results are called findings (terms in `GLOSSARY.md`): cross-key contradictions, cross-key duplicates, internal contradictions, and keys with more than one current version. Checks only create findings; they never archive or merge.
+
+- The service never starts maintenance by itself. On the deploy host, run `ops/run-maintenance.sh` daily from cron (after the backup). It calls `POST /api/v1/maintenance/run`, which runs one round in the background; it returns 409 while a round is in progress.
+- `MEMORY_MCP_MAINTENANCE_MAX_LLM_CALLS` limits LLM calls per round (default 100); work left over goes to the next round.
+- Read findings with `GET /api/v1/findings?status=open&kind=`. Per-round counts and errors are in the `jobs` table (`job_type = 'maintenance'`).
+
+Example cron (`/etc/cron.d/memory-mcp-maintenance`, 20:17 UTC):
+
+```
+17 20 * * * root /opt/memory-mcp/ops/run-maintenance.sh >> /var/log/memory-mcp-maintenance.log 2>&1
+```

@@ -9,6 +9,7 @@ Checks only create findings; nothing is archived or merged automatically.
 """
 import asyncio
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Optional
@@ -18,6 +19,8 @@ from ..config import settings
 from ..storage.sqlite import get_db
 from ..storage.vector import vector_store
 from .llm import chat
+
+logger = logging.getLogger(__name__)
 
 # Cross-key candidates: cosine similarity among the 5 nearest neighbours. Separate from
 # settings.similarity_threshold. On production data (3903 current) the old relevance >= 0.85
@@ -62,8 +65,8 @@ class JudgmentError(RuntimeError):
     """The LLM verdict could not be obtained; never read that as consistent or compatible."""
 
 
-class _BudgetSpent(Exception):
-    pass
+class _BudgetSpent(BaseException):
+    """Control flow only: the run's LLM budget is used up."""
 
 
 _running = False
@@ -93,6 +96,8 @@ async def start() -> str:
     except BaseException:
         _running = False
         raise
+    # Let the task enter _run's try block, so a cancel from now on always closes the job row.
+    await asyncio.sleep(0)
     return job_id
 
 
@@ -104,7 +109,8 @@ async def stop() -> None:
         try:
             await task
         except asyncio.CancelledError:
-            pass
+            if not task.done():  # stop() itself was cancelled
+                raise
 
 
 async def run_once() -> str:
@@ -121,11 +127,16 @@ async def _run(job_id: str) -> None:
     status, error = "done", None
     try:
         await run.execute()
+        if run.errors:
+            status = "failed"
+            error = f"{len(run.errors)} judgment(s) failed; first: {run.errors[0]}"
     except BaseException as exc:  # includes cancellation at service shutdown
         status, error = "failed", f"{type(exc).__name__}: {exc}"
         if not isinstance(exc, Exception):
             raise
     finally:
+        if error:
+            logger.warning("Maintenance run %s failed: %s", job_id, error)
         _running = False
         async with get_db() as db:
             await db.execute(
@@ -138,6 +149,10 @@ class _Run:
     def __init__(self, budget: int) -> None:
         self.budget = budget
         self.llm_calls = 0
+        # A failed judgment skips its memory or pair for this run (no check, so the next run
+        # retries it); one unjudgeable memory must not stop every later check.
+        self.errors: list[str] = []
+        self._failed: set[str] = set()  # subjects not to try again in this run
         self.stats = {
             "llm_calls": 0,
             "resolved": 0,
@@ -164,7 +179,10 @@ class _Run:
             raise _BudgetSpent
         self.llm_calls += 1
         self.stats["llm_calls"] = self.llm_calls
-        text = await chat(prompt)
+        try:
+            text = await chat(prompt)
+        except Exception as exc:
+            raise JudgmentError(f"LLM request failed: {exc!r}") from exc
         match = re.search(r"\{.*\}", text, re.DOTALL)
         try:
             data = json.loads(match.group(0), strict=False) if match else None
@@ -174,6 +192,8 @@ class _Run:
         detail = data.get("detail") if isinstance(data, dict) else None
         if verdict not in verdicts or not isinstance(detail, str):
             raise JudgmentError(f"Unusable verdict: {text[:200]!r}")
+        if verdict not in {"consistent", "compatible"} and not detail.strip():
+            raise JudgmentError(f"Finding without detail: {text[:200]!r}")
         return verdict, detail.strip()
 
     # ---- Checks ----------------------------------------------------------
@@ -194,7 +214,7 @@ class _Run:
             groups = await db.fetchall(
                 "SELECT entity_key FROM memories GROUP BY entity_key HAVING SUM(is_current) > 1 "
                 "EXCEPT SELECT entity_key FROM memory_findings "
-                "WHERE kind = 'multiple_current' AND status = 'open'"
+                "WHERE kind = 'multiple_current' AND status IN ('open', 'dismissed')"
             )
             for group in groups:
                 ids = await db.fetchall(
@@ -207,6 +227,9 @@ class _Run:
         self.stats["multiple_current"] = len(groups)
 
     async def _internal(self, limit: int) -> None:
+        # Only memories from a conflicting merge: that merge keeps old facts the new one did not
+        # explicitly retire, which is where internal contradictions come from (314 of 3903 in
+        # production). Other memories show no such failure and would cost 12x the LLM calls.
         async with get_db() as db:
             todo = await db.fetchall(
                 "SELECT id, entity_key, content FROM memories "
@@ -215,6 +238,8 @@ class _Run:
                 "ORDER BY created_at, id"
             )
         for row in todo:
+            if row["id"] in self._failed:
+                continue
             try:
                 verdict, detail = await self._judge(
                     _INTERNAL_PROMPT.format(content=row["content"]),
@@ -223,6 +248,10 @@ class _Run:
                 )
             except _BudgetSpent:
                 return
+            except JudgmentError as exc:
+                self.errors.append(f"internal {row['id']}: {exc}")
+                self._failed.add(row["id"])
+                continue
             async with get_db() as db:
                 await _add_check(db, "internal", row["id"], verdict)
                 if verdict == "internal_contradiction":
@@ -239,39 +268,54 @@ class _Run:
                 "ORDER BY created_at, id"
             )
         for row in todo:
-            neighbours = await vector_store.cosine_neighbours(row["id"], CROSS_KEY_NEIGHBOURS)
-            candidates = [mid for mid, cos in neighbours if cos >= CROSS_KEY_MIN_COSINE]
+            if await self._scan_neighbours(row):
+                return
+
+    async def _scan_neighbours(self, row) -> bool:
+        """Judge one memory's cross-key pairs; True when the budget ran out.
+
+        The neighbour-scan check is written only when every pair has a check, so pairs
+        skipped by the budget or a failed judgment are found again next run.
+        """
+        neighbours = await vector_store.cosine_neighbours(row["id"], CROSS_KEY_NEIGHBOURS)
+        candidates = [mid for mid, cos in neighbours if cos >= CROSS_KEY_MIN_COSINE]
+        async with get_db() as db:
+            others = await db.fetchall(
+                f"SELECT id, entity_key, content FROM memories WHERE is_current = 1 "
+                f"AND entity_key != ? AND id IN ({','.join('?' * len(candidates))})",
+                [row["entity_key"], *candidates],
+            ) if candidates else []
+        complete = True
+        for other in others:
+            subject = "|".join(sorted((row["id"], other["id"])))
             async with get_db() as db:
-                others = await db.fetchall(
-                    f"SELECT id, entity_key, content FROM memories WHERE is_current = 1 "
-                    f"AND entity_key != ? AND id IN ({','.join('?' * len(candidates))})",
-                    [row["entity_key"], *candidates],
-                ) if candidates else []
-            for other in others:
-                subject = "|".join(sorted((row["id"], other["id"])))
-                async with get_db() as db:
-                    if await _has_check(db, "pair", subject):
-                        continue
-                try:
-                    verdict, detail = await self._judge(
-                        _PAIR_PROMPT.format(a=row["content"], b=other["content"]),
-                        {"contradiction", "duplicate", "compatible"},
-                        self.budget,
-                    )
-                except _BudgetSpent:
-                    # Leave this memory without a neighbour-scan check so its pairs are found again.
-                    return
-                async with get_db() as db:
-                    await _add_check(db, "pair", subject, verdict)
-                    if verdict != "compatible":
-                        await _add_finding(db, verdict, row["id"], other["id"], None, detail)
-                        self.stats[verdict] += 1
-                self.stats["pairs_checked"] += 1
-                await asyncio.sleep(0)
+                if await _has_check(db, "pair", subject):
+                    continue
+            try:
+                verdict, detail = await self._judge(
+                    _PAIR_PROMPT.format(a=row["content"], b=other["content"]),
+                    {"contradiction", "duplicate", "compatible"},
+                    self.budget,
+                )
+            except _BudgetSpent:
+                return True
+            except JudgmentError as exc:
+                self.errors.append(f"pair {subject}: {exc}")
+                complete = False
+                continue
+            async with get_db() as db:
+                await _add_check(db, "pair", subject, verdict)
+                if verdict != "compatible":
+                    await _add_finding(db, verdict, row["id"], other["id"], None, detail)
+                    self.stats[verdict] += 1
+            self.stats["pairs_checked"] += 1
+            await asyncio.sleep(0)
+        if complete:
             async with get_db() as db:
                 await _add_check(db, "neighbours", row["id"], str(len(others)))
             self.stats["neighbour_scans"] += 1
-            await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        return False
 
 
 async def _add_check(db, check_type: str, subject: str, outcome: str) -> None:

@@ -3,8 +3,8 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 
-def ok(data: dict) -> JSONResponse:
-    return JSONResponse({"ok": True, "data": data})
+def ok(data: dict, status_code: int = 200) -> JSONResponse:
+    return JSONResponse({"ok": True, "data": data}, status_code=status_code)
 
 
 def err(message: str, status_code: int = 400) -> JSONResponse:
@@ -167,7 +167,7 @@ async def handle_maintenance_run(request: Request) -> JSONResponse:
         job_id = await maintenance.start()
     except maintenance.AlreadyRunning as e:
         return err(str(e), 409)
-    return JSONResponse({"ok": True, "data": {"job_id": job_id}}, status_code=202)
+    return ok({"job_id": job_id}, 202)
 
 
 # GET /api/v1/findings?status=&kind=
