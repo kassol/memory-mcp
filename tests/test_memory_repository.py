@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import anyio
 
+_stores = []
+
 
 def _make_node(entity_key: str = "preference:editor", content: str = "Prefer Cursor"):
     from memory_mcp.engine.models import MemoryNode, MutationType
@@ -31,7 +33,25 @@ def _setup(test_env):
     importlib.reload(sqlite_mod)
     import memory_mcp.storage.repositories.memories as repo_mod
     importlib.reload(repo_mod)
-    return repo_mod.MemoryRepository(sqlite_mod.SQLiteStore())
+    store = sqlite_mod.SQLiteStore()
+    _stores.append(store)
+    return repo_mod.MemoryRepository(store)
+
+
+def _run(body):
+    """Run body and close the stores it opened inside the same event loop.
+
+    A store closed after anyio.run() returns makes the aiosqlite worker thread
+    post to a closed loop ("Event loop is closed").
+    """
+    async def main():
+        try:
+            await body()
+        finally:
+            while _stores:
+                await _stores.pop().close()
+
+    anyio.run(main)
 
 
 def test_insert_and_get(test_env):
@@ -45,7 +65,7 @@ def test_insert_and_get(test_env):
         assert loaded.entity_key == node.entity_key
         assert loaded.is_current is True
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_update_sets_is_current(test_env):
@@ -60,7 +80,7 @@ def test_update_sets_is_current(test_env):
         assert loaded.is_current is False
         assert loaded.archived_reason == "test"
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_get_history_ordered(test_env):
@@ -74,7 +94,7 @@ def test_get_history_ordered(test_env):
         history = await repo.get_history("preference:editor")
         assert [n.content for n in history] == ["A", "B"]
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_list_current_filters(test_env):
@@ -89,7 +109,7 @@ def test_list_current_filters(test_env):
         only_pref = await repo.list_current(entity_type="preference")
         assert {n.entity_key for n in only_pref} == {"preference:editor"}
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_fts_index_populated_on_insert(test_env):
@@ -105,7 +125,7 @@ def test_fts_index_populated_on_insert(test_env):
             )
         assert row["c"] == 1
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_get_by_ids_batch(test_env):
@@ -117,4 +137,4 @@ def test_get_by_ids_batch(test_env):
         loaded = await repo.get_by_ids([n.id for n in nodes])
         assert {node.content for node in loaded} == {"C0", "C1", "C2"}
 
-    anyio.run(run)
+    _run(run)

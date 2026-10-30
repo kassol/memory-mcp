@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import anyio
 
+_stores = []
+
 
 def _setup(test_env):
     import memory_mcp.storage.migrate as migrate_mod
@@ -13,7 +15,24 @@ def _setup(test_env):
     importlib.reload(sqlite_mod)
     import memory_mcp.storage.graph as graph_mod
     importlib.reload(graph_mod)
+    _stores.append(sqlite_mod.get_store())
     return graph_mod
+
+
+def _run(body):
+    """Run body and close the stores it opened inside the same event loop.
+
+    A store closed after anyio.run() returns makes the aiosqlite worker thread
+    post to a closed loop ("Event loop is closed").
+    """
+    async def main():
+        try:
+            await body()
+        finally:
+            while _stores:
+                await _stores.pop().close()
+
+    anyio.run(main)
 
 
 def test_upsert_entity_then_query(test_env):
@@ -25,7 +44,7 @@ def test_upsert_entity_then_query(test_env):
         entities = await store.list_entities()
         assert any(e["entity_key"] == "person:alice" for e in entities)
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_add_and_get_relation(test_env):
@@ -45,7 +64,7 @@ def test_add_and_get_relation(test_env):
         assert len(rels) == 1
         assert rels[0]["relation_type"] == "WORKS_ON"
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_depth_traversal_loads_from_sqlite(test_env):
@@ -72,7 +91,7 @@ def test_depth_traversal_loads_from_sqlite(test_env):
         rels = await store.get_relations("person:alice", depth=2)
         assert len(rels) >= 2
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_add_relation_does_not_clobber_existing_current_memory_id(test_env):
@@ -117,7 +136,7 @@ def test_add_relation_does_not_clobber_existing_current_memory_id(test_env):
         assert alice["current_memory_id"] == mem_id, \
             f"add_relation clobbered current_memory_id: got {alice['current_memory_id']}"
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_delete_relation(test_env):
@@ -138,4 +157,4 @@ def test_delete_relation(test_env):
         rels = await store.get_relations("person:alice", depth=1)
         assert rels == []
 
-    anyio.run(run)
+    _run(run)

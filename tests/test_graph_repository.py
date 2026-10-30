@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import anyio
 
+_stores = []
+
 
 def _setup(test_env):
     import memory_mcp.storage.migrate as migrate_mod
@@ -18,11 +20,28 @@ def _setup(test_env):
     importlib.reload(rel_mod)
     importlib.reload(mem_mod)
     store = sqlite_mod.SQLiteStore()
+    _stores.append(store)
     return (
         ent_mod.EntityRepository(store),
         rel_mod.RelationRepository(store),
         mem_mod.MemoryRepository(store),
     )
+
+
+def _run(body):
+    """Run body and close the stores it opened inside the same event loop.
+
+    A store closed after anyio.run() returns makes the aiosqlite worker thread
+    post to a closed loop ("Event loop is closed").
+    """
+    async def main():
+        try:
+            await body()
+        finally:
+            while _stores:
+                await _stores.pop().close()
+
+    anyio.run(main)
 
 
 async def _insert_memory(mem_repo, mem_id: str, entity_key: str) -> str:
@@ -65,7 +84,7 @@ def test_upsert_entity_insert_and_update(test_env):
         loaded = await ent_repo.get("person:alice")
         assert loaded["current_memory_id"] == "m2"
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_clear_current_memory(test_env):
@@ -77,7 +96,7 @@ def test_clear_current_memory(test_env):
         loaded = await ent_repo.get("person:alice")
         assert loaded["current_memory_id"] is None
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_upsert_with_none_preserves_existing_current_memory_id(test_env):
@@ -92,7 +111,7 @@ def test_upsert_with_none_preserves_existing_current_memory_id(test_env):
         loaded = await ent_repo.get("person:alice")
         assert loaded["current_memory_id"] == "mem-1"
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_relation_insert_and_delete(test_env):
@@ -121,7 +140,7 @@ def test_relation_insert_and_delete(test_env):
         again = await rel_repo.delete(relation.id)
         assert again is False
 
-    anyio.run(run)
+    _run(run)
 
 
 def test_relation_fk_cascade_on_entity_delete(test_env):
@@ -141,4 +160,4 @@ def test_relation_fk_cascade_on_entity_delete(test_env):
         await ent_repo.delete("person:bob")
         assert await rel_repo.list_by_entity("project:y") == []
 
-    anyio.run(run)
+    _run(run)
