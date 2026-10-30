@@ -10,23 +10,22 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 
 
-def _repo_root() -> Path:
-    """Walk up from this module until pyproject.toml is found.
+def _find_ini() -> Path | None:
+    """alembic.ini only carries logging config, so it is optional.
 
-    Resilient to file relocation; replaces fragile ``parents[N]`` math.
+    A non-editable install (Dockerfile) puts this module in site-packages,
+    away from the repo root, so also look in the working directory.
     """
-    here = Path(__file__).resolve()
-    for parent in (here, *here.parents):
-        if (parent / "pyproject.toml").is_file():
-            return parent
-    raise RuntimeError("repo root with pyproject.toml not found")
+    for parent in (*Path(__file__).resolve().parents, Path.cwd()):
+        if (parent / "alembic.ini").is_file():
+            return parent / "alembic.ini"
+    return None
 
 
 def _make_config(db_path: str | None = None) -> Config:
-    repo_root = _repo_root()
-    ini_path = repo_root / "alembic.ini"
-    cfg = Config(str(ini_path))
-    cfg.set_main_option("script_location", str(repo_root / "src" / "memory_mcp" / "storage" / "migrations"))
+    ini_path = _find_ini()
+    cfg = Config(str(ini_path)) if ini_path else Config()
+    cfg.set_main_option("script_location", str(Path(__file__).resolve().parent / "migrations"))
     url = f"sqlite:///{db_path}" if db_path else settings.alembic_url
     cfg.set_main_option("sqlalchemy.url", url)
     return cfg

@@ -72,6 +72,11 @@ def test_env(tmp_path, monkeypatch):
     for _m in (_t_remember, _t_recall, _t_recall_all, _t_trace, _t_forget, _t_relate, _t_unrelate, _t_graph_query):
         importlib.reload(_m)
 
+    import memory_mcp.engine.llm as llm
+    importlib.reload(llm)
+    import memory_mcp.engine.key_assignment as key_assignment
+    importlib.reload(key_assignment)
+
     async def fake_embedding(_text: str):
         return [0.1, 0.1, 0.1]
 
@@ -80,6 +85,13 @@ def test_env(tmp_path, monkeypatch):
 
     monkeypatch.setattr(embedding.embedding_service, "get_embedding", fake_embedding)
     monkeypatch.setattr(conflict.conflict_detector, "check_conflict", fake_conflict)
+
+    import memory_mcp.engine.merge as merge
+
+    async def fake_merge(_old: str, new: str):
+        return new, False
+
+    monkeypatch.setattr(merge, "merge_memories", fake_merge)
 
     yield config, vector, graph
 

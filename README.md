@@ -11,8 +11,7 @@
 - **记忆演化而非覆盖**：同一 `entity_key` 多版本链路可追溯（`trace`）
 - **冲突判定与打标**：命中也会判定并输出 `labels`：`conflict / correction / reversal`
 - **语义检索**：通过 OpenRouter Embedding API 获取向量，支持相似度检索（`recall`）
-- **图谱关系**：实体关系入/出边 + BFS 深度查询（`relate` / `graph_query`）
-- **资源读取**：提供 `memory:///...` 资源给 MCP Client（current/entities/entity）
+- **图谱关系**：实体关系入/出边 + BFS 深度查询（REST / CLI：`relate` / `graph_query`）
 - **可测试/可落盘**：默认 LanceDB；可用 `MEMORY_MCP_VECTOR_BACKEND=memory` 作为无依赖后端
 
 ## 接口
@@ -35,13 +34,8 @@
 2. 构建并启动：`docker compose up -d --build`
 
 说明：
-- 当前 `docker-compose.yml` **默认不暴露 8765**（避免直接公网暴露）。
-- 若你需要在宿主机直接访问（本地调试），请在 `memory-mcp` service 增加端口映射：
-  ```yaml
-  ports:
-    - "8765:8765"
-  ```
-- 生产环境建议通过 **Cloudflare Tunnel / 反向代理** 暴露 HTTPS。
+- `docker-compose.yml` 只把服务绑到宿主机回环地址 `127.0.0.1:18765`，不直接暴露公网。
+- 生产环境由宿主机上的反向代理（如 OpenResty）终结 HTTPS，上游指向 `http://127.0.0.1:18765`。
 
 ## 环境变量
 
@@ -66,8 +60,6 @@
   - `MEMORY_MCP_VECTOR_BACKEND`：`lancedb`（默认）/ `memory` / `auto`
   - 说明：生产建议使用 `lancedb`；LanceDB 启动失败会中止服务，避免旧记忆被静默隐藏
   - `memory` 适合测试；`auto` 会在 LanceDB 初始化失败时切换到 `memory`
-- **Cloudflare Tunnel（可选）**
-  - `CLOUDFLARE_TUNNEL_TOKEN`
 
 ## MCP 客户端配置示例
 
@@ -89,20 +81,14 @@
 
 ## Tools（工具）
 
-- `remember`：写入/演化记忆（同 `entity_key` 自动演化与冲突打标）
-- `recall`：按语义检索当前记忆（可选附带演化信息）
-- `recall_all`：拉取全部当前记忆（用于初始化上下文）
-- `trace`：追溯某实体的演化链（timeline/summary）
-- `forget`：归档某实体当前记忆（不再作为 current）
-- `relate`：创建实体关系边
-- `unrelate`：按 relation id 删除实体关系边
-- `graph_query`：按深度查询实体关系（入边+出边 BFS）
+MCP 只暴露 4 个工具，不提供 resources（全量记忆一次性返回会撑爆客户端上下文）：
 
-## Resources（资源）
+- `remember(content, title?, tags?)`：写入一条长期有效的事实；`entity_key` 由服务端对照库内相似记忆分配，同主题自动合并演化并冲突打标
+- `recall(query, limit?)`：按语义检索当前记忆，返回项含 `memory_id`、`entity_key`、`content`、`created_at`
+- `forget(memory_id, reason?)`：按 id 归档一条当前记忆（不再作为 current）
+- `trace(entity_key, format?)`：追溯某实体的演化链（timeline/summary）
 
-- `memory:///current`：当前全部记忆（JSON）
-- `memory:///entities`：实体列表（JSON）
-- `memory:///entity/{entity_key}`：实体演化历史（JSON）
+`recall_all`、`relate`、`unrelate`、`graph_query` 与按 `entity_key` 归档只通过 REST API / CLI 提供。
 
 ## 数据落盘结构
 

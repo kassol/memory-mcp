@@ -77,11 +77,14 @@ async def evolve_memory(
     mutation_type_override: MutationType | None = None,
     conflict: bool = False,
     conflict_with_id: str | None = None,
+    created_at: datetime | None = None,
+    tags: list[str] | None = None,
+    fields: dict | None = None,
 ) -> MemoryNode:
     mutation_type = mutation_type_override or infer_mutation_type(existing_node.content, new_content)
     mutation_reason = generate_mutation_reason(existing_node.content, new_content, mutation_type)
 
-    now = datetime.now(timezone.utc)
+    now = created_at or datetime.now(timezone.utc)
     new_node = MemoryNode(
         id=str(uuid4()),
         entity_key=existing_node.entity_key,
@@ -97,13 +100,15 @@ async def evolve_memory(
         is_current=True,
         conflict=conflict,
         conflict_with_id=conflict_with_id if conflict else None,
-        tags=existing_node.tags,
+        # Content is merged, so tags are merged too.
+        tags=existing_node.tags + [t for t in tags or [] if t not in existing_node.tags],
+        **(fields or {}),
     )
 
+    # Insert first: a stop in between leaves two current versions (visible), never zero.
+    await vector_store.insert(new_node)
     existing_node.is_current = False
     existing_node.valid_until = now
-
     await vector_store.update(existing_node)
-    await vector_store.insert(new_node)
     await graph_store.upsert_entity(new_node.entity_key, new_node.entity_type, new_node.id)
     return new_node

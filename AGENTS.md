@@ -26,12 +26,64 @@
 
 ## 全局规范
 - MCP Streamable HTTP 为主传输协议；REST API (`/api/v1/*`) 为 CLI/hooks 等非 MCP 客户端提供轻量接入，复用同一套 tool 函数
+- MCP 只暴露 agent 主动存取所需的 4 个工具（`remember` / `recall` / `forget` / `trace`），不注册 resources；运维与图谱类能力只走 REST / CLI
 - Tool 返回值统一为 JSON 字符串
 - 记忆数据持久化：向量存储 + 图存储并行
 - 变更必须更新本文件
 - 涉及线上服务能力的任务，只有更新到线上并完成线上验证后才算终结；仅完成本地代码、测试或文档不算完成
 
 ## 变更日志
+### 2026-10-29 MCP 接口收敛为 4 个工具
+- 动机：agent 只靠 MCP + 用户级 AGENTS.md 引导主动存取记忆。原 `remember` 要求调用方自起 `entity_key`，不同会话起的 key 会漂移，同一主题无法合并演化；8 个工具里多数与主动存取无关；`memory:///current`、`memory:///entities` 一次返回全部记忆，导入后 9000+ 条会撑爆客户端上下文。当时没有 MCP 客户端在用，不保留旧 MCP 契约
+- MCP 只剩 `remember(content, title?, tags?)`、`recall(query, limit?)`、`forget(memory_id, reason?)`、`trace(entity_key, format?)`，schema 均 `additionalProperties: false`（多传参数返回 `Input validation error`）；description 写明各自使用时机
+- 移除 MCP 的 `recall_all` / `relate` / `unrelate` / `graph_query` 工具与全部 resources / resource templates：`Server` 不再传 resources handler，initialize 不再声明 resources 能力，`resources/list` 返回 method not found。tool 函数、REST 路由、CLI 子命令保留
+- `remember_tool`：`entity_key` / `entity_type` 改为可选（必须成对出现）；缺省时用同一份 embedding 调 `assign_entity_key` 分配，并跳过语义合并路径（key 分配已对照过最相似的 current 记忆，与 Extraction 一致）。显式传 key 的调用方（导入脚本、Extraction）行为不变；REST `POST /api/v1/memories` 同样可不传 key
+- `forget_tool` 新增 `memory_id`：归档该条 current 记忆（写法与按 `entity_key` 归档相同）；id 不存在或不是 current 时抛错，MCP 返回 `{"error": ...}`；按 `entity_key` 的 REST / CLI 用法不变。未新增 REST 路由（`DELETE /api/v1/memories/{...}` 已被按 `entity_key` 归档占用）
+- `recall` 返回项新增 `memory_id`，供 `forget` 使用
+- `tests/test_transport.py` 契约测试改为 4 个工具 + 无 resources，并走通 remember（服务端分配 key）→ recall → forget → recall 流程
+
+### 2026-10-29 部署改为宿主机反代，去掉 cloudflared
+- 生产迁到新主机（宿主机反向代理，host 网络）：`docker-compose.yml` 删除 cloudflared 服务，`memory-mcp` 只映射 `127.0.0.1:18765:8765`，由宿主机反代终结 HTTPS；`.env.example` / README 删除 `CLOUDFLARE_TUNNEL_TOKEN`
+- `docs/testing.md` 手工集成步骤同步为 4 个 MCP 工具
+
+### 2026-10-30 向量表跨进程可见
+- `LanceVectorBackend` 以 `read_consistency_interval=0` 连接：服务进程每次读都检查新版本。原先服务一直使用启动时打开的快照，导入脚本等其他进程写入的向量要重启服务才能检索到（Nowledge 增量导入后实测）
+
+### 2026-10-30 演化写入顺序
+- `evolve_memory` 新增 `fields`，`remember` 把 origin_client / origin_session_id / source_thread_id / source_refs / title 随新节点一次 insert 写入，不再演化后补一次 update。原先两次写入之间中断会留下缺来源的 current 记忆，导入去重也认不出它（全量导入中实际出现 1 条）
+- 先 insert 新版本、再把旧版本置为非 current：中断时最坏是同一主题有两条 current，而不是一条都没有
+
+### 2026-10-30 key 规范化与合并输出容错
+- `assign_entity_key` 新建 key 时不再因格式拒收：转小写，subject 中非 `[a-z0-9_]` 字符替换为 `_`，以 key 前缀作为 entity_type；规范化后命中邻居 key 则沿用。仍拒收没有 `type:` 前缀或 subject 为空的输出。全量导入中 4 条失败来自 `web-01`、`qwen3.6` 这类 subject 与前缀/类型不一致
+- `merge_memories` 以 `json.loads(strict=False)` 解析，接受 content 字符串里的字面换行；解析失败时报错带 JSON 错误位置与上下文。全量导入中 20 条合并失败为偶发输出不规范，原样重试即通过
+
+### 2026-10-30 向量索引只存 current 并定期压实
+- `VectorStore` 向量索引只保留 current 记忆：`insert` 只写 current 节点的向量，`update` 把节点置为非 current 时删除其向量，不再重写未变化的向量（内容变化一律是新节点）。所有检索都过滤 current，旧版本留在索引里会挤占 ANN 候选，长演化链上甚至会让 current 那条落到候选之外
+- `LanceVectorBackend` 每 200 次写入执行一次 `optimize(cleanup_older_than=1h)`：原先每次写入新建一个 fragment 和 version，导入约 5.8k 条后积累 9479 个 fragment、18960 个 version、4.3GB，单条导入从约 5 秒退化到约 22 秒
+
+### 2026-10-29 LLM 调用关闭推理
+- `engine/llm.py` `chat()` 与 `check_conflict` 的请求统一带 `reasoning: {enabled: false}`（`NO_REASONING`）：OpenRouter 对部分模型（如 deepseek-v4.1-flash）默认开启推理，实测单次合并 10–28 秒、推理 token 最多约 8000，且偶发 content 为空；关闭后 1.7–3.3 秒，输出长度相当
+
+### 2026-10-28 MCP Python SDK 迁移到 2.x
+- 依赖约束 `mcp>=2.0,<3`；`requirements.lock`（`pip freeze | LC_ALL=C sort`，以旧锁为约束重解）与 `uv.lock` 同步更新
+- `server.py` 由 1.x 装饰器注册改为 2.x `Server(..., on_list_tools/on_call_tool/on_list_resources/on_list_resource_templates/on_read_resource)` 构造参数，handler 签名 `(ctx, params)`，返回完整 Result 类型
+- 2.x lowlevel 不再做 tool 入参 jsonschema 校验，`call_tool` 自行校验并保持 1.x 报错形态（`is_error=True` + `Input validation error: ...`）
+- 对外 MCP 契约不变：8 个 tool、参数 schema、JSON 字符串返回、resources、`/mcp` 端点与 Bearer 鉴权；`transport/` 无需改动（`StreamableHTTPSessionManager` 签名未变）
+- `tests/test_transport.py` 改用 2.x 进程内 `mcp.Client` 走真实协议分发，新增契约测试（tool 列表、校验报错、resources）
+- 修复非 editable 安装（Dockerfile `pip install --no-deps .`）启动即崩：`storage/migrate.py` 改为按包内路径定位 migrations，`alembic.ini` 仅承载日志配置、找不到时省略（原先向上找 pyproject.toml 失败抛 `RuntimeError`）
+
+### 2026-10-28 Nowledge 导入：key 分配 / 合并演化 / 冲突检测显式失败
+- 新增 `engine/llm.py` `chat()`（单轮 OpenRouter 调用，HTTP/传输错误直接抛出），供 key 分配、合并、提取复用
+- 新增 `engine/key_assignment.py` `assign_entity_key`：取 5 条最相似的 current 记忆给 LLM，同主题复用其 entity_key（类型以库内为准），否则新建 `<entity_type>:<snake_case>` key；请求失败或输出不可用抛 `KeyAssignmentError`
+- Extraction Engine 的提取 LLM 只输出 `[{"content": ...}]`，entity_key/entity_type 一律由 `assign_entity_key` 对照库内记忆分配
+- `check_conflict` 在请求失败、非 200、响应畸形、答案非 YES/NO 时抛 `ConflictCheckError`，不再当作「无冲突」
+- 复用 key 时合并演化（`engine/merge.py` `merge_memories`）：`remember` 的两条演化路径在演化前让 LLM 把旧 current 与新内容合并为一条（保留不冲突的事实、冲突处以新内容为准、去重、保留 `[YYYY-MM]` 日期标注），新版本存合并结果并按合并文本重算 embedding；同 key 路径由这次合并调用同时给出 conflict（替代 `check_conflict`），语义合并路径仍先由 `check_conflict` 决定是否演化；合并结果与旧 current 相同返回 `no_change`；tags 取旧版与新输入的并集；合并失败抛 `MergeError`，不写库、不回退为整体替换。MCP / REST `remember` 同样生效，对外参数与返回字段不变
+- `remember_tool` / `evolve_memory` 新增仅进程内可用的 `created_at` 参数：新节点 `created_at`/`valid_from` 与被演化旧节点的 `valid_until` 用该时间，未传时为当前时间；不暴露给 MCP/REST
+- 新增 `python -m memory_mcp.scripts.import_nowledge --input <nmem --json m list 输出> --state <state.json> [--limit N] [--dry-run]`：`m list` 列出的全部记忆按 `created_at`（必须带时区）升序逐条分配 key 后经 `remember_tool`（`skip_semantic_merge`）写入，透传原 `created_at`、`origin_client=nowledge`、`origin_session_id=<Nowledge id>`、labels 作 tags；state 文件记录已完成与失败 id，可断点续跑；每条处理前先查库（`origin_client=nowledge` 且 `origin_session_id` 命中即视为已导入），写库后、存 state 前中断也不会重复提交；`--dry-run` 只解析排序，不调 LLM、不写库、不建 state 文件
+- 合并提示词改为「保留长期有效事实、丢弃被新版本淘汰的阶段性状态（如旧进度快照）、结果 ≤1500 字」：试跑中逐条合并进度日志会把单条记忆滚到 1.1 万字以上，单条导入耗时随之升到约 21 秒
+- 导入脚本 `--input` 可重复，多个来源按 `created_at` 穿插导入；记录可自带 `origin_client`（v1 线上数据用 `memory-mcp-v1`），续跑去重按 `origin_client + origin_session_id`；跳过 `memory-mcp-full-archive-*`（旧库整包转储，每条混装约 20 条无关记忆），v1 数据改为逐条导入
+- key 分配与合并失败的报错带上底层异常，便于区分网络错误与模型输出问题
+
 ### 2026-05-21 M1 存储底座（v2 schema）
 - 引入 SQLite v2 主存储（aiosqlite + alembic 1.18 + WAL/FK/busy_timeout pragmas）
 - 新建 `0001_initial_v2` migration：memories / memories_fts / entities / relations / threads / thread_messages / thread_messages_fts / jobs / working_memory_cache + 全部索引 + FTS5 触发器

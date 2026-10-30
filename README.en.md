@@ -11,8 +11,7 @@ Personal memory service powered by **MCP Streamable HTTP**. It combines **semant
 - **Memory evolution** per `entity_key` with history tracing (`trace`)
 - **Conflict detection & labels** (also on exact matches): `conflict / correction / reversal`
 - **Semantic recall** via OpenRouter Embedding API (`recall`)
-- **Knowledge graph relations** with BFS depth query (`relate` / `graph_query`)
-- **MCP resources**: `memory:///...` (current/entities/entity)
+- **Knowledge graph relations** with BFS depth query (REST / CLI: `relate` / `graph_query`)
 - **Test-friendly storage**: LanceDB by default, `MEMORY_MCP_VECTOR_BACKEND=memory` backend for tests
 
 ## Endpoints
@@ -35,13 +34,8 @@ Personal memory service powered by **MCP Streamable HTTP**. It combines **semant
 2. Build & run: `docker compose up -d --build`
 
 Notes:
-- `docker-compose.yml` **does not expose port 8765** by default.
-- For local debugging, add:
-  ```yaml
-  ports:
-    - "8765:8765"
-  ```
-- In production, expose HTTPS via **Cloudflare Tunnel / reverse proxy**.
+- `docker-compose.yml` binds the service to the host loopback address `127.0.0.1:18765` only.
+- In production, a reverse proxy on the host (for example OpenResty) terminates HTTPS and forwards to `http://127.0.0.1:18765`.
 
 ## Environment Variables
 
@@ -59,8 +53,6 @@ See `.env.example`.
   - `MEMORY_MCP_VECTOR_BACKEND`: `lancedb` (default) / `memory` / `auto`
   - Production should use `lancedb`; LanceDB startup failure stops the service so existing memories stay visible as a deployment issue
   - `memory` is useful for tests; `auto` switches to `memory` after LanceDB initialization failure
-- **Cloudflare Tunnel (optional)**
-  - `CLOUDFLARE_TUNNEL_TOKEN`
 
 ## MCP Client Config (Example)
 
@@ -82,20 +74,14 @@ Replace the domain and token:
 
 ## Tools
 
-- `remember`: write/evolve memory (+ conflict labels)
-- `recall`: semantic search (optionally include evolution metadata)
-- `recall_all`: load all current memories
-- `trace`: evolution chain (timeline/summary)
-- `forget`: archive current memory for an entity
-- `relate`: create relations between entities
-- `unrelate`: delete a relation by relation id
-- `graph_query`: query relations with BFS depth (in + out edges)
+MCP exposes 4 tools and no resources (returning every memory at once would overflow client context):
 
-## Resources
+- `remember(content, title?, tags?)`: store one long-lived fact; the server assigns `entity_key` against similar stored memories, then merges and labels conflicts on the same subject
+- `recall(query, limit?)`: semantic search over current memories; items include `memory_id`, `entity_key`, `content`, `created_at`
+- `forget(memory_id, reason?)`: archive one current memory by id
+- `trace(entity_key, format?)`: evolution chain (timeline/summary)
 
-- `memory:///current`
-- `memory:///entities`
-- `memory:///entity/{entity_key}`
+`recall_all`, `relate`, `unrelate`, `graph_query` and archive-by-`entity_key` are available only through the REST API / CLI.
 
 ## Development & Testing
 

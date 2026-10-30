@@ -112,3 +112,15 @@ def test_alembic_upgrade_is_idempotent(test_env):
         assert migrate_mod.current() is not None
 
     anyio.run(run)
+
+
+def test_alembic_upgrade_without_ini(test_env, monkeypatch):
+    """Non-editable installs (Dockerfile) have no alembic.ini above site-packages."""
+    async def run():
+        import memory_mcp.storage.migrate as migrate_mod
+        importlib.reload(migrate_mod)
+        monkeypatch.setattr(migrate_mod, "_find_ini", lambda: None)
+        migrate_mod.run_migrations()
+        assert migrate_mod.current() is not None
+
+    anyio.run(run)

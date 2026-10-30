@@ -5,17 +5,25 @@ from ..storage.vector import vector_store
 
 
 async def forget_tool(arguments: dict) -> dict:
+    """Archive the current memory given by `memory_id`, or the current memory of `entity_key`."""
+    memory_id = arguments.get("memory_id")
     entity_key = arguments.get("entity_key")
     reason = arguments.get("reason", "User requested archive")
 
-    if not entity_key:
-        raise ValueError("Missing required argument: entity_key")
-
-    history = await vector_store.get_history(entity_key)
-    current_node = next((n for n in history if n.is_current), None)
-
-    if not current_node:
-        return {"status": "not_found", "message": f"No active memory found for {entity_key}"}
+    if memory_id:
+        current_node = await vector_store.get_by_id(memory_id)
+        if current_node is None:
+            raise ValueError(f"Memory not found: {memory_id}")
+        if not current_node.is_current:
+            raise ValueError(f"Memory {memory_id} is not current (already archived or superseded)")
+        entity_key = current_node.entity_key
+    elif entity_key:
+        history = await vector_store.get_history(entity_key)
+        current_node = next((n for n in history if n.is_current), None)
+        if not current_node:
+            return {"status": "not_found", "message": f"No active memory found for {entity_key}"}
+    else:
+        raise ValueError("Missing required argument: memory_id or entity_key")
 
     current_node.is_current = False
     current_node.valid_until = datetime.now(timezone.utc)
@@ -27,6 +35,7 @@ async def forget_tool(arguments: dict) -> dict:
 
     return {
         "status": "archived",
+        "memory_id": current_node.id,
         "entity_key": entity_key,
         "previous_content": current_node.content,
         "archived_reason": reason,

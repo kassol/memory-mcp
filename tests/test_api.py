@@ -109,11 +109,25 @@ def test_remember_creates_memory(client):
 
 
 def test_remember_missing_field_returns_error(client):
-    resp = client.post("/api/v1/memories", json={"content": "x"}, headers=AUTH)
+    resp = client.post("/api/v1/memories", json={"entity_key": "fact:x", "entity_type": "fact"}, headers=AUTH)
     assert resp.status_code == 400
     body = resp.json()
     assert body["ok"] is False
     assert "error" in body
+
+
+def test_remember_without_key_uses_server_assignment(client, monkeypatch):
+    import memory_mcp.engine.key_assignment as key_mod
+
+    async def fake_assign(content, embedding=None):
+        return "fact:home_city", "fact"
+
+    monkeypatch.setattr(key_mod, "assign_entity_key", fake_assign)
+    resp = client.post("/api/v1/memories", json={"content": "Lives in Shanghai"}, headers=AUTH)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["status"] == "created"
+    assert data["entity_key"] == "fact:home_city"
 
 
 # ---------------------------------------------------------------------------
