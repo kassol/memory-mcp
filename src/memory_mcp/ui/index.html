@@ -12,7 +12,7 @@
   <header class="bar">
     <span class="mark" aria-hidden="true"></span>
     <h1 class="title">记忆登记簿</h1>
-    <nav class="tabs" aria-label="视图">
+    <nav class="tabs" aria-label="视图" hidden>
       <button type="button" class="tab" data-view="docket">待审<span class="count" id="docket-count"></span></button>
       <button type="button" class="tab" data-view="records">档案</button>
     </nav>
@@ -34,7 +34,7 @@
     <section id="workspace" class="workspace" hidden>
       <aside class="ledger" aria-label="列表">
         <div class="ledger-head" id="ledger-head"></div>
-        <ol class="rows" id="rows"></ol>
+        <ol class="rows" id="rows" role="listbox" aria-label="条目"></ol>
         <div class="ledger-foot" id="ledger-foot"></div>
       </aside>
       <article class="file" id="file" aria-live="polite"></article>

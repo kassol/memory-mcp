@@ -75,7 +75,7 @@
 
   // ---- Login -------------------------------------------------------------
   function showLogin(message) {
-    for (const node of [$("workspace"), $("logout")]) node.hidden = true;
+    for (const node of [$("workspace"), $("logout"), document.querySelector(".tabs")]) node.hidden = true;
     $("rows").replaceChildren();
     $("file").replaceChildren();
     $("docket-count").textContent = "";
@@ -127,12 +127,29 @@
   function start() {
     $("workspace").hidden = false;
     $("logout").hidden = false;
+    document.querySelector(".tabs").hidden = false;
     switchView(state.view);
   }
 
   function skeletonRows() {
     $("rows").replaceChildren(...Array.from({ length: 6 }, () =>
-      el("li", { class: "row" }, el("span", { class: "no" }), el("div", {}, el("div", { class: "skeleton" }), el("div", { class: "skeleton", style: "width:70%" })))));
+      el("li", { class: "row", role: "option", "aria-busy": "true", "aria-selected": "false" }, el("span", { class: "no" }), el("div", {}, el("div", { class: "skeleton" }), el("div", { class: "skeleton", style: "width:70%" })))));
+  }
+
+  // Rows form a listbox: Enter or Space opens a row, Up and Down move between rows.
+  function row(i, open, ...children) {
+    return el("li", {
+      class: "row", role: "option", "data-index": i, "aria-selected": String(state.selected === i), tabindex: "0",
+      onclick: () => open(i),
+      onkeydown: (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(i); }
+        else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const next = e.key === "ArrowDown" ? e.currentTarget.nextElementSibling : e.currentTarget.previousElementSibling;
+          next?.focus();
+        }
+      },
+    }, ...children);
   }
 
   function selectRow(index) {
@@ -141,7 +158,7 @@
   }
 
   function backButton() {
-    return el("button", { type: "button", class: "quiet back", text: "← 返回列表", onclick: () => $("workspace").classList.remove("reading") });
+    return el("button", { type: "button", class: "quiet back", text: "返回列表", onclick: () => $("workspace").classList.remove("reading") });
   }
 
   // ---- Docket (findings) ---------------------------------------------------
@@ -163,15 +180,12 @@
     const items = state.findings;
     $("ledger-foot").replaceChildren(el("span", { text: items.length + " 件待审" }));
     if (!items.length) {
-      $("rows").replaceChildren(el("li", { class: "empty" }, el("strong", { text: "没有待审的发现" }), "维护检查每天运行一次，新的发现会出现在这里。"));
+      $("rows").replaceChildren(el("li", { class: "empty", role: "option", "aria-disabled": "true", "aria-selected": "false" }, el("strong", { text: "没有待审的发现" }), "维护检查每天运行一次，新的发现会出现在这里。"));
       $("file").replaceChildren(el("div", { class: "empty" }, el("strong", { text: "卷宗已清空" }), "可以到「档案」里按最久未更新排序，检查陈旧记忆。"));
+      $("workspace").classList.remove("reading");
       return;
     }
-    $("rows").replaceChildren(...items.map((f, i) => el("li", {
-      class: "row", "data-index": i, "aria-selected": "false", tabindex: "0",
-      onclick: () => openFinding(i),
-      onkeydown: (e) => { if (e.key === "Enter") openFinding(i); },
-    },
+    $("rows").replaceChildren(...items.map((f, i) => row(i, openFinding,
       el("span", { class: "no", text: String(i + 1).padStart(2, "0") }),
       el("span", { class: "key" }, KIND[f.kind] || f.kind),
       el("span", { class: "gist", text: f.detail || f.entity_key || "" }),
@@ -249,7 +263,7 @@
     order.addEventListener("change", () => { state.order = order.value; loadRecords(true); });
     const type = el("input", { type: "text", placeholder: "类型，如 fact", value: state.type, "aria-label": "按类型过滤", spellcheck: "false" });
     type.addEventListener("change", () => { state.type = type.value.trim(); loadRecords(true); });
-    order.disabled = !!state.query;
+    order.hidden = !!state.query;
     return [search, el("div", { class: "line" }, order, type)];
   }
 
@@ -281,19 +295,15 @@
   function renderRecords() {
     const items = state.records;
     if (!items.length) {
-      $("rows").replaceChildren(el("li", { class: "empty" }, el("strong", { text: state.query ? "没有匹配的记忆" : "没有当前记忆" }), state.query ? "换个说法，或直接用型号、版本号检索。" : ""));
+      $("rows").replaceChildren(el("li", { class: "empty", role: "option", "aria-disabled": "true", "aria-selected": "false" }, el("strong", { text: state.query ? "没有匹配的记忆" : "没有当前记忆" }), state.query ? "换个说法，或直接用型号、版本号检索。" : ""));
     } else {
-      $("rows").replaceChildren(...items.map((m, i) => el("li", {
-        class: "row", "data-index": i, "aria-selected": String(state.selected === i), tabindex: "0",
-        onclick: () => openRecord(i),
-        onkeydown: (e) => { if (e.key === "Enter") openRecord(i); },
-      },
+      $("rows").replaceChildren(...items.map((m, i) => row(i, openRecord,
         el("span", { class: "no", text: String(i + 1) }),
-        el("span", { class: "key", text: m.entity_key }),
+        el("span", { class: "key ident", text: m.entity_key }),
         el("span", { class: "gist", text: m.content }),
       )));
     }
-    const label = state.query ? items.length + " 条结果" : "已载入 " + items.length + " 条";
+    const label = state.query ? "最相关的 " + items.length + " 条" : "已载入 " + items.length + " 条";
     const more = !state.done && el("button", { type: "button", class: "quiet", text: "载入更多", onclick: () => loadRecords(false) });
     $("ledger-foot").replaceChildren(el("span", { text: label }), more || "");
     if (!$("file").childElementCount) {
@@ -404,6 +414,7 @@
           );
           form.addEventListener("submit", async (e) => {
             e.preventDefault();
+            if (!reason.value.trim()) { toast("请填写归档原因", true); reason.focus(); return; }
             confirm.disabled = true;
             try {
               await api("/memories/" + encodeURIComponent(r.memory_id) + "/archive", { method: "POST", body: JSON.stringify({ reason: reason.value.trim() }) });

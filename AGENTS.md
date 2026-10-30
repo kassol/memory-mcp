@@ -15,6 +15,8 @@
 - `tests/` - 服务端测试
 - `cli/` - CLI 客户端（独立包 memory-mcp-cli）
 - `docs/` - 项目文档
+- `src/memory_mcp/ui/` - Web 治理台静态文件（HTML / CSS / 原生 JS，随包发布，挂在 `/ui/`）
+- `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 治理台的产品与视觉记录（`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
 
@@ -47,6 +49,15 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-10-30 Web 治理台（#6）
+- 动机：维护检查产生的发现需要人来裁定，记忆写错时需要直接改正或归档；此前只能在 CLI 里逐条查
+- `/ui/` 静态页面（HTML + CSS + 原生 JS，无构建链），由 Starlette `StaticFiles` 从包内目录托管，非 editable 安装下同样可用。`AuthMiddleware` 只对 `/ui` 与 `/ui/` 前缀放行；页面不含数据，令牌存 `sessionStorage`，所有数据请求带 Bearer，无 cookie。记忆文本只经 `textContent` 渲染（令牌在页面里，HTML 注入会泄露它），`tests/test_governance.py` 断言 `app.js` 不含 `innerHTML`
+- 功能：待审发现队列（并排展示两条记忆、改正 / 归档任一条、判为误报）；档案列表（翻页、按类型过滤、按 `valid_from` 升序找久未更新的记忆、检索）；记忆详情与版本历史（改动类型、时间、冲突合并标记、归档原因）。列表为 listbox，支持方向键与 Enter / Space；每次列表与详情加载带序号，过期响应直接丢弃
+- REST 新增：`GET /api/v1/memories/{memory_id}`（含全部版本，新在前）；`POST /api/v1/memories/{memory_id}/correct`（`{content}`，人工内容原样替换，不经 LLM 合并，只重算 embedding，保留 title 与来源字段；内容未变不生成新版本；非 current 返回 409）；`POST /api/v1/memories/{memory_id}/archive`（`{reason}` 必填，经 `forget_tool`；不存在 404、非 current 409）；`POST /api/v1/findings/{id}/dismiss`（一条带 `status = 'open'` 条件的 UPDATE，不覆盖并发自动关闭的结果；非 open 409）。`GET /api/v1/memories` 新增 `offset`、`order`（`created_at` / `valid_from`），返回项补 `memory_id` 与 `valid_from`，不带新参数时行为不变
+- 按 id 的路由与 `{entity_key:path}` 路由共存：前者的 `{memory_id}` 不匹配 `/`，且方法或后缀不同，测试覆盖了带 `/` 的 entity_key 仍能 trace / forget
+- `forget_tool` 抛出 `MemoryNotFound` / `MemoryNotCurrent`（`ValueError` 子类，MCP 与既有 REST 行为不变）
+- 视觉：「档案登记簿」方向，系统字体、等宽只用于标识与日期，随系统深浅色；产品与设计记录见 `PRODUCT.md`、`DESIGN.md`。本地浏览器验证覆盖桌面 1440 / 960、手机 390、深浅色、键盘操作与请求竞态
+
 ### 2026-10-30 后台维护（#5）
 - 动机：`remember` 只保证同一 key 内一致。跨 key 重复、合并残留过时事实造成的内部矛盾、中断留下的同 key 多条 current，之前没有机制发现。原记忆系统因后台任务占满 CPU 被弃用，所以维护只在被调用时运行
 - 术语见 `GLOSSARY.md`：发现（Finding，需要人处理）与检查记录（Check，已判定过，含相容，只用于去重）

@@ -1,0 +1,454 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-30T15:16:11+00:00",
+  "title": "Design System: 记忆登记簿 (Memory Registry)",
+  "extensions": {
+    "colorMeta": {
+      "ledger-ground": {
+        "role": "neutral",
+        "displayName": "Ledger Ground",
+        "canonical": "oklch(97.5% 0.003 250)",
+        "dark": "oklch(19% 0.008 250)",
+        "cssVar": "--ground",
+        "tonalRamp": [
+          "oklch(15% 0.003 250)",
+          "oklch(25% 0.003 250)",
+          "oklch(35% 0.003 250)",
+          "oklch(45% 0.003 250)",
+          "oklch(55% 0.003 250)",
+          "oklch(65% 0.003 250)",
+          "oklch(80% 0.003 250)",
+          "oklch(95% 0.003 250)"
+        ]
+      },
+      "ledger-sheet": {
+        "role": "neutral",
+        "displayName": "Ledger Sheet",
+        "canonical": "oklch(99.5% 0.002 250)",
+        "dark": "oklch(22.5% 0.009 250)",
+        "cssVar": "--sheet",
+        "tonalRamp": [
+          "oklch(15% 0.002 250)",
+          "oklch(25% 0.002 250)",
+          "oklch(35% 0.002 250)",
+          "oklch(45% 0.002 250)",
+          "oklch(55% 0.002 250)",
+          "oklch(65% 0.002 250)",
+          "oklch(80% 0.002 250)",
+          "oklch(95% 0.002 250)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "oklch(89% 0.005 250)",
+        "dark": "oklch(31% 0.01 250)",
+        "cssVar": "--rule",
+        "tonalRamp": [
+          "oklch(15% 0.005 250)",
+          "oklch(25% 0.005 250)",
+          "oklch(35% 0.005 250)",
+          "oklch(45% 0.005 250)",
+          "oklch(55% 0.005 250)",
+          "oklch(65% 0.005 250)",
+          "oklch(80% 0.005 250)",
+          "oklch(95% 0.005 250)"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Rule Strong",
+        "canonical": "oklch(78% 0.008 250)",
+        "dark": "oklch(40% 0.012 250)",
+        "cssVar": "--rule-strong",
+        "tonalRamp": [
+          "oklch(15% 0.008 250)",
+          "oklch(25% 0.008 250)",
+          "oklch(35% 0.008 250)",
+          "oklch(45% 0.008 250)",
+          "oklch(55% 0.008 250)",
+          "oklch(65% 0.008 250)",
+          "oklch(80% 0.008 250)",
+          "oklch(95% 0.008 250)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(24% 0.012 250)",
+        "dark": "oklch(93% 0.006 250)",
+        "cssVar": "--ink",
+        "tonalRamp": [
+          "oklch(15% 0.012 250)",
+          "oklch(25% 0.012 250)",
+          "oklch(35% 0.012 250)",
+          "oklch(45% 0.012 250)",
+          "oklch(55% 0.012 250)",
+          "oklch(65% 0.012 250)",
+          "oklch(80% 0.012 250)",
+          "oklch(95% 0.012 250)"
+        ]
+      },
+      "ink-secondary": {
+        "role": "neutral",
+        "displayName": "Ink Secondary",
+        "canonical": "oklch(45% 0.012 250)",
+        "dark": "oklch(76% 0.01 250)",
+        "cssVar": "--ink-2",
+        "tonalRamp": [
+          "oklch(15% 0.012 250)",
+          "oklch(25% 0.012 250)",
+          "oklch(35% 0.012 250)",
+          "oklch(45% 0.012 250)",
+          "oklch(55% 0.012 250)",
+          "oklch(65% 0.012 250)",
+          "oklch(80% 0.012 250)",
+          "oklch(95% 0.012 250)"
+        ]
+      },
+      "ink-tertiary": {
+        "role": "neutral",
+        "displayName": "Ink Tertiary",
+        "canonical": "oklch(50% 0.01 250)",
+        "dark": "oklch(66% 0.01 250)",
+        "cssVar": "--ink-3",
+        "tonalRamp": [
+          "oklch(15% 0.01 250)",
+          "oklch(25% 0.01 250)",
+          "oklch(35% 0.01 250)",
+          "oklch(45% 0.01 250)",
+          "oklch(55% 0.01 250)",
+          "oklch(65% 0.01 250)",
+          "oklch(80% 0.01 250)",
+          "oklch(95% 0.01 250)"
+        ]
+      },
+      "registry-blue": {
+        "role": "primary",
+        "displayName": "Registry Blue",
+        "canonical": "oklch(47% 0.13 255)",
+        "dark": "oklch(72% 0.12 255)",
+        "cssVar": "--accent",
+        "tonalRamp": [
+          "oklch(15% 0.13 255)",
+          "oklch(25% 0.13 255)",
+          "oklch(35% 0.13 255)",
+          "oklch(45% 0.13 255)",
+          "oklch(55% 0.13 255)",
+          "oklch(65% 0.13 255)",
+          "oklch(80% 0.13 255)",
+          "oklch(95% 0.13 255)"
+        ]
+      },
+      "registry-blue-ink": {
+        "role": "primary",
+        "displayName": "Registry Blue Ink",
+        "canonical": "oklch(99% 0 0)",
+        "dark": "oklch(18% 0.02 255)",
+        "cssVar": "--accent-ink",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(25% 0 0)",
+          "oklch(35% 0 0)",
+          "oklch(45% 0 0)",
+          "oklch(55% 0 0)",
+          "oklch(65% 0 0)",
+          "oklch(80% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "registry-blue-wash": {
+        "role": "primary",
+        "displayName": "Registry Blue Wash",
+        "canonical": "oklch(94% 0.03 255)",
+        "dark": "oklch(30% 0.05 255)",
+        "cssVar": "--accent-wash",
+        "tonalRamp": [
+          "oklch(15% 0.03 255)",
+          "oklch(25% 0.03 255)",
+          "oklch(35% 0.03 255)",
+          "oklch(45% 0.03 255)",
+          "oklch(55% 0.03 255)",
+          "oklch(65% 0.03 255)",
+          "oklch(80% 0.03 255)",
+          "oklch(95% 0.03 255)"
+        ]
+      },
+      "conflict-amber": {
+        "role": "tertiary",
+        "displayName": "Conflict Amber",
+        "canonical": "oklch(52% 0.13 55)",
+        "dark": "oklch(78% 0.12 70)",
+        "cssVar": "--warn",
+        "tonalRamp": [
+          "oklch(15% 0.13 55)",
+          "oklch(25% 0.13 55)",
+          "oklch(35% 0.13 55)",
+          "oklch(45% 0.13 55)",
+          "oklch(55% 0.13 55)",
+          "oklch(65% 0.13 55)",
+          "oklch(80% 0.13 55)",
+          "oklch(95% 0.13 55)"
+        ]
+      },
+      "archive-red": {
+        "role": "tertiary",
+        "displayName": "Archive Red",
+        "canonical": "oklch(50% 0.16 27)",
+        "dark": "oklch(72% 0.14 27)",
+        "cssVar": "--danger",
+        "tonalRamp": [
+          "oklch(15% 0.16 27)",
+          "oklch(25% 0.16 27)",
+          "oklch(35% 0.16 27)",
+          "oklch(45% 0.16 27)",
+          "oklch(55% 0.16 27)",
+          "oklch(65% 0.16 27)",
+          "oklch(80% 0.16 27)",
+          "oklch(95% 0.16 27)"
+        ]
+      },
+      "archive-red-fill": {
+        "role": "tertiary",
+        "displayName": "Archive Red Fill",
+        "canonical": "oklch(50% 0.16 27)",
+        "dark": "oklch(44% 0.14 27)",
+        "cssVar": "--danger-bg",
+        "tonalRamp": [
+          "oklch(15% 0.16 27)",
+          "oklch(25% 0.16 27)",
+          "oklch(35% 0.16 27)",
+          "oklch(45% 0.16 27)",
+          "oklch(55% 0.16 27)",
+          "oklch(65% 0.16 27)",
+          "oklch(80% 0.16 27)",
+          "oklch(95% 0.16 27)"
+        ]
+      },
+      "current-green": {
+        "role": "tertiary",
+        "displayName": "Current Green",
+        "canonical": "oklch(48% 0.1 155)",
+        "dark": "oklch(76% 0.1 155)",
+        "cssVar": "--ok",
+        "tonalRamp": [
+          "oklch(15% 0.1 155)",
+          "oklch(25% 0.1 155)",
+          "oklch(35% 0.1 155)",
+          "oklch(45% 0.1 155)",
+          "oklch(55% 0.1 155)",
+          "oklch(65% 0.1 155)",
+          "oklch(80% 0.1 155)",
+          "oklch(95% 0.1 155)"
+        ]
+      }
+    },
+    "colorScheme": "Follows prefers-color-scheme; frontmatter values are light, colorMeta.*.dark are dark.",
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Login card heading."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Case file heading."
+      },
+      "registry-name": {
+        "displayName": "Registry Name",
+        "purpose": "Top bar registry name."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Base text."
+      },
+      "record-text": {
+        "displayName": "Record Text",
+        "purpose": "Full memory text in records and the correction editor."
+      },
+      "body-small": {
+        "displayName": "Body Small",
+        "purpose": "Row gists, hints, version text, toast, errors."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Form labels, ledger meta, footers, ruling note."
+      },
+      "stamp": {
+        "displayName": "Stamp",
+        "purpose": "Outlined status stamps."
+      },
+      "identifier": {
+        "displayName": "Identifier",
+        "purpose": "Entity keys."
+      },
+      "meta-mono": {
+        "displayName": "Meta Mono",
+        "purpose": "Record meta line and version timestamps."
+      },
+      "count": {
+        "displayName": "Count",
+        "purpose": "Tab counts and row numbers."
+      }
+    },
+    "shadows": [
+      {
+        "name": "toast-float",
+        "value": "0 6px 20px oklch(0% 0 0 / 0.18)",
+        "purpose": "Transient toast only."
+      }
+    ],
+    "focus": [
+      {
+        "name": "focus-ring",
+        "value": "outline: 2px solid var(--accent); outline-offset: 2px",
+        "purpose": "All focusable elements; inputs use offset 0 and a transparent border."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-transition",
+        "value": "background-color 150ms ease-out, border-color 150ms ease-out",
+        "purpose": "Button state changes."
+      },
+      {
+        "name": "skeleton-pulse",
+        "value": "opacity to 0.45 at 50%, 1.2s ease-in-out infinite",
+        "purpose": "Loading rows; disabled under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "max-width: 760px",
+        "purpose": "Ledger and case file become separate views."
+      },
+      {
+        "name": "narrow-desktop",
+        "value": "761px to 1100px",
+        "purpose": "Side-by-side record pair stacks."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action at a decision point.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">保存为新版本</button>",
+      "css": ":host{--ground:oklch(97.5% 0.003 250);--sheet:oklch(99.5% 0.002 250);--rule:oklch(89% 0.005 250);--rule-strong:oklch(78% 0.008 250);--ink:oklch(24% 0.012 250);--ink-2:oklch(45% 0.012 250);--ink-3:oklch(50% 0.01 250);--accent:oklch(47% 0.13 255);--accent-ink:oklch(99% 0 0);--accent-wash:oklch(94% 0.03 255);--warn:oklch(52% 0.13 55);--danger:oklch(50% 0.16 27);--ok:oklch(48% 0.1 155);--mono:ui-monospace,\"SF Mono\",\"JetBrains Mono\",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans CJK SC\",sans-serif;--radius:6px;font:15px/1.6 var(--sans);color:var(--ink)} .ds-btn{font:inherit;font-weight:550;border-radius:var(--radius);padding:0.4375rem 0.875rem;cursor:pointer;border:1px solid transparent;transition:background-color 150ms ease-out,border-color 150ms ease-out} .ds-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px} .ds-btn-primary{background:var(--accent);color:var(--accent-ink)} .ds-btn-primary:hover{background:color-mix(in oklch,var(--accent) 88%,var(--ink))} .ds-btn-primary:disabled{opacity:0.5;cursor:progress}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Correct and dismiss actions.",
+      "html": "<button class=\"ds-btn ds-btn-secondary\">改正</button>",
+      "css": ":host{--ground:oklch(97.5% 0.003 250);--sheet:oklch(99.5% 0.002 250);--rule:oklch(89% 0.005 250);--rule-strong:oklch(78% 0.008 250);--ink:oklch(24% 0.012 250);--ink-2:oklch(45% 0.012 250);--ink-3:oklch(50% 0.01 250);--accent:oklch(47% 0.13 255);--accent-ink:oklch(99% 0 0);--accent-wash:oklch(94% 0.03 255);--warn:oklch(52% 0.13 55);--danger:oklch(50% 0.16 27);--ok:oklch(48% 0.1 155);--mono:ui-monospace,\"SF Mono\",\"JetBrains Mono\",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans CJK SC\",sans-serif;--radius:6px;font:15px/1.6 var(--sans);color:var(--ink)} .ds-btn{font:inherit;font-weight:550;border-radius:var(--radius);padding:0.4375rem 0.875rem;cursor:pointer;border:1px solid transparent;transition:background-color 150ms ease-out,border-color 150ms ease-out} .ds-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px} .ds-btn-secondary{background:var(--sheet);color:var(--ink);border-color:var(--rule-strong)} .ds-btn-secondary:hover{border-color:var(--ink-3)}"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Cancel, load more, back; danger variant for archive.",
+      "html": "<button class=\"ds-btn ds-btn-quiet\">取消</button> <button class=\"ds-btn ds-btn-quiet ds-danger\">归档</button>",
+      "css": ":host{--ground:oklch(97.5% 0.003 250);--sheet:oklch(99.5% 0.002 250);--rule:oklch(89% 0.005 250);--rule-strong:oklch(78% 0.008 250);--ink:oklch(24% 0.012 250);--ink-2:oklch(45% 0.012 250);--ink-3:oklch(50% 0.01 250);--accent:oklch(47% 0.13 255);--accent-ink:oklch(99% 0 0);--accent-wash:oklch(94% 0.03 255);--warn:oklch(52% 0.13 55);--danger:oklch(50% 0.16 27);--ok:oklch(48% 0.1 155);--mono:ui-monospace,\"SF Mono\",\"JetBrains Mono\",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans CJK SC\",sans-serif;--radius:6px;font:15px/1.6 var(--sans);color:var(--ink)} .ds-btn{font:inherit;font-weight:550;border-radius:var(--radius);padding:0.4375rem 0.875rem;cursor:pointer;border:1px solid transparent;transition:background-color 150ms ease-out,border-color 150ms ease-out} .ds-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px} .ds-btn-quiet{background:none;color:var(--ink-2)} .ds-btn-quiet:hover{color:var(--ink);background:var(--ground)} .ds-danger,.ds-danger:hover{color:var(--danger)}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Token, search, filter and editor fields.",
+      "html": "<label class=\"ds-label\">令牌</label><input class=\"ds-input\" placeholder=\"类型，如 fact\">",
+      "css": ":host{--ground:oklch(97.5% 0.003 250);--sheet:oklch(99.5% 0.002 250);--rule:oklch(89% 0.005 250);--rule-strong:oklch(78% 0.008 250);--ink:oklch(24% 0.012 250);--ink-2:oklch(45% 0.012 250);--ink-3:oklch(50% 0.01 250);--accent:oklch(47% 0.13 255);--accent-ink:oklch(99% 0 0);--accent-wash:oklch(94% 0.03 255);--warn:oklch(52% 0.13 55);--danger:oklch(50% 0.16 27);--ok:oklch(48% 0.1 155);--mono:ui-monospace,\"SF Mono\",\"JetBrains Mono\",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans CJK SC\",sans-serif;--radius:6px;font:15px/1.6 var(--sans);color:var(--ink)} .ds-label{display:block;font-size:0.8125rem;color:var(--ink-2);margin-bottom:0.375rem} .ds-input{font:inherit;color:var(--ink);background:var(--sheet);border:1px solid var(--rule-strong);border-radius:var(--radius);padding:0.5rem 0.625rem;width:100%;box-sizing:border-box} .ds-input:hover{border-color:var(--ink-3)} .ds-input:focus-visible{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}"
+    },
+    {
+      "name": "Top Bar Tabs",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Registry name with docket and records tabs.",
+      "html": "<header class=\"ds-bar\"><span class=\"ds-mark\"></span><strong class=\"ds-title\">记忆登记簿</strong><nav class=\"ds-tabs\"><button class=\"ds-tab\" aria-current=\"page\">待审<span class=\"ds-count\">3</span></button><button class=\"ds-tab\">档案</button></nav></header>",
+      "css": ":host{--ground:oklch(97.5% 0.003 250);--sheet:oklch(99.5% 0.002 250);--rule:oklch(89% 0.005 250);--rule-strong:oklch(78% 0.008 250);--ink:oklch(24% 0.012 250);--ink-2:oklch(45% 0.012 250);--ink-3:oklch(50% 0.01 250);--accent:oklch(47% 0.13 255);--accent-ink:oklch(99% 0 0);--accent-wash:oklch(94% 0.03 255);--warn:oklch(52% 0.13 55);--danger:oklch(50% 0.16 27);--ok:oklch(48% 0.1 155);--mono:ui-monospace,\"SF Mono\",\"JetBrains Mono\",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans CJK SC\",sans-serif;--radius:6px;font:15px/1.6 var(--sans);color:var(--ink)} .ds-bar{display:flex;align-items:center;gap:1rem;padding:0 1.25rem;height:3.25rem;border-bottom:1px solid var(--rule-strong);background:var(--sheet)} .ds-mark{width:0.75rem;height:1.125rem;border:2px solid var(--ink);border-top-width:5px;border-radius:1px;box-sizing:border-box} .ds-title{font-size:1rem;font-weight:650;letter-spacing:0.02em} .ds-tabs{display:flex;gap:0.25rem;margin-left:1rem;height:100%} .ds-tab{font:inherit;background:none;border:0;border-bottom:2px solid transparent;padding:0 0.75rem;height:100%;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:0.4rem} .ds-tab:hover{color:var(--ink)} .ds-tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px} .ds-tab[aria-current=page]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600} .ds-count{font:600 0.75rem/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-3)} .ds-tab[aria-current=page] .ds-count{color:var(--accent)}"
+    },
+    {
+      "name": "Status Stamps",
+      "kind": "chip",
+      "refersTo": "stamp-current",
+      "description": "Outlined status marks in currentColor.",
+      "html": "<span class=\"ds-stamp ds-current\">当前</span> <span class=\"ds-stamp ds-archived\">已失效</span> <span class=\"ds-stamp ds-correction\">改正</span> <span class=\"ds-stamp ds-conflict\">冲突合并</span>",
+      "css": ":host{--ground:oklch(97.5% 0.003 250);--sheet:oklch(99.5% 0.002 250);--rule:oklch(89% 0.005 250);--rule-strong:oklch(78% 0.008 250);--ink:oklch(24% 0.012 250);--ink-2:oklch(45% 0.012 250);--ink-3:oklch(50% 0.01 250);--accent:oklch(47% 0.13 255);--accent-ink:oklch(99% 0 0);--accent-wash:oklch(94% 0.03 255);--warn:oklch(52% 0.13 55);--danger:oklch(50% 0.16 27);--ok:oklch(48% 0.1 155);--mono:ui-monospace,\"SF Mono\",\"JetBrains Mono\",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans CJK SC\",sans-serif;--radius:6px;font:15px/1.6 var(--sans);color:var(--ink)} .ds-stamp{display:inline-block;font:600 0.6875rem/1 var(--sans);letter-spacing:0.04em;padding:0.25rem 0.4375rem;border:1px solid currentColor;border-radius:3px;white-space:nowrap} .ds-current{color:var(--ok)} .ds-archived{color:var(--ink-3)} .ds-correction{color:var(--accent)} .ds-conflict{color:var(--warn)}"
+    },
+    {
+      "name": "Ledger Rows",
+      "kind": "custom",
+      "refersTo": "ledger-row",
+      "description": "Ruled list rows; selected row gets wash and a 2px blue bar.",
+      "html": "<ol class=\"ds-rows\"><li class=\"ds-row\"><span class=\"ds-no\">01</span><span class=\"ds-key\">内部矛盾</span><span class=\"ds-gist\">两个当前值对同一属性给出不同答案。</span></li><li class=\"ds-row\" aria-selected=\"true\"><span class=\"ds-no\">02</span><span class=\"ds-key\">重复</span><span class=\"ds-gist\">两条都描述同一套部署与回滚流程。</span></li></ol>",
+      "css": ":host{--ground:oklch(97.5% 0.003 250);--sheet:oklch(99.5% 0.002 250);--rule:oklch(89% 0.005 250);--rule-strong:oklch(78% 0.008 250);--ink:oklch(24% 0.012 250);--ink-2:oklch(45% 0.012 250);--ink-3:oklch(50% 0.01 250);--accent:oklch(47% 0.13 255);--accent-ink:oklch(99% 0 0);--accent-wash:oklch(94% 0.03 255);--warn:oklch(52% 0.13 55);--danger:oklch(50% 0.16 27);--ok:oklch(48% 0.1 155);--mono:ui-monospace,\"SF Mono\",\"JetBrains Mono\",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans CJK SC\",sans-serif;--radius:6px;font:15px/1.6 var(--sans);color:var(--ink)} .ds-rows{list-style:none;margin:0;padding:0;background:var(--sheet)} .ds-row{display:grid;grid-template-columns:auto 1fr;gap:0.125rem 0.75rem;padding:0.625rem 1rem;border-bottom:1px solid var(--rule);cursor:pointer;position:relative} .ds-row:hover{background:var(--ground)} .ds-row[aria-selected=true]{background:var(--accent-wash)} .ds-row[aria-selected=true]::before{content:\"\";position:absolute;inset:0 auto 0 0;width:2px;background:var(--accent)} .ds-no{font:500 0.75rem/1.6 var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums;grid-row:span 2;min-width:2.5ch;text-align:right} .ds-key{font:500 0.8125rem/1.5 var(--sans);color:var(--ink-2)} .ds-gist{font-size:0.875rem;color:var(--ink)}"
+    },
+    {
+      "name": "Record Card",
+      "kind": "card",
+      "refersTo": "record-card",
+      "description": "One filed memory: key, stamps, meta, full text, actions.",
+      "html": "<section class=\"ds-record\"><div class=\"ds-head\"><span class=\"ds-rkey\">procedure:deploy</span><span class=\"ds-stamp\">当前</span></div><div class=\"ds-meta\"><span>写入 2026-09-20 14:39</span><span>版本 1</span></div><div class=\"ds-body\">部署流程：先在构建机打包镜像，推送到私有仓库，再在目标机拉取并滚动更新。</div><div class=\"ds-actions\"><button class=\"ds-b\">改正</button></div></section>",
+      "css": ":host{--ground:oklch(97.5% 0.003 250);--sheet:oklch(99.5% 0.002 250);--rule:oklch(89% 0.005 250);--rule-strong:oklch(78% 0.008 250);--ink:oklch(24% 0.012 250);--ink-2:oklch(45% 0.012 250);--ink-3:oklch(50% 0.01 250);--accent:oklch(47% 0.13 255);--accent-ink:oklch(99% 0 0);--accent-wash:oklch(94% 0.03 255);--warn:oklch(52% 0.13 55);--danger:oklch(50% 0.16 27);--ok:oklch(48% 0.1 155);--mono:ui-monospace,\"SF Mono\",\"JetBrains Mono\",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans CJK SC\",sans-serif;--radius:6px;font:15px/1.6 var(--sans);color:var(--ink)} .ds-record{border:1px solid var(--rule-strong);border-radius:var(--radius);background:var(--sheet);display:flex;flex-direction:column} .ds-head{display:flex;gap:0.5rem;align-items:center;padding:0.625rem 0.875rem;border-bottom:1px solid var(--rule)} .ds-rkey{font:500 0.8125rem/1.4 var(--mono);margin-right:auto} .ds-stamp{font:600 0.6875rem/1 var(--sans);letter-spacing:0.04em;padding:0.25rem 0.4375rem;border:1px solid currentColor;border-radius:3px;color:var(--ok)} .ds-meta{display:flex;flex-wrap:wrap;gap:0.25rem 1rem;padding:0.5rem 0.875rem 0;font:0.75rem/1.5 var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums} .ds-body{padding:0.75rem 0.875rem 1rem;white-space:pre-wrap;line-height:1.7;max-width:80ch} .ds-actions{display:flex;gap:0.5rem;padding:0.625rem 0.875rem;border-top:1px solid var(--rule)} .ds-b{font:inherit;font-weight:550;border-radius:var(--radius);padding:0.4375rem 0.875rem;background:var(--sheet);border:1px solid var(--rule-strong);color:var(--ink);cursor:pointer} .ds-b:hover{border-color:var(--ink-3)} .ds-b:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Transient status message; the only element with a shadow.",
+      "html": "<div class=\"ds-toast\">已保存为新版本</div>",
+      "css": ":host{--ground:oklch(97.5% 0.003 250);--sheet:oklch(99.5% 0.002 250);--rule:oklch(89% 0.005 250);--rule-strong:oklch(78% 0.008 250);--ink:oklch(24% 0.012 250);--ink-2:oklch(45% 0.012 250);--ink-3:oklch(50% 0.01 250);--accent:oklch(47% 0.13 255);--accent-ink:oklch(99% 0 0);--accent-wash:oklch(94% 0.03 255);--warn:oklch(52% 0.13 55);--danger:oklch(50% 0.16 27);--ok:oklch(48% 0.1 155);--mono:ui-monospace,\"SF Mono\",\"JetBrains Mono\",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans CJK SC\",sans-serif;--radius:6px;font:15px/1.6 var(--sans);color:var(--ink)} .ds-toast{display:inline-block;background:var(--ink);color:var(--sheet);padding:0.5rem 0.875rem;border-radius:var(--radius);box-shadow:0 6px 20px oklch(0% 0 0 / 0.18);font-size:0.875rem}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Records Registry",
+    "overview": "The console is a registry office, not a dashboard. Every memory is a filed record with an identifier, and the findings queue is a docket of cases waiting for a ruling. The screen is a neutral grey ledger: thin ruled rows, a white sheet for the list and for each record, and plain system text. Nothing decorates; structure comes from rules (1px lines) and from the split between the ledger on the left and the case file on the right.\n\nDensity is moderate and reading-first. Records show their full text, never truncated, at a generous line height (1.7) so long Chinese passages with dates and version strings stay readable. Monospace appears only where something is an identifier, a date or a count. Status is a small outlined stamp, the way a clerk marks a paper file. One blue accent marks where the reader is and what the main action is.\n\nThe system follows the operating system's light or dark scheme with the same roles in both; it has no theme switch.",
+    "keyCharacteristics": [
+      "Neutral cool-grey ledger ground with white sheets, separated by 1px rules.",
+      "One accent hue (registry blue) for the current row, the active tab, focus and the primary action.",
+      "System sans for prose; tabular monospace for identifiers, dates and counts.",
+      "Outlined status stamps in currentColor; no filled badges.",
+      "Flat surfaces; the only shadow belongs to the transient toast."
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Rule",
+        "body": "Registry Blue marks position and the main action: the selected row, the active tab, focus, the primary button. Status colors never borrow it except for the correction stamp.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Rules Rule",
+        "body": "Lines come in two weights of color only: `rule` inside a component, `rule-strong` between structural regions. All lines are 1px, except the 2px active-tab underline and selected-row bar.",
+        "section": "colors"
+      },
+      {
+        "name": "The Identifier Rule",
+        "body": "Monospace is for identifiers, dates and counts only. Prose, finding kinds and labels stay in the sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Ledger Rule",
+        "body": "Cards, rows, bars and inputs never cast shadows. Separate them with tone and rules.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** show the full memory text in records, with line breaks kept and line-height 1.7.",
+      "**Do** put entity keys, timestamps, version numbers and counts in the monospace stack with tabular figures.",
+      "**Do** show status with outlined stamps in currentColor (3px corners, 1px border).",
+      "**Do** separate regions with 1px rules: `rule` inside a component, `rule-strong` between regions.",
+      "**Do** keep one primary (Registry Blue) button per decision point; use secondary and quiet buttons for the rest.",
+      "**Do** give destructive actions the quiet danger style and confirm them in an inline editor that states what will change."
+    ],
+    "donts": [
+      "**Don't** add metric cards, charts or dashboard tiles; the console is a registry and docket.",
+      "**Don't** truncate memory text in a record or case file; clamping is for ledger gists only.",
+      "**Don't** use Registry Blue for decoration or for status other than correction.",
+      "**Don't** give cards, rows or bars a shadow; only the toast floats.",
+      "**Don't** fill stamps with solid color."
+    ]
+  }
+}

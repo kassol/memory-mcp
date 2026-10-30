@@ -15,7 +15,7 @@ OWN-WORLD: neutral grey ledger ground, system sans for text, tabular monospace o
 
 STORY: open the console, see how many cases are on the docket, take the first case, read both records side by side in full, rule on it (correct, archive, or dismiss), move to the next.
 
-FIRST VIEWPORT: top bar with the registry name, three tabs (docket, records, search) and the docket count. Left column a list of cases; right the case file with both records in two equal columns, full text, and the ruling actions under them. On phones the list and the case file are separate views.
+FIRST VIEWPORT: top bar with the registry name, two tabs (docket with its count, records; search lives at the top of the records list, since a search result is a filtered records list). Left column a list of cases; right the case file with both records in two equal columns, full text, and the ruling actions under them. On phones the list and the case file are separate views.
 
 FORM: archival registry and docket, candidate 7 of 7; seed key c7b7baee.
 
