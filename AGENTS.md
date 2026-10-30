@@ -32,7 +32,25 @@
 - 变更必须更新本文件
 - 涉及线上服务能力的任务，只有更新到线上并完成线上验证后才算终结；仅完成本地代码、测试或文档不算完成
 
+## Agent skills
+
+### Issue tracker
+
+Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写。See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+五个标准分诊角色沿用默认标签名（needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix）。See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
+
 ## 变更日志
+### 2026-10-30 Agent skills 配置
+- 新增 `docs/agents/`（issue-tracker / triage-labels / domain）与本文件 `## Agent skills` 一节：issue 走 GitHub Issues，分诊标签沿用默认五个（已在 GitHub 补建 needs-triage / needs-info / ready-for-agent / ready-for-human），领域文档为单上下文布局
+- 项目 backlog（含 C 档积压）以 GitHub Issues 为准
+
 ### 2026-10-29 MCP 接口收敛为 4 个工具
 - 动机：agent 只靠 MCP + 用户级 AGENTS.md 引导主动存取记忆。原 `remember` 要求调用方自起 `entity_key`，不同会话起的 key 会漂移，同一主题无法合并演化；8 个工具里多数与主动存取无关；`memory:///current`、`memory:///entities` 一次返回全部记忆，导入后 9000+ 条会撑爆客户端上下文。当时没有 MCP 客户端在用，不保留旧 MCP 契约
 - MCP 只剩 `remember(content, title?, tags?)`、`recall(query, limit?)`、`forget(memory_id, reason?)`、`trace(entity_key, format?)`，schema 均 `additionalProperties: false`（多传参数返回 `Input validation error`）；description 写明各自使用时机
