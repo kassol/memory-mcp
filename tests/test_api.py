@@ -321,36 +321,3 @@ def test_graph_query_with_depth(client):
     body = resp.json()
     assert body["ok"] is True
     assert body["data"]["count"] == 0
-
-
-# ---------------------------------------------------------------------------
-# GET /api/v1/wm  (working memory briefing)
-# ---------------------------------------------------------------------------
-
-def test_wm_empty(app, client):
-    import importlib
-    import memory_mcp.engine.working_memory as wm_mod
-    importlib.reload(wm_mod)
-
-    resp = client.get("/api/v1/wm", headers=AUTH)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["ok"] is True
-    assert "No memories yet" in body["data"]["briefing"]
-
-
-def test_wm_with_memories(client):
-    import importlib
-    import memory_mcp.engine.working_memory as wm_mod
-    importlib.reload(wm_mod)
-
-    client.post(
-        "/api/v1/memories",
-        json={"content": "I use Cursor", "entity_key": "preference:editor", "entity_type": "preference"},
-        headers=AUTH,
-    )
-    resp = client.get("/api/v1/wm", headers=AUTH)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["ok"] is True
-    assert "preference" in body["data"]["briefing"]

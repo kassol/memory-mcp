@@ -95,17 +95,6 @@ class MemoryClient:
         with httpx.Client(headers=self._headers, timeout=30) as c:
             return self._handle(c.get(f"{self._base}/api/v1/graph/{entity_key}", params=params))
 
-    def wm(self, cwd: str | None = None) -> dict:
-        params: dict = {}
-        if cwd:
-            params["cwd"] = cwd
-        with httpx.Client(headers=self._headers, timeout=30) as c:
-            return self._handle(c.get(f"{self._base}/api/v1/wm", params=params))
-
-    def extract(self, messages: list[dict]) -> dict:
-        with httpx.Client(headers=self._headers, timeout=120) as c:
-            return self._handle(c.post(f"{self._base}/api/v1/memories/extract", json={"messages": messages}))
-
     def health(self) -> dict:
         with httpx.Client(timeout=10) as c:
             return self._handle(c.get(f"{self._base}/health"))

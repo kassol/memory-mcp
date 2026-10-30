@@ -1,6 +1,4 @@
 import json
-import sys
-from pathlib import Path
 from typing import Optional
 
 import typer
@@ -165,72 +163,6 @@ def unrelate(
 ) -> None:
     """Delete a relation by id."""
     result = _client().unrelate(relation_id)
-    _out(result, fmt)
-
-
-# ---------------------------------------------------------------------------
-# wm  (working memory)
-# ---------------------------------------------------------------------------
-@app.command()
-def wm(
-    cwd: Optional[str] = typer.Option(None, "--cwd", help="Current working directory for project-aware briefing"),
-    fmt: str = _format_opt,
-) -> None:
-    """Get working memory briefing."""
-    result = _client().wm(cwd=cwd)
-    _out(result, fmt)
-
-
-# ---------------------------------------------------------------------------
-# extract
-# ---------------------------------------------------------------------------
-def _parse_transcript(path: Optional[Path]) -> list[dict]:
-    if path is not None:
-        raw = path.read_text(encoding="utf-8")
-    else:
-        raw = sys.stdin.read()
-
-    # Try JSON array first
-    try:
-        parsed = json.loads(raw)
-        if isinstance(parsed, list):
-            return parsed
-    except json.JSONDecodeError:
-        pass
-
-    # Fall back to JSONL
-    items = []
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            items.append(json.loads(line))
-        except json.JSONDecodeError:
-            pass
-    return items
-
-
-def _filter_messages(items: list[dict]) -> list[dict]:
-    return [
-        item for item in items
-        if item.get("role") in ("user", "assistant")
-        and item.get("content", "")
-    ]
-
-
-@app.command()
-def extract(
-    transcript: Optional[Path] = typer.Option(None, "--transcript", help="Path to transcript file (JSON array or JSONL); reads stdin if omitted"),
-    fmt: str = _format_opt,
-) -> None:
-    """Extract memories from a conversation transcript."""
-    items = _parse_transcript(transcript)
-    messages = _filter_messages(items)
-    if not messages:
-        typer.echo("Error: no valid user/assistant messages found in transcript", err=True)
-        raise SystemExit(1)
-    result = _client().extract(messages)
     _out(result, fmt)
 
 

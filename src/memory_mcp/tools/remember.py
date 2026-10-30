@@ -49,13 +49,8 @@ async def _merge_with(old_content: str, content: str, embedding: list[float]) ->
     return merged, conflict, embedding
 
 
-async def remember_tool(
-    arguments: dict, *, embedding: list[float] | None = None, created_at: datetime | None = None
-) -> dict:
-    """Without entity_key/entity_type the server assigns them via `assign_entity_key`.
-
-    `embedding` (precomputed vector of `content`) and `created_at` (original creation time)
-    are for in-process callers only; never exposed via MCP/REST."""
+async def remember_tool(arguments: dict) -> dict:
+    """Without entity_key/entity_type the server assigns them via `assign_entity_key`."""
     content = arguments.get("content")
     entity_key = arguments.get("entity_key")
     entity_type = arguments.get("entity_type")
@@ -72,8 +67,7 @@ async def remember_tool(
     if bool(entity_key) != bool(entity_type):
         raise ValueError("entity_key and entity_type must be given together")
 
-    if embedding is None:
-        embedding = await embedding_service.get_embedding(content)
+    embedding = await embedding_service.get_embedding(content)
     # Written with the evolved node in one insert, so a crash cannot leave it without provenance.
     provenance = {
         k: v
@@ -121,7 +115,6 @@ async def remember_tool(
             mutation_type_override=mutation_type_override,
             conflict=conflict,
             conflict_with_id=current_node.id,
-            created_at=created_at,
             tags=tags,
             fields=provenance,
         )
@@ -164,7 +157,6 @@ async def remember_tool(
                         mutation_type_override=mutation_type_override,
                         conflict=True,
                         conflict_with_id=candidate.id,
-                        created_at=created_at,
                         tags=tags,
                         fields=provenance,
                     )
@@ -182,7 +174,7 @@ async def remember_tool(
                         "input_entity_key": entity_key,
                     }
 
-    now = created_at or datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
     new_node = MemoryNode(
         id=str(uuid4()),
         entity_key=entity_key,

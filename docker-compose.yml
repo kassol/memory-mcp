@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: memory-mcp
     restart: unless-stopped
-    # Loopback only: the host's reverse proxy (OpenResty, host network) fronts it.
+    # Loopback only: the host's reverse proxy (host network) fronts it.
     ports:
       - "127.0.0.1:18765:8765"
     volumes:

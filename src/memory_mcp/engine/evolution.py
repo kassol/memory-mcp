@@ -77,14 +77,13 @@ async def evolve_memory(
     mutation_type_override: MutationType | None = None,
     conflict: bool = False,
     conflict_with_id: str | None = None,
-    created_at: datetime | None = None,
     tags: list[str] | None = None,
     fields: dict | None = None,
 ) -> MemoryNode:
     mutation_type = mutation_type_override or infer_mutation_type(existing_node.content, new_content)
     mutation_reason = generate_mutation_reason(existing_node.content, new_content, mutation_type)
 
-    now = created_at or datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
     new_node = MemoryNode(
         id=str(uuid4()),
         entity_key=existing_node.entity_key,

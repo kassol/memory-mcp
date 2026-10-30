@@ -14,7 +14,6 @@
 - `src/` - 服务端源代码
 - `tests/` - 服务端测试
 - `cli/` - CLI 客户端（独立包 memory-mcp-cli）
-- `claude-code-plugin/` - Claude Code 插件（hooks/skills/commands）
 - `docs/` - 项目文档
 - `data/` - 运行时数据
 
@@ -25,7 +24,7 @@
 - 代码检查：`ruff check .`
 
 ## 全局规范
-- MCP Streamable HTTP 为主传输协议；REST API (`/api/v1/*`) 为 CLI/hooks 等非 MCP 客户端提供轻量接入，复用同一套 tool 函数
+- MCP Streamable HTTP 为主传输协议；REST API (`/api/v1/*`) 为 CLI 等非 MCP 客户端提供轻量接入，复用同一套 tool 函数
 - MCP 只暴露 agent 主动存取所需的 4 个工具（`remember` / `recall` / `forget` / `trace`），不注册 resources；运维与图谱类能力只走 REST / CLI
 - Tool 返回值统一为 JSON 字符串
 - 记忆数据持久化：向量存储 + 图存储并行
@@ -47,6 +46,14 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-10-30 清理失效功能
+- 动机：服务只通过 MCP 的 4 个工具和用户级 AGENTS.md 引导使用，不再走 hook；v1 线上实例已退役、数据已迁完；Nowledge 已全量导入并停用。以下代码和文档已无使用方，留着只会误导读者
+- 删除 `claude-code-plugin/`（session-start / stop hook、skills、commands）
+- 删除 Working Memory 与对话提取：`engine/working_memory.py`、`engine/extraction.py`，REST `GET /api/v1/wm`、`POST /api/v1/memories/extract`，CLI `mem wm`、`mem extract` 及 client 对应方法，相关测试。`key_assignment` / `merge` / `llm` 仍被 `remember` 使用，保留。`working_memory_cache` 表保留在 schema 中（删表需要新 migration）
+- 删除 v1 迁移：`scripts/migrate_v1_to_v2.py`、`tests/test_migrate_v1_to_v2.py`、`tests/fixtures/`，以及 `.gitignore`、ruff `extend-exclude` 里对 fixture 的例外；`storage/migrate.py` `run_migrations` / `_make_config` 的 `db_path` 参数随之无调用方，一并删除
+- 删除 Nowledge 导入：`scripts/import_nowledge.py`、`tests/test_import_nowledge.py`；`scripts/` 包已空，删除。`remember_tool` 的仅进程内参数 `embedding` / `created_at` 与 `evolve_memory` 的 `created_at` 只有导入脚本和 Extraction 在用，一并删除，新节点时间一律取当前时间
+- 删除 `docs/prd.md`（2024 年初版 PRD，架构与工具清单已过时）、`docs/behavioral-guidance.md`（基于 `mem` CLI 与 `mem wm` 的提示词，已被用户级 AGENTS.md 引导取代）
+- 文档与代码中的生产主机别名和面板名改为中性说法（仓库公开）
 ### 2026-10-30 Agent skills 配置
 - 新增 `docs/agents/`（issue-tracker / triage-labels / domain）与本文件 `## Agent skills` 一节：issue 走 GitHub Issues，分诊标签沿用默认五个（已在 GitHub 补建 needs-triage / needs-info / ready-for-agent / ready-for-human），领域文档为单上下文布局
 - 项目 backlog（含 C 档积压）以 GitHub Issues 为准
@@ -61,7 +68,7 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 - `tests/test_transport.py` 契约测试改为 4 个工具 + 无 resources，并走通 remember（服务端分配 key）→ recall → forget → recall 流程
 
 ### 2026-10-29 部署改为宿主机反代，去掉 cloudflared
-- 生产迁到新主机（宿主机反向代理，host 网络）：`docker-compose.yml` 删除 cloudflared 服务，`memory-mcp` 只映射 `127.0.0.1:18765:8765`，由宿主机反代终结 HTTPS；`.env.example` / README 删除 `CLOUDFLARE_TUNNEL_TOKEN`
+- 生产迁到新主机，由宿主机上的反向代理（host 网络）终结 HTTPS：`docker-compose.yml` 删除 cloudflared 服务，`memory-mcp` 只映射 `127.0.0.1:18765:8765`；`.env.example` / README 删除 `CLOUDFLARE_TUNNEL_TOKEN`
 - `docs/testing.md` 手工集成步骤同步为 4 个 MCP 工具
 
 ### 2026-10-30 向量表跨进程可见
@@ -72,7 +79,7 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 - 先 insert 新版本、再把旧版本置为非 current：中断时最坏是同一主题有两条 current，而不是一条都没有
 
 ### 2026-10-30 key 规范化与合并输出容错
-- `assign_entity_key` 新建 key 时不再因格式拒收：转小写，subject 中非 `[a-z0-9_]` 字符替换为 `_`，以 key 前缀作为 entity_type；规范化后命中邻居 key 则沿用。仍拒收没有 `type:` 前缀或 subject 为空的输出。全量导入中 4 条失败来自 `web-01`、`qwen3.6` 这类 subject 与前缀/类型不一致
+- `assign_entity_key` 新建 key 时不再因格式拒收：转小写，subject 中非 `[a-z0-9_]` 字符替换为 `_`，以 key 前缀作为 entity_type；规范化后命中邻居 key 则沿用。仍拒收没有 `type:` 前缀或 subject 为空的输出。全量导入中 4 条失败来自主机名、`qwen3.6` 这类 subject 与前缀/类型不一致
 - `merge_memories` 以 `json.loads(strict=False)` 解析，接受 content 字符串里的字面换行；解析失败时报错带 JSON 错误位置与上下文。全量导入中 20 条合并失败为偶发输出不规范，原样重试即通过
 
 ### 2026-10-30 向量索引只存 current 并定期压实

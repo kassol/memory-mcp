@@ -22,25 +22,21 @@ def _find_ini() -> Path | None:
     return None
 
 
-def _make_config(db_path: str | None = None) -> Config:
+def _make_config() -> Config:
     ini_path = _find_ini()
     cfg = Config(str(ini_path)) if ini_path else Config()
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parent / "migrations"))
-    url = f"sqlite:///{db_path}" if db_path else settings.alembic_url
-    cfg.set_main_option("sqlalchemy.url", url)
+    cfg.set_main_option("sqlalchemy.url", settings.alembic_url)
     return cfg
 
 
-def run_migrations(db_path: str | None = None) -> None:
+def run_migrations() -> None:
     """Apply all pending migrations to head. Called at FastAPI lifespan startup
     when MEMORY_MCP_AUTO_MIGRATE is true (the default).
-
-    ``db_path`` lets one-shot scripts (e.g. migrate_v1_to_v2) target an
-    explicit SQLite file without mutating global settings.
     """
-    target = db_path or settings.sqlite_path
+    target = settings.sqlite_path
     os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
-    cfg = _make_config(db_path)
+    cfg = _make_config()
     logger.info("Running alembic upgrade head against %s", target)
     command.upgrade(cfg, "head")
 

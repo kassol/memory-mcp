@@ -170,26 +170,8 @@ def test_merged_content_gets_its_own_embedding(tools, test_env, monkeypatch):
 
         monkeypatch.setattr(embedding_mod.embedding_service, "get_embedding", spy)
         _real_merge(monkeypatch, [_reply("Lives in Beijing; works in Haidian", False)])
-        await remember.remember_tool(_fact("Works in Haidian"), embedding=[0.1, 0.1, 0.1])
-        assert embedded == ["Lives in Beijing; works in Haidian"]
-
-    anyio.run(run)
-
-
-def test_created_at_is_used_for_create_and_evolve(tools, test_env):
-    async def run():
-        remember = tools[0]
-        _, vector, _ = test_env
-        t1 = datetime(2025, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
-        t2 = datetime(2025, 6, 1, tzinfo=timezone.utc)
-        await remember.remember_tool(_fact("Lives in Beijing"), created_at=t1)
-        await remember.remember_tool(_fact("Lives in Shanghai"), created_at=t2)
-
-        history = await vector.vector_store.get_history("fact:home")
-        old = next(h for h in history if not h.is_current)
-        new = next(h for h in history if h.is_current)
-        assert old.created_at == old.valid_from == t1 and old.valid_until == t2
-        assert new.created_at == new.valid_from == t2 and new.valid_until is None
+        await remember.remember_tool(_fact("Works in Haidian"))
+        assert embedded == ["Works in Haidian", "Lives in Beijing; works in Haidian"]
 
     anyio.run(run)
 

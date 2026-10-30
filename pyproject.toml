@@ -38,4 +38,4 @@ build-backend = "hatchling.build"
 packages = ["src/memory_mcp"]
 
 [tool.ruff]
-extend-exclude = [".claude", "tests/fixtures/v1_data"]
+extend-exclude = [".claude"]

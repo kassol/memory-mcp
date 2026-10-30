@@ -9,47 +9,9 @@ CLI_SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(CLI_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(CLI_SRC_DIR))
 
-from memory_mcp_cli.main import _filter_messages, _parse_transcript, app  # noqa: E402
+from memory_mcp_cli.main import app  # noqa: E402
 
 runner = CliRunner()
-
-
-# ---------------------------------------------------------------------------
-# TestTranscriptParsing
-# ---------------------------------------------------------------------------
-class TestTranscriptParsing:
-    def test_parse_json_array(self, tmp_path: Path) -> None:
-        data = [
-            {"role": "user", "content": "hello"},
-            {"role": "assistant", "content": "hi"},
-        ]
-        f = tmp_path / "transcript.json"
-        f.write_text(json.dumps(data))
-        result = _parse_transcript(f)
-        assert result == data
-
-    def test_parse_jsonl(self, tmp_path: Path) -> None:
-        lines = [
-            {"role": "user", "content": "line1"},
-            {"role": "assistant", "content": "line2"},
-        ]
-        f = tmp_path / "transcript.jsonl"
-        f.write_text("\n".join(json.dumps(item) for item in lines))
-        result = _parse_transcript(f)
-        assert result == lines
-
-    def test_filter_messages(self) -> None:
-        items = [
-            {"role": "system", "content": "system prompt"},
-            {"role": "user", "content": "hello"},
-            {"role": "assistant", "content": "hi"},
-            {"role": "user", "content": ""},          # empty content — filtered out
-            {"role": "tool", "content": "tool result"},
-        ]
-        result = _filter_messages(items)
-        assert len(result) == 2
-        assert result[0]["role"] == "user"
-        assert result[1]["role"] == "assistant"
 
 
 # ---------------------------------------------------------------------------

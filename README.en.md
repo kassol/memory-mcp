@@ -35,7 +35,7 @@ Personal memory service powered by **MCP Streamable HTTP**. It combines **semant
 
 Notes:
 - `docker-compose.yml` binds the service to the host loopback address `127.0.0.1:18765` only.
-- In production, a reverse proxy on the host (for example OpenResty) terminates HTTPS and forwards to `http://127.0.0.1:18765`.
+- In production, a reverse proxy on the host terminates HTTPS and forwards to `http://127.0.0.1:18765`.
 
 ## Environment Variables
 
