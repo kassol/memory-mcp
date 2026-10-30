@@ -18,6 +18,11 @@ from .tokenizer import tokenize
 
 CANDIDATES_PER_SOURCE = 50
 RRF_K = 60
+# Weighted RRF: FTS terms count double. Literal hits are why hybrid recall exists, and with equal
+# weights a vector-only neighbour list still outranks them. On production data (3903 current
+# memories, 30 Chinese questions about a rare model or version string) top-3 hits were
+# vector-only 3, equal weights 9, FTS x2 14; 7 queries vector search already answered did not regress.
+FTS_WEIGHT = 2.0
 GRAPH_SEEDS = 5
 # Time decay on valid_from, per day. Off until an evaluation set shows a gain.
 DECAY_LAMBDA = 0.0
@@ -87,12 +92,12 @@ async def _graph_candidates(seed_keys: list[str], entity_type: Optional[str]) ->
     return nodes[:CANDIDATES_PER_SOURCE]
 
 
-def _fuse(hits: dict[str, Hit], ranked: list[MemoryNode]) -> dict[str, int]:
-    """Add this source's RRF term to each hit; return {memory_id: rank} for the source."""
+def _fuse(hits: dict[str, Hit], ranked: list[MemoryNode], weight: float = 1.0) -> dict[str, int]:
+    """Add this source's weighted RRF term to each hit; return {memory_id: rank} for the source."""
     ranks: dict[str, int] = {}
     for rank, node in enumerate(ranked, start=1):
         ranks[node.id] = rank
-        hits.setdefault(node.id, Hit(node=node)).rrf_score += 1 / (RRF_K + rank)
+        hits.setdefault(node.id, Hit(node=node)).rrf_score += weight / (RRF_K + rank)
     return ranks
 
 
@@ -106,7 +111,7 @@ async def search(query: str, limit: int, entity_type: Optional[str] = None) -> l
     hits: dict[str, Hit] = {}
     for memory_id, rank in _fuse(hits, await _vector_candidates(query, entity_type)).items():
         hits[memory_id].vector_rank = rank
-    for memory_id, rank in _fuse(hits, await _fts_candidates(query, entity_type)).items():
+    for memory_id, rank in _fuse(hits, await _fts_candidates(query, entity_type), FTS_WEIGHT).items():
         hits[memory_id].fts_rank = rank
 
     ranked = sorted(hits.values(), key=lambda h: h.rrf_score, reverse=True)

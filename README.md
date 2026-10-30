@@ -10,7 +10,7 @@
 - **Bearer Token 鉴权**：`/mcp` 需要 `Authorization: Bearer <token>`（`/health` 免鉴权）
 - **记忆演化而非覆盖**：同一 `entity_key` 多版本链路可追溯（`trace`）
 - **冲突判定与打标**：命中也会判定并输出 `labels`：`conflict / correction / reversal`
-- **语义检索**：通过 OpenRouter Embedding API 获取向量，支持相似度检索（`recall`）
+- **混合检索**：`recall` 同时走向量（OpenRouter Embedding）、FTS5 关键词（jieba 预分词）与图一跳，按加权 RRF 融合，型号、版本号等字面信息也能命中
 - **图谱关系**：实体关系入/出边 + BFS 深度查询（REST / CLI：`relate` / `graph_query`）
 - **可测试/可落盘**：默认 LanceDB；可用 `MEMORY_MCP_VECTOR_BACKEND=memory` 作为无依赖后端
 
@@ -84,7 +84,7 @@
 MCP 只暴露 4 个工具，不提供 resources（全量记忆一次性返回会撑爆客户端上下文）：
 
 - `remember(content, title?, tags?)`：写入一条长期有效的事实；`entity_key` 由服务端对照库内相似记忆分配，同主题自动合并演化并冲突打标
-- `recall(query, limit?)`：按语义检索当前记忆，返回项含 `memory_id`、`entity_key`、`content`、`created_at`
+- `recall(query, limit?)`：混合检索当前记忆，返回项含 `memory_id`、`entity_key`、`content`、`created_at`；`relevance` 为融合分数，只在同一次结果内可比
 - `forget(memory_id, reason?)`：按 id 归档一条当前记忆（不再作为 current）
 - `trace(entity_key, format?)`：追溯某实体的演化链（timeline/summary）
 

@@ -47,6 +47,21 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-10-30 recall 混合检索（#4）
+- 动机：纯向量对型号、版本号、数字这类字面信息不敏感。线上只读模拟（3903 条 current）：30 条「中文问法 + 稀有型号 / 版本串」查询，纯向量前 3 命中 3 条
+- 新增 `engine/hybrid_search.py` `search(query, limit, entity_type=None)`：向量、FTS5、图一跳三路各取前 50（`CANDIDATES_PER_SOURCE`），加权 RRF（`k=60`，FTS 权重 `FTS_WEIGHT=2`）融合。等权时上述查询前 3 命中 9 条，FTS ×2 时 14 条；7 条原本命中的查询不退化。参数为模块常量，不加环境变量
+- FTS 查询：jieba 切词，每个词按 FTS5 字符串加引号（双引号转义），去掉不含字母数字的词，以 OR 连接；切词为空时跳过 FTS
+- 图一跳：前两路融合后前 5 个 `entity_key` 作为种子，取一跳邻居的 current 记忆，排除种子本身，最多 50 条。线上 `relations` 为 0 行，这一路目前没有贡献
+- 时间衰减 `DECAY_LAMBDA` 默认 0（关闭），只有评估集显示有收益时才打开
+- `MemoryRepository.fts_search` 只返回 current（FTS 索引含全部历史版本），支持 `entity_type`；改为 `CROSS JOIN`，强制先走 FTS：普通 JOIN 下 planner 从 `idx_memories_current` 出发，对每条 current 执行一次 MATCH，3.9k 行时 1.7–7.6 秒，改后约 10 ms。新增 `get_current_by_entity_keys`
+- `VectorStore.search` 新增 `overfetch`（默认 4，行为不变）；混合检索无类型过滤时用 1：向量索引只存 current，ANN 后不会再丢结果，取 200 条比 50 条多约 55 ms
+- `recall` 改为调用混合检索，MCP 与 REST 同时生效。MCP 入参与返回字段不变；`relevance` 改为融合分数，只保证同一次结果内越大越相关，tool description 已写明。REST `GET /api/v1/memories/search?explain=1` 额外返回 `vector_rank` / `fts_rank` / `graph_rank` / `rrf_score`
+- 本地耗时（不含 embedding 请求，3903 current + 5603 历史版本，LanceDB 1536 维）：纯向量中位数 34 ms，混合检索 52 ms，增量约 18 ms
+- 测试：`tests/test_hybrid_search.py`、`tests/test_retrieval_quality.py`（固定语料，含纯向量对照）；`tests/test_transport.py` 断言 `recall` 返回字段集合不变且拒收 `explain`
+
+### 2026-10-30 测试关闭 SQLite 连接（#3）
+- 存储测试在 `anyio.run()` 返回后才关闭 aiosqlite 连接，worker 线程把结果投递到已关闭的事件循环，pytest 报 `Event loop is closed`。三个存储测试文件改为在同一事件循环内关闭各自打开的 store
+
 ### 2026-10-30 例行备份
 - 新增 `ops/backup-db.sh`：在 compose 目录执行，经容器内 Python 用 SQLite backup API 拷出一致快照（服务运行中也可执行），`integrity_check` 通过后再复制向量库，写入 `data/backups/<UTC 时间戳>/`，只在本次备份校验通过后才删除最旧的，保留 7 份。由部署主机的 cron 每日执行；部署同步排除 `data/`，不会删掉备份
 - 恢复：停服务，用某个备份目录里的 `memory.sqlite3` 和 `vectors/` 覆盖 `data/` 下同名文件，再启动

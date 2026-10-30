@@ -208,7 +208,7 @@ def test_recall_search_explain_returns_source_ranks(client):
     assert hit["vector_rank"] == 1
     assert hit["fts_rank"] == 1
     assert hit["graph_rank"] is None
-    assert hit["rrf_score"] == hit["relevance"] == 2 / 61
+    assert hit["rrf_score"] == hit["relevance"] == 1 / 61 + 2 / 61
 
 
 def test_recall_search_missing_query_returns_error(client):

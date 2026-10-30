@@ -144,7 +144,7 @@ def test_no_relations_means_no_graph_hits(test_env, monkeypatch):
 
 
 def test_rrf_sums_ranks_across_sources(test_env, monkeypatch):
-    """A memory ranked by both vector and FTS beats one ranked first by vector alone."""
+    """A memory ranked by both vector and FTS beats one ranked first by vector alone; FTS counts double."""
     async def run():
         from memory_mcp.engine import hybrid_search
 
@@ -156,7 +156,7 @@ def test_rrf_sums_ranks_across_sources(test_env, monkeypatch):
         assert [h.node.entity_key for h in hits] == ["fact:both", "fact:vec_only"]
         both = hits[0]
         assert (both.vector_rank, both.fts_rank) == (2, 1)
-        assert both.rrf_score == both.score == 1 / (60 + 2) + 1 / (60 + 1)
+        assert both.rrf_score == both.score == 1 / (60 + 2) + 2 / (60 + 1)
 
     anyio.run(run)
 
@@ -225,5 +225,25 @@ def test_time_decay_prefers_newer_memory_when_enabled(test_env, monkeypatch):
         hits = await hybrid_search.search("same words", limit=2)
         assert [h.node.id for h in hits] == [new_id, old_id]
         assert hits[1].score < hits[1].rrf_score
+
+    anyio.run(run)
+
+
+def test_fts_rank_one_outweighs_vector_rank_one(test_env, monkeypatch):
+    """Literal matches are the reason for hybrid recall, so an FTS-only top hit beats a vector-only one."""
+    async def run():
+        from memory_mcp.engine import hybrid_search
+
+        await _add("fact:vec", "close in meaning", [1.0, 0.0, 0.0])
+        for i in range(hybrid_search.CANDIDATES_PER_SOURCE):
+            await _add(f"fact:filler_{i}", f"filler {i}", [0.9, 0.1, 0.0])
+        await _add("fact:literal", "W8A8SC weights", [0.0, 0.0, 1.0])
+        _embed_query_as(monkeypatch, [1.0, 0.0, 0.0])
+
+        hits = await hybrid_search.search("W8A8SC", limit=2)
+        assert [(h.node.entity_key, h.vector_rank, h.fts_rank) for h in hits] == [
+            ("fact:literal", None, 1),
+            ("fact:vec", 1, None),
+        ]
 
     anyio.run(run)

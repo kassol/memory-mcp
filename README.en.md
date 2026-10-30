@@ -10,7 +10,7 @@ Personal memory service powered by **MCP Streamable HTTP**. It combines **semant
 - **Bearer token auth**: `/mcp` requires `Authorization: Bearer <token>` (`/health` is public)
 - **Memory evolution** per `entity_key` with history tracing (`trace`)
 - **Conflict detection & labels** (also on exact matches): `conflict / correction / reversal`
-- **Semantic recall** via OpenRouter Embedding API (`recall`)
+- **Hybrid recall** (`recall`): vector (OpenRouter Embedding), FTS5 keywords (jieba tokens) and graph one-hop, fused by weighted RRF, so model names and version strings also match
 - **Knowledge graph relations** with BFS depth query (REST / CLI: `relate` / `graph_query`)
 - **Test-friendly storage**: LanceDB by default, `MEMORY_MCP_VECTOR_BACKEND=memory` backend for tests
 
@@ -77,7 +77,7 @@ Replace the domain and token:
 MCP exposes 4 tools and no resources (returning every memory at once would overflow client context):
 
 - `remember(content, title?, tags?)`: store one long-lived fact; the server assigns `entity_key` against similar stored memories, then merges and labels conflicts on the same subject
-- `recall(query, limit?)`: semantic search over current memories; items include `memory_id`, `entity_key`, `content`, `created_at`
+- `recall(query, limit?)`: hybrid search over current memories; items include `memory_id`, `entity_key`, `content`, `created_at`; `relevance` is the fused score, comparable only within one result list
 - `forget(memory_id, reason?)`: archive one current memory by id
 - `trace(entity_key, format?)`: evolution chain (timeline/summary)
 
