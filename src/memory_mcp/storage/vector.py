@@ -51,7 +51,9 @@ class LanceVectorBackend:
 
         self._pa = pa
         os.makedirs(vectors_dir, exist_ok=True)
-        self._db = lancedb.connect(vectors_dir)
+        # Check for newer table versions on every read: without it the service keeps the snapshot it
+        # opened at startup and never sees rows written by other processes (import / ops scripts).
+        self._db = lancedb.connect(vectors_dir, read_consistency_interval=timedelta(0))
         self._table_name = "memories"
         self._writes = 0
         self._init_table()

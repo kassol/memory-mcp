@@ -46,6 +46,9 @@
 - 生产迁到 cc-la（1Panel OpenResty，host 网络）：`docker-compose.yml` 删除 cloudflared 服务，`memory-mcp` 只映射 `127.0.0.1:18765:8765`，由宿主机反代终结 HTTPS；`.env.example` / README 删除 `CLOUDFLARE_TUNNEL_TOKEN`
 - `docs/testing.md` 手工集成步骤同步为 4 个 MCP 工具
 
+### 2026-10-30 向量表跨进程可见
+- `LanceVectorBackend` 以 `read_consistency_interval=0` 连接：服务进程每次读都检查新版本。原先服务一直使用启动时打开的快照，导入脚本等其他进程写入的向量要重启服务才能检索到（Nowledge 增量导入后实测）
+
 ### 2026-10-30 演化写入顺序
 - `evolve_memory` 新增 `fields`，`remember` 把 origin_client / origin_session_id / source_thread_id / source_refs / title 随新节点一次 insert 写入，不再演化后补一次 update。原先两次写入之间中断会留下缺来源的 current 记忆，导入去重也认不出它（全量导入中实际出现 1 条）
 - 先 insert 新版本、再把旧版本置为非 current：中断时最坏是同一主题有两条 current，而不是一条都没有

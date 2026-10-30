@@ -90,3 +90,22 @@ def test_lance_backend_compacts_fragments(tmp_path, monkeypatch):
     anyio.run(run)
     assert backend._table.stats()["fragment_stats"]["num_fragments"] == 1
     assert backend._table.count_rows() == 10
+
+
+def test_lance_backend_sees_writes_from_another_process(tmp_path, monkeypatch):
+    """The service must see rows an import or ops script writes through a separate connection."""
+    import anyio
+
+    pytest.importorskip("lancedb")  # miniconda's lancedb breaks on numpy 2; the lock venv runs it
+    import memory_mcp.storage.vector as vector_mod
+
+    monkeypatch.setattr(vector_mod.settings, "embedding_dim", 3)
+    service = vector_mod.LanceVectorBackend(str(tmp_path))
+    script = vector_mod.LanceVectorBackend(str(tmp_path))
+
+    async def run():
+        assert await service.search([0.1, 0.2, 0.3], limit=1) == []
+        await script.upsert("m1", [0.1, 0.2, 0.3])
+        assert [mid for mid, _ in await service.search([0.1, 0.2, 0.3], limit=1)] == ["m1"]
+
+    anyio.run(run)
