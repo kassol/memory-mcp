@@ -114,3 +114,7 @@ data/
 ## 许可证
 
 本项目采用 MIT License，详见 `LICENSE`。
+
+## 备份
+
+部署主机上用 cron 每日执行 `ops/backup-db.sh`，在 `data/backups/` 下保留最近 7 份 SQLite 与向量库快照。恢复时停服务，用某个备份目录里的 `memory.sqlite3` 和 `vectors/` 覆盖 `data/` 下的同名文件，再启动。

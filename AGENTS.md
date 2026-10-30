@@ -15,6 +15,7 @@
 - `tests/` - 服务端测试
 - `cli/` - CLI 客户端（独立包 memory-mcp-cli）
 - `docs/` - 项目文档
+- `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份）
 - `data/` - 运行时数据
 
 ## 常用命令
@@ -46,6 +47,10 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-10-30 例行备份
+- 新增 `ops/backup-db.sh`：在 compose 目录执行，经容器内 Python 用 SQLite backup API 拷出一致快照（服务运行中也可执行），`integrity_check` 通过后再复制向量库，写入 `data/backups/<UTC 时间戳>/`，只在本次备份校验通过后才删除最旧的，保留 7 份。由部署主机的 cron 每日执行；部署同步排除 `data/`，不会删掉备份
+- 恢复：停服务，用某个备份目录里的 `memory.sqlite3` 和 `vectors/` 覆盖 `data/` 下同名文件，再启动
+
 ### 2026-10-30 删除 working_memory_cache 表
 - 新增 migration `0002_drop_working_memory_cache`：Working Memory 简报已删除，该表没有任何读写方；`downgrade` 按 0001 的定义重建空表。`schema.sql` 与 `tests/test_migrations.py` 同步，`/health.schema_version` 变为 `0002_drop_working_memory_cache`
 

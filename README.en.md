@@ -94,3 +94,7 @@ More details: `docs/testing.md`
 ## License
 
 MIT License. See `LICENSE`.
+
+## Backup
+
+On the deploy host, run `ops/backup-db.sh` daily from cron. It keeps the newest 7 snapshots of SQLite and the vector store under `data/backups/`. To restore, stop the service, copy `memory.sqlite3` and `vectors/` from a backup directory over the same files in `data/`, then start it again.
