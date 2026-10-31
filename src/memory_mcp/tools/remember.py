@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from ..config import settings
+from .. import settings_registry
 from ..engine import key_assignment, merge
 from ..engine.conflict import conflict_detector
 from ..engine.embedding import embedding_service
@@ -124,7 +124,7 @@ async def remember_tool(arguments: dict) -> dict:
         if similar:
             candidate, distance = similar[0]
             relevance = _distance_to_relevance(distance)
-            if relevance is not None and relevance >= settings.similarity_threshold:
+            if relevance is not None and relevance >= await settings_registry.get("similarity_threshold"):
                 is_conflict = await conflict_detector.check_conflict(candidate.content, content)
                 if is_conflict:
                     merged, _, merged_embedding = await _merge_with(candidate.content, content, embedding)

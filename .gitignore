@@ -11,3 +11,8 @@ data
 .impeccable/review/
 .impeccable/mocks/
 .impeccable/build/
+
+# console build output (web/ builds into the package; see Dockerfile) and its dependencies
+src/memory_mcp/ui/
+web/node_modules/
+web/tsconfig.tsbuildinfo

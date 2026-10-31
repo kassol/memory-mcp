@@ -19,18 +19,16 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
-from ..config import settings
+from .. import settings_registry
 from ..storage.sqlite import get_db
 from ..storage.vector import vector_store
 from .llm import chat
 
 logger = logging.getLogger(__name__)
 
-# Cross-key candidates: cosine similarity among the 5 nearest neighbours. Separate from
-# settings.similarity_threshold. On production data (3903 current) the old relevance >= 0.85
-# rule matched 6 pairs; cosine >= 0.85 matches about 121.
-CROSS_KEY_NEIGHBOURS = 5
-CROSS_KEY_MIN_COSINE = 0.85
+# Cross-key candidates: cosine similarity among the nearest neighbours, read from
+# settings_registry (cross_key_neighbours, cross_key_min_cosine) once per run; the defaults and
+# the evaluation behind them live there. Separate from the semantic merge threshold.
 
 _INTERNAL_PROMPT = """You review one memory for an internal contradiction.
 
@@ -134,7 +132,7 @@ async def run_once() -> str:
 
 async def _run(job_id: str) -> None:
     global _running
-    run = _Run(settings.maintenance_max_llm_calls)
+    run = _Run()
     status, error = "done", None
     try:
         await run.execute()
@@ -157,8 +155,8 @@ async def _run(job_id: str) -> None:
 
 
 class _Run:
-    def __init__(self, budget: int) -> None:
-        self.budget = budget
+    def __init__(self) -> None:
+        self.budget = 0
         self.llm_calls = 0
         # A failed judgment skips its memory or pair for this run (no check, so the next run
         # retries it); one unjudgeable memory must not stop every later check.
@@ -176,6 +174,10 @@ class _Run:
         }
 
     async def execute(self) -> None:
+        # Read once per run, inside the job's try block, so a later save applies to the next run.
+        self.budget = await settings_registry.get("maintenance_max_llm_calls")
+        self.neighbours = await settings_registry.get("cross_key_neighbours")
+        self.min_cosine = await settings_registry.get("cross_key_min_cosine")
         await self._resolve_stale()
         await self._multiple_current()
         # The two LLM checks share the budget evenly; whatever one leaves goes to the other.
@@ -287,8 +289,8 @@ class _Run:
         The neighbour-scan check is written only when every pair has a check, so pairs
         skipped by the budget or a failed judgment are found again next run.
         """
-        neighbours = await vector_store.cosine_neighbours(row["id"], CROSS_KEY_NEIGHBOURS)
-        candidates = [mid for mid, cos in neighbours if cos >= CROSS_KEY_MIN_COSINE]
+        neighbours = await vector_store.cosine_neighbours(row["id"], self.neighbours)
+        candidates = [mid for mid, cos in neighbours if cos >= self.min_cosine]
         async with get_db() as db:
             others = await db.fetchall(
                 f"SELECT id, entity_key, content FROM memories WHERE is_current = 1 "

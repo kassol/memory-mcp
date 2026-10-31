@@ -37,6 +37,9 @@ def test_env(tmp_path, monkeypatch):
     importlib.reload(repo_ent)
     importlib.reload(repo_rel)
 
+    import memory_mcp.settings_registry as settings_registry
+    importlib.reload(settings_registry)
+
     import memory_mcp.storage.vector as vector
     importlib.reload(vector)
 

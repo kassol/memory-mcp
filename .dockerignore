@@ -1,0 +1,7 @@
+.git
+.venv
+data
+web/node_modules
+src/memory_mcp/ui
+**/__pycache__
+.env

@@ -177,14 +177,17 @@ async def lifespan(starlette_app):
             await maintenance.stop()
 
 
+# The console build (web/) lands next to this module, so it resolves inside a non-editable install
+# too. It is not committed; without a build /ui/ is 404 and the API still starts.
+ui_app = StaticFiles(directory=Path(__file__).parent / "ui", html=True, check_dir=False)
+
 app = Starlette(
     lifespan=lifespan,
     routes=[
         Route("/mcp", endpoint=streamable_http_app, methods=["GET", "POST", "DELETE"]),
         Route("/health", endpoint=health, methods=["GET"]),
         *api_routes,
-        # Located next to this module so it resolves inside a non-editable install too.
-        Mount("/ui", app=StaticFiles(directory=Path(__file__).parent / "ui", html=True), name="ui"),
+        Mount("/ui", app=ui_app, name="ui"),
     ],
     middleware=[
         Middleware(CorsMiddleware),

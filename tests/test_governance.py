@@ -195,32 +195,43 @@ def test_by_key_routes_still_match_next_to_by_id_routes(client):
     assert client.post("/api/v1/memories/project:x/correct", json={"content": "x"}, headers=AUTH).status_code == 404
 
 
-def test_ui_is_served_without_token_but_data_still_needs_one(test_env):
+def _console_build(tmp_path, monkeypatch, server):
+    """The console build is not committed; serve a stand-in from a temporary directory."""
+    build = tmp_path / "ui"
+    (build / "assets").mkdir(parents=True)
+    (build / "index.html").write_text("<!doctype html><title>记忆登记簿</title>", encoding="utf-8")
+    (build / "assets" / "index.js").write_text("console.log(1)", encoding="utf-8")
+    monkeypatch.setattr(server.ui_app, "all_directories", [str(build)])
+
+
+def test_ui_is_served_without_token_but_data_still_needs_one(test_env, tmp_path, monkeypatch):
     import importlib
 
     import memory_mcp.server as server
 
     importlib.reload(server)
+    _console_build(tmp_path, monkeypatch, server)
     with TestClient(server.app) as client:
         page = client.get("/ui/")
         assert page.status_code == 200
         assert "text/html" in page.headers["content-type"]
         assert "<title>记忆登记簿</title>" in page.text
-        assert client.get("/ui/app.js").status_code == 200
+        assert client.get("/ui/assets/index.js").status_code == 200
         assert client.get("/ui/../health").status_code == 200  # normalised to /health, not a file read
         assert client.get("/api/v1/memories").status_code == 401
         assert client.get("/uix").status_code == 401  # only the /ui/ prefix is open
 
 
-def test_ui_files_ship_inside_the_package():
-    """The image installs the package non-editable, so the files must live under memory_mcp/."""
-    from importlib.resources import files
+def test_service_starts_without_a_console_build(test_env, tmp_path, monkeypatch):
+    import importlib
 
-    ui = files("memory_mcp") / "ui"
-    assert (ui / "index.html").is_file()
-    assert (ui / "app.js").is_file()
-    text = (ui / "app.js").read_text()
-    assert "innerHTML" not in text  # memory text is rendered with textContent only (the token lives in the page)
+    import memory_mcp.server as server
+
+    importlib.reload(server)
+    monkeypatch.setattr(server.ui_app, "all_directories", [str(tmp_path / "missing")])
+    with TestClient(server.app) as client:
+        assert client.get("/health").status_code == 200
+        assert client.get("/ui/").status_code == 404
 
 
 def test_correct_keeps_title_and_provenance(client):
@@ -253,12 +264,13 @@ def test_archive_requires_a_reason(client):
     assert client.get(f"/api/v1/memories/{mid}", headers=AUTH).json()["data"]["is_current"] is True
 
 
-def test_ui_without_trailing_slash_redirects_to_the_page(test_env):
+def test_ui_without_trailing_slash_redirects_to_the_page(test_env, tmp_path, monkeypatch):
     import importlib
 
     import memory_mcp.server as server
 
     importlib.reload(server)
+    _console_build(tmp_path, monkeypatch, server)
     with TestClient(server.app) as client:
         res = client.get("/ui", follow_redirects=False)
         assert res.status_code in (301, 307, 308)

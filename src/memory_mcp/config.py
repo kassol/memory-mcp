@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
@@ -37,14 +38,22 @@ class Settings(BaseSettings):
     )
 
     # Conflict Detection
-    similarity_threshold: float = 0.85
     llm_model: str = Field(
         default="anthropic/claude-3-haiku",
         validation_alias=AliasChoices("MEMORY_MCP_LLM_MODEL", "LLM_MODEL"),
     )
 
-    # Maintenance: LLM calls allowed in one run (POST /api/v1/maintenance/run)
-    maintenance_max_llm_calls: int = 100
+    # Runtime settings from the configuration file. None means unset: the console value or the
+    # code default in settings_registry applies. Read them through settings_registry.get().
+    similarity_threshold: Optional[float] = None
+    maintenance_max_llm_calls: Optional[int] = None
+    fts_weight: Optional[float] = None
+    rrf_k: Optional[int] = None
+    candidates_per_source: Optional[int] = None
+    graph_seeds: Optional[int] = None
+    decay_lambda: Optional[float] = None
+    cross_key_min_cosine: Optional[float] = None
+    cross_key_neighbours: Optional[int] = None
 
     # Tokenizer
     jieba_user_dict_path: str | None = Field(

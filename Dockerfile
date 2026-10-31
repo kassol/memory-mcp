@@ -1,3 +1,13 @@
+# Console build (web/): its output goes into the Python package's ui/ directory.
+# The runtime image below has no Node.
+FROM node:24-slim AS console
+WORKDIR /build/web
+RUN corepack enable
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY web/ ./
+RUN pnpm build
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -11,6 +21,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.lock pyproject.toml README.md ./
 RUN pip install --no-cache-dir -r requirements.lock
 COPY src/ src/
+COPY --from=console /build/src/memory_mcp/ui src/memory_mcp/ui
 COPY alembic.ini ./alembic.ini
 RUN pip install --no-cache-dir --no-deps .
 

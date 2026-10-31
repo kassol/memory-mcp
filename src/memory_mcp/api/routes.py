@@ -259,6 +259,37 @@ async def handle_dismiss_finding(request: Request) -> JSONResponse:
     return ok(result)
 
 
+# GET /api/v1/settings  — every registry setting with value, source and metadata
+async def handle_list_settings(request: Request) -> JSONResponse:
+    from .. import settings_registry
+    return ok({"items": await settings_registry.describe_all()})
+
+
+# PUT /api/v1/settings/{key}  body {value}  — save a console value
+async def handle_set_setting(request: Request) -> JSONResponse:
+    from .. import settings_registry
+    try:
+        body = await _json_body(request)
+        if "value" not in body:
+            return err("Missing required field: value")
+        result = await settings_registry.set_value(request.path_params["key"], body["value"])
+    except settings_registry.UnknownSetting as e:
+        return err(str(e), 404)
+    except ValueError as e:
+        return err(str(e))
+    return ok(result)
+
+
+# DELETE /api/v1/settings/{key}  — drop the console value; the file value or default applies
+async def handle_revert_setting(request: Request) -> JSONResponse:
+    from .. import settings_registry
+    try:
+        result = await settings_registry.revert(request.path_params["key"])
+    except settings_registry.UnknownSetting as e:
+        return err(str(e), 404)
+    return ok(result)
+
+
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
@@ -278,4 +309,7 @@ routes = [
     Route("/api/v1/maintenance/run", endpoint=handle_maintenance_run, methods=["POST"]),
     Route("/api/v1/findings", endpoint=handle_findings, methods=["GET"]),
     Route("/api/v1/findings/{finding_id}/dismiss", endpoint=handle_dismiss_finding, methods=["POST"]),
+    Route("/api/v1/settings", endpoint=handle_list_settings, methods=["GET"]),
+    Route("/api/v1/settings/{key}", endpoint=handle_set_setting, methods=["PUT"]),
+    Route("/api/v1/settings/{key}", endpoint=handle_revert_setting, methods=["DELETE"]),
 ]

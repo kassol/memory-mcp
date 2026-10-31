@@ -104,6 +104,7 @@ def test_old_versions_do_not_crowd_out_current_fts_hits(test_env, monkeypatch):
 def test_graph_neighbour_of_a_top_hit_is_recalled(test_env, monkeypatch):
     async def run():
         from memory_mcp.engine import hybrid_search
+        from memory_mcp import settings_registry
         from memory_mcp.engine.models import Relation
         from memory_mcp.storage.graph import graph_store
 
@@ -118,7 +119,7 @@ def test_graph_neighbour_of_a_top_hit_is_recalled(test_env, monkeypatch):
             created_at=datetime.now(timezone.utc),
         ))
         # One candidate per source keeps Bob out of the vector list, so only the graph can add him.
-        monkeypatch.setattr(hybrid_search, "CANDIDATES_PER_SOURCE", 1)
+        monkeypatch.setattr(settings_registry.settings, "candidates_per_source", 1)
         _embed_query_as(monkeypatch, [1.0, 0.0, 0.0])
 
         hits = await hybrid_search.search("Postgres", limit=5)
@@ -179,6 +180,7 @@ def test_graph_hop_adds_only_new_candidates_and_is_capped(test_env, monkeypatch)
     """Seeds linked to each other or to themselves get no graph bonus; a hub's neighbours are capped."""
     async def run():
         from memory_mcp.engine import hybrid_search
+        from memory_mcp import settings_registry
         from memory_mcp.engine.models import Relation
         from memory_mcp.storage.graph import graph_store
 
@@ -192,10 +194,10 @@ def test_graph_hop_adds_only_new_candidates_and_is_capped(test_env, monkeypatch)
         await _add("project:peer", "peer keyword", [1.0, 0.0, 0.0])
         await link("project:hub", "project:peer")
         await link("project:hub", "project:hub")
-        for i in range(hybrid_search.CANDIDATES_PER_SOURCE + 5):
+        for i in range(settings_registry.SETTINGS["candidates_per_source"].default + 5):
             await _add(f"fact:n{i}", f"neighbour {i}", [0.0, 0.0, 1.0])
             await link("project:hub", f"fact:n{i}")
-        monkeypatch.setattr(hybrid_search, "CANDIDATES_PER_SOURCE", 2)
+        monkeypatch.setattr(settings_registry.settings, "candidates_per_source", 2)
         _embed_query_as(monkeypatch, [1.0, 0.0, 0.0])
 
         hits = await hybrid_search.search("keyword", limit=100)
@@ -212,6 +214,7 @@ def test_time_decay_prefers_newer_memory_when_enabled(test_env, monkeypatch):
         from datetime import timedelta
 
         from memory_mcp.engine import hybrid_search
+        from memory_mcp import settings_registry
         from memory_mcp.storage.vector import vector_store
 
         old_id = await _add("fact:old", "same words", [1.0, 0.0, 0.0])
@@ -221,7 +224,7 @@ def test_time_decay_prefers_newer_memory_when_enabled(test_env, monkeypatch):
         await vector_store.update(old)
         _embed_query_as(monkeypatch, [1.0, 0.0, 0.0])
 
-        monkeypatch.setattr(hybrid_search, "DECAY_LAMBDA", 0.01)
+        monkeypatch.setattr(settings_registry.settings, "decay_lambda", 0.01)
         hits = await hybrid_search.search("same words", limit=2)
         assert [h.node.id for h in hits] == [new_id, old_id]
         assert hits[1].score < hits[1].rrf_score
@@ -233,9 +236,10 @@ def test_fts_rank_one_outweighs_vector_rank_one(test_env, monkeypatch):
     """Literal matches are the reason for hybrid recall, so an FTS-only top hit beats a vector-only one."""
     async def run():
         from memory_mcp.engine import hybrid_search
+        from memory_mcp import settings_registry
 
         await _add("fact:vec", "close in meaning", [1.0, 0.0, 0.0])
-        for i in range(hybrid_search.CANDIDATES_PER_SOURCE):
+        for i in range(settings_registry.SETTINGS["candidates_per_source"].default):
             await _add(f"fact:filler_{i}", f"filler {i}", [0.9, 0.1, 0.0])
         await _add("fact:literal", "W8A8SC weights", [0.0, 0.0, 1.0])
         _embed_query_as(monkeypatch, [1.0, 0.0, 0.0])

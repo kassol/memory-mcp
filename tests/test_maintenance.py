@@ -170,8 +170,9 @@ def test_budget_split_and_continuation_across_runs(test_env, monkeypatch):
     """Each LLM check gets half the budget; unused budget goes to the other; the rest waits for the next run."""
     async def run():
         from memory_mcp.engine import maintenance
+        from memory_mcp import settings_registry
 
-        monkeypatch.setattr(maintenance.settings, "maintenance_max_llm_calls", 4)
+        monkeypatch.setattr(settings_registry.settings, "maintenance_max_llm_calls", 4)
         llm = FakeLLM(monkeypatch)
         for i in range(5):
             await _add(f"tool:t{i}", f"merged {i}", conflict=True)
@@ -456,8 +457,9 @@ def test_service_start_runs_nothing_without_a_call(test_env, monkeypatch):
 def test_unused_internal_budget_goes_to_pairs(test_env, monkeypatch):
     async def run():
         from memory_mcp.engine import maintenance
+        from memory_mcp import settings_registry
 
-        monkeypatch.setattr(maintenance.settings, "maintenance_max_llm_calls", 4)
+        monkeypatch.setattr(settings_registry.settings, "maintenance_max_llm_calls", 4)
         llm = FakeLLM(monkeypatch)
         await _add("tool:t", "merged", conflict=True)
         for i in range(4):

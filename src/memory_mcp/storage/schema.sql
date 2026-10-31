@@ -1,4 +1,4 @@
--- memory-mcp v2 schema reference at head 0004_maintenance_findings (authoritative version: alembic versions/)
+-- memory-mcp v2 schema reference at head 0005_console_settings (authoritative version: alembic versions/)
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -146,4 +146,13 @@ CREATE TABLE memory_checks (
   outcome TEXT NOT NULL,
   checked_at TIMESTAMP NOT NULL,
   PRIMARY KEY (check_type, subject)
+);
+
+-- ---------------------------------------------------------------------------
+-- runtime settings saved in the console (value is JSON); see settings_registry.py
+-- ---------------------------------------------------------------------------
+CREATE TABLE console_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMP NOT NULL
 );

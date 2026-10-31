@@ -36,6 +36,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/memory_mcp"]
+# The console build is git-ignored (web/ builds it in the Dockerfile); ship it anyway.
+artifacts = ["src/memory_mcp/ui/**"]
 
 [tool.ruff]
 extend-exclude = [".claude"]
