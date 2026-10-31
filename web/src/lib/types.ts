@@ -44,9 +44,6 @@ export interface Setting {
   label: string;
   group: "behaviour" | "advanced";
   type: "int" | "float";
-  kind: "runtime" | "startup";
-  editable: boolean;
-  secret: boolean;
   description: string;
   default: number;
   min: number;

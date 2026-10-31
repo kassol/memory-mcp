@@ -9,13 +9,16 @@
 - LanceDB
 - NetworkX
 - Starlette / Uvicorn
+- 管理面板：React + TypeScript + Vite，TanStack Router / Query / Form，shadcn/ui + Tailwind，lucide（docs/adr/0003）
 
 ## 目录索引
 - `src/` - 服务端源代码
 - `tests/` - 服务端测试
 - `cli/` - CLI 客户端（独立包 memory-mcp-cli）
 - `docs/` - 项目文档
-- `src/memory_mcp/ui/` - Web 治理台静态文件（HTML / CSS / 原生 JS，随包发布，挂在 `/ui/`）
+- `web/` - 管理面板源码（React 单页应用，pnpm，锁文件入库）；`pnpm build` 输出到 `src/memory_mcp/ui/`
+- `src/memory_mcp/ui/` - 面板构建产物（不入库，由 Dockerfile 的 Node 阶段生成，随包发布，挂在 `/ui/`）
+- `src/memory_mcp/settings_registry.py` - 设置注册表：可在面板修改的设置、元数据与生效值
 - `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 治理台的产品与视觉记录（`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
@@ -25,11 +28,14 @@
 - 开发服务：`python -m memory_mcp`
 - 运行测试：`pytest`
 - 代码检查：`ruff check .`
+- 面板：`cd web && pnpm install`；`pnpm dev`（代理 `/api` 到 `127.0.0.1:8765`）；`pnpm typecheck` / `pnpm lint` / `pnpm test` / `pnpm build`
 
 ## 全局规范
 - MCP Streamable HTTP 为主传输协议；REST API (`/api/v1/*`) 为 CLI 等非 MCP 客户端提供轻量接入，复用同一套 tool 函数
 - MCP 只暴露 agent 主动存取所需的 4 个工具（`remember` / `recall` / `forget` / `trace`），不注册 resources；运维与图谱类能力只走 REST / CLI
 - Tool 返回值统一为 JSON 字符串
+- 运行时设置一律经 `settings_registry.get()` 在调用时读取，不在 import 时取值、不写模块常量；新增可调参数先在注册表声明（类型、默认、范围，高级参数带推荐值与评估依据）
+- 面板中记忆文本只按文本渲染：ESLint 禁止 `dangerouslySetInnerHTML` 与 `innerHTML`
 - 记忆数据持久化：向量存储 + 图存储并行
 - 变更必须更新本文件
 - 涉及线上服务能力的任务，只有更新到线上并完成线上验证后才算终结；仅完成本地代码、测试或文档不算完成
@@ -49,9 +55,21 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-10-31 设置注册表与 React 面板（#9、#8）
+- 动机：#7 把面板扩展为管理入口，表单规模超出手写 DOM 的承载能力（docs/adr/0003）；可调参数此前只能改宿主机 `.env` 并重新部署
+- 设置注册表 `settings_registry.py`：每项声明 key、中文名、分组（行为 / 高级）、类型、默认值、范围；高级参数另有推荐值与评估依据。生效值 = 面板值（SQLite `console_settings`，migration `0005_console_settings`）> 配置文件或环境变量（`Settings` 同名字段，`None` 表示未设置）> 默认值，并报告来源。面板值在进程内缓存，本进程是唯一写入方
+- 注册项：行为参数 `similarity_threshold`、`maintenance_max_llm_calls`；高级参数 `fts_weight`、`rrf_k`、`candidates_per_source`、`graph_seeds`、`decay_lambda`、`cross_key_min_cosine`、`cross_key_neighbours`。原 `hybrid_search` 与 `maintenance` 的模块常量删除，默认值与评估说明迁入注册表；混合检索每次 search 读取，维护每轮开始时读取一次
+- 配置文件里超出范围的值在服务启动时报错并列出原因（`check_file_values`），不再静默生效
+- REST：`GET /api/v1/settings`（值、来源、元数据）；`PUT /api/v1/settings/{key}`（`{value}`，类型或范围不符 400 并给原因，未知 key 404）；`DELETE /api/v1/settings/{key}`（删掉面板值，恢复为配置文件值或默认值）。在 #10 之前沿用访问令牌鉴权，属已知过渡：任一访问令牌都能改设置（ADR 0001 要求只接受面板会话，由 #10 收口）
+- 面板迁到 `web/`：侧栏导航（概览、待审、档案、维护、设置；概览与维护在 #16 之前显示简短空状态），命令面板（⌘K，跳页面或检索记忆并打开），hash 路由（`#/records?memory=<id>` 可直达），随系统深浅色，手机为顶栏加抽屉。待审、档案、详情与版本历史与旧版一一对应（登录、改正、归档需原因、判为误报、分页、类型过滤、最久未更新排序、检索）；待审新增快捷键 J / K 切换、C / A 改正或归档（Shift 作用于右侧）、D 判为误报，已失效记录上 C / A 不生效。设置页：分组、来源标签、恢复为配置文件值、推荐值与评估依据、范围校验、偏离推荐值的提示与「恢复推荐值」
+- 列表未用 TanStack Table：档案沿用登记簿的列表（每行 key 加两行摘要），没有可排序的表格列；#7 的「可排序、可过滤的表格」随后续票据再引入
+- shadcn/ui 组件按 DESIGN.md 重写样式（按钮四种变体、输入框、toast），shadcn 角色令牌映射到登记簿令牌
+- 构建：Dockerfile 增加 `node:24-slim` 阶段（corepack pnpm，`--frozen-lockfile`），产物复制进包内 `ui/`，运行镜像无 Node；`pyproject.toml` 以 hatch `artifacts` 打包被忽略的产物；`StaticFiles(check_dir=False)`，没有构建产物时服务照常启动、`/ui/` 返回 404
+- 测试：`tests/test_settings.py`（优先级、来源、恢复、非法值原因、保存后下一次 recall 生效、配置文件越界阻止启动）；`tests/test_migrations.py` 覆盖 0005 升降级；原有测试只把常量覆盖改为注册表覆盖，断言不变。`tests/test_governance.py` 的 UI 测试改用临时目录提供构建产物；「不含 `innerHTML`」由 ESLint 规则承担。前端 `web/src/pages/*.test.tsx`（Vitest + Testing Library + MSW）：登录、待审裁定与快捷键、档案分页 / 排序 / 过滤 / 检索 / 详情 / 改正 / 归档、设置校验 / 保存 / 恢复
+
 ### 2026-10-30 Web 治理台（#6）
 - 动机：维护检查产生的发现需要人来裁定，记忆写错时需要直接改正或归档；此前只能在 CLI 里逐条查
-- `/ui/` 静态页面（HTML + CSS + 原生 JS，无构建链），由 Starlette `StaticFiles` 从包内目录托管，非 editable 安装下同样可用。`AuthMiddleware` 只对 `/ui` 与 `/ui/` 前缀放行；页面不含数据，令牌存 `sessionStorage`，所有数据请求带 Bearer，无 cookie。记忆文本只经 `textContent` 渲染（令牌在页面里，HTML 注入会泄露它），`tests/test_governance.py` 断言 `app.js` 不含 `innerHTML`
+- `/ui/` 静态页面（HTML + CSS + 原生 JS，无构建链），由 Starlette `StaticFiles` 从包内目录托管，非 editable 安装下同样可用。`AuthMiddleware` 只对 `/ui` 与 `/ui/` 前缀放行；页面不含数据，令牌存 `sessionStorage`，所有数据请求带 Bearer，无 cookie。记忆文本只经 `textContent` 渲染（令牌在页面里，HTML 注入会泄露它），当时由 `tests/test_governance.py` 断言 `app.js` 不含 `innerHTML`（2026-10-31 面板迁到 React 后改由 ESLint 规则承担）
 - 功能：待审发现队列（并排展示两条记忆、改正 / 归档任一条、判为误报）；档案列表（翻页、按类型过滤、按 `valid_from` 升序找久未更新的记忆、检索）；记忆详情与版本历史（改动类型、时间、冲突合并标记、归档原因）。列表为 listbox，支持方向键与 Enter / Space；每次列表与详情加载带序号，过期响应直接丢弃
 - REST 新增：`GET /api/v1/memories/{memory_id}`（含全部版本，新在前）；`POST /api/v1/memories/{memory_id}/correct`（`{content}`，人工内容原样替换，不经 LLM 合并，只重算 embedding，保留 title 与来源字段；内容未变不生成新版本；非 current 返回 409）；`POST /api/v1/memories/{memory_id}/archive`（`{reason}` 必填，经 `forget_tool`；不存在 404、非 current 409）；`POST /api/v1/findings/{id}/dismiss`（一条带 `status = 'open'` 条件的 UPDATE，不覆盖并发自动关闭的结果；非 open 409）。`GET /api/v1/memories` 新增 `offset`、`order`（`created_at` / `valid_from`），返回项补 `memory_id` 与 `valid_from`，不带新参数时行为不变
 - 按 id 的路由与 `{entity_key:path}` 路由共存：前者的 `{memory_id}` 不匹配 `/`，且方法或后缀不同，测试覆盖了带 `/` 的 entity_key 仍能 trace / forget

@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-Static HTML, CSS and plain JavaScript, served by the service itself under `/ui/`. No Node build step and no frontend dependencies (decided in the web console issue). Files ship inside the Python package.
+React with TypeScript, Vite, TanStack Router, Query and Form, shadcn/ui on Tailwind and lucide icons (docs/adr/0003). Source in `web/`; the Dockerfile builds it in a Node stage into the Python package's `ui/` directory, served by the service under `/ui/`. Build output is not committed; the runtime image has no Node.
 
 ## Users
 
@@ -22,11 +22,11 @@ Keep long-term memories fresh and consistent. The console is where a person revi
 
 - Terms follow `GLOSSARY.md`: finding, check, internal contradiction, duplicate, multiple current, correction, archive.
 - Memories are mostly Chinese, often long (up to about 1500 characters), with dates, version strings and identifiers.
-- Access needs the service's existing Bearer token, entered once per browser session.
+- Access needs the service's existing Bearer token, entered once per browser session, until the admin password and console session land (docs/adr/0001).
 
 ## Capabilities and Constraints
 
-- Operations: browse and search current memories, view a memory's version history, correct, archive, review findings side by side, dismiss a finding.
+- Operations: browse and search current memories, view a memory's version history, correct, archive, review findings side by side, dismiss a finding, change behaviour and tuning settings with their source shown and revert them.
 - No creating memories, no bulk delete or merge, no hard delete, no graph or thread views.
 - Memory text is untrusted input: render as text only, never as HTML.
 - The repository is public: interface copy must not contain host names, personal names or forms of address.

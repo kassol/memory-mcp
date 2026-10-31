@@ -40,9 +40,7 @@ def test_settings_need_the_console_sign_in(client):
 def test_list_reports_value_source_and_metadata(client):
     fts = _item(client, "fts_weight")
     assert (fts["value"], fts["source"], fts["default"], fts["recommended"]) == (2.0, "default", 2.0, 2.0)
-    assert (fts["group"], fts["type"], fts["kind"], fts["editable"], fts["secret"]) == (
-        "advanced", "float", "runtime", True, False
-    )
+    assert (fts["group"], fts["type"]) == ("advanced", "float")
     assert fts["min"] < 2.0 < fts["max"] and fts["note"] and fts["label"]
     assert fts["file_value"] is None
 
@@ -155,3 +153,23 @@ def test_saved_tuning_value_changes_the_next_recall(client, monkeypatch):
     assert top() == "fact:vec"
     client.delete("/api/v1/settings/fts_weight", headers=AUTH)
     assert top() == "fact:literal"
+
+
+def test_out_of_range_file_value_stops_startup_with_the_reason(test_env, monkeypatch):
+    import importlib
+
+    import pytest
+
+    import memory_mcp.server as server
+    import memory_mcp.settings_registry as registry
+
+    importlib.reload(server)
+    monkeypatch.setattr(registry.settings, "rrf_k", 0)
+    monkeypatch.setattr(registry.settings, "fts_weight", 2.5)
+    with pytest.raises(ValueError, match="rrf_k must be between 1 and 1000"):
+        with TestClient(server.app):
+            pass
+
+    monkeypatch.setattr(registry.settings, "rrf_k", 30)
+    with TestClient(server.app) as c:
+        assert c.get("/health").status_code == 200

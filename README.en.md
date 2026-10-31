@@ -99,12 +99,24 @@ MIT License. See `LICENSE`.
 
 On the deploy host, run `ops/backup-db.sh` daily from cron. It keeps the newest 7 snapshots of SQLite and the vector store under `data/backups/`. To restore, stop the service, copy `memory.sqlite3` and `vectors/` from a backup directory over the same files in `data/`, then start it again.
 
+## Console
+
+The service serves a management console at `/ui/` (a React single-page app; source in `web/`): open findings, records with version history, and settings. Sign in with the access token (`MEMORY_MCP_AUTH_TOKEN`); it is kept in the current tab only.
+
+- The Dockerfile builds the console in a Node stage and copies the output into the Python package's `ui/` directory. The output is not committed, and the runtime image has no Node.
+- Local development: `cd web && pnpm install && pnpm dev` (the Vite dev server proxies `/api` to `127.0.0.1:8765`). `pnpm build` writes the output to `src/memory_mcp/ui/`.
+- Frontend checks: `pnpm typecheck`, `pnpm lint`, `pnpm test`.
+
+## Settings
+
+Behaviour settings (semantic merge threshold, maintenance LLM budget) and tuning parameters (hybrid recall and maintenance check values such as `fts_weight`, `rrf_k`, `cross_key_min_cosine`) can be changed on the console's settings page; a save applies on the next call. The effective value is the console value, else the configuration file or environment (`MEMORY_MCP_<KEY>`, for example `MEMORY_MCP_FTS_WEIGHT`), else the default. The console shows the source of each value and can revert to the file value. A configuration-file value outside its range stops the service at start with the reason. REST: `GET /api/v1/settings`, `PUT /api/v1/settings/{key}` (`{value}`), `DELETE /api/v1/settings/{key}` (revert).
+
 ## Maintenance
 
 Maintenance checks find memories that a person should review. The results are called findings (terms in `GLOSSARY.md`): cross-key duplicates, internal contradictions, and keys with more than one current version. Checks only create findings; they never archive or merge.
 
 - The service never starts maintenance by itself. On the deploy host, run `ops/run-maintenance.sh` daily from cron (after the backup). It calls `POST /api/v1/maintenance/run`, which runs one round in the background; it returns 409 while a round is in progress.
-- `MEMORY_MCP_MAINTENANCE_MAX_LLM_CALLS` limits LLM calls per round (default 100); work left over goes to the next round.
+- The setting `maintenance_max_llm_calls` limits LLM calls per round (default 100; console or `MEMORY_MCP_MAINTENANCE_MAX_LLM_CALLS`); work left over goes to the next round.
 - Read findings with `GET /api/v1/findings?status=open&kind=`. Per-round counts and errors are in the `jobs` table (`job_type = 'maintenance'`).
 
 Example cron (`/etc/cron.d/memory-mcp-maintenance`, 20:17 UTC):

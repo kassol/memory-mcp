@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { api, enc, failed } from "@/lib/api";
 import { keys, useFindings, useMemory } from "@/lib/queries";
 import { caseNo, KIND } from "@/lib/terms";
-import type { Finding, MemoryView } from "@/lib/types";
+import type { Finding, MemoryRecord, MemoryView } from "@/lib/types";
 import { useWide } from "@/lib/use-media";
 
 type Slot = 0 | 1;
@@ -83,8 +83,11 @@ function Case({ finding, index, onDismissed, onBack, onMove }: {
       if (key === "j") onMove(1);
       else if (key === "k") onMove(-1);
       else if (key === "d") void dismiss();
-      else if (key === "c" || key === "a") setEditing({ slot, mode: key === "c" ? "correct" : "archive" });
-      else return;
+      else if (key === "c" || key === "a") {
+        // Only a current record has editors; an archived one ignores C and A.
+        const shown = queryClient.getQueryData<MemoryRecord>(keys.memory(ids[slot]));
+        if (shown?.is_current) setEditing({ slot, mode: key === "c" ? "correct" : "archive" });
+      } else return;
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);

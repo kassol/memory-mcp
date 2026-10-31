@@ -55,7 +55,7 @@
   - `MEMORY_MCP_EMBEDDING_DIM`：默认 `1536`
 - **冲突判定（可选）**
   - `MEMORY_MCP_LLM_MODEL`：默认 `anthropic/claude-3-haiku`
-  - `MEMORY_MCP_SIMILARITY_THRESHOLD`：默认 `0.85`
+  - `MEMORY_MCP_SIMILARITY_THRESHOLD`：默认 `0.85`（运行时设置，见下文「设置」）
 - **向量后端（可选）**
   - `MEMORY_MCP_VECTOR_BACKEND`：`lancedb`（默认）/ `memory` / `auto`
   - 说明：生产建议使用 `lancedb`；LanceDB 启动失败会中止服务，避免旧记忆被静默隐藏
@@ -119,12 +119,24 @@ data/
 
 部署主机上用 cron 每日执行 `ops/backup-db.sh`，在 `data/backups/` 下保留最近 7 份 SQLite 与向量库快照。恢复时停服务，用某个备份目录里的 `memory.sqlite3` 和 `vectors/` 覆盖 `data/` 下的同名文件，再启动。
 
+## 管理面板
+
+服务在 `/ui/` 提供管理面板（React 单页应用，源码在 `web/`）：待审的发现、档案与版本历史、设置。登录时输入访问令牌（与 `MEMORY_MCP_AUTH_TOKEN` 相同），令牌只保存在本标签页。
+
+- 镜像构建时由 Dockerfile 的 Node 阶段编译面板，产物放进 Python 包的 `ui/` 目录；产物不入库，运行镜像里没有 Node
+- 本地开发：`cd web && pnpm install && pnpm dev`（Vite 开发服务把 `/api` 代理到 `127.0.0.1:8765`）；`pnpm build` 把产物写进 `src/memory_mcp/ui/`
+- 前端检查：`pnpm typecheck`、`pnpm lint`、`pnpm test`
+
+## 设置
+
+行为参数（语义合并门槛、维护单轮模型调用上限）和高级参数（混合检索与维护检查的数值，如 `fts_weight`、`rrf_k`、`cross_key_min_cosine`）可在面板「设置」页修改，保存后下一次调用即生效。生效值的优先级为：面板值 > 配置文件或环境变量（`MEMORY_MCP_<KEY>`，如 `MEMORY_MCP_FTS_WEIGHT`）> 默认值；面板显示每项的来源，可一键恢复为配置文件值。配置文件里超出范围的值会让服务启动失败并给出原因。REST：`GET /api/v1/settings`、`PUT /api/v1/settings/{key}`（`{value}`）、`DELETE /api/v1/settings/{key}`（恢复）。
+
 ## 后台维护
 
 维护检查找出需要人处理的记忆，结果称为「发现」（术语见 `GLOSSARY.md`）：跨 key 重复、内部矛盾、同 key 多条当前版本。检查只产生发现，不自动归档或合并。
 
 - 服务不会自己启动维护。部署主机上用 cron 每日执行 `ops/run-maintenance.sh`（建议排在备份之后），它调用 `POST /api/v1/maintenance/run` 在后台跑一轮；已有一轮在跑时返回 409
-- 每轮 LLM 调用数上限由 `MEMORY_MCP_MAINTENANCE_MAX_LLM_CALLS` 控制（默认 100），没判完的留到下一轮
+- 每轮 LLM 调用数上限由设置 `maintenance_max_llm_calls` 控制（默认 100，面板或 `MEMORY_MCP_MAINTENANCE_MAX_LLM_CALLS`），没判完的留到下一轮
 - 查看发现：`GET /api/v1/findings?status=open&kind=`；每轮的统计与错误记在 `jobs` 表（`job_type = 'maintenance'`）
 
 示例 cron（`/etc/cron.d/memory-mcp-maintenance`，北京时间 04:17）：

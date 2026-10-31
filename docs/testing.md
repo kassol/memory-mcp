@@ -11,6 +11,8 @@
 3. Fill required settings (auth token, OpenRouter key)
 4. Run tests: `pytest`
 
+Console (`web/`): `pnpm install`, then `pnpm typecheck`, `pnpm lint`, `pnpm test` (Vitest, Testing Library, MSW page tests).
+
 Note: LanceDB may require a working pandas install in the runtime environment.
 If you want to run without LanceDB, set `MEMORY_MCP_VECTOR_BACKEND=memory`.
 

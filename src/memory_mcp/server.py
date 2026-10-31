@@ -21,6 +21,7 @@ from starlette.responses import JSONResponse
 from starlette.requests import Request
 from starlette.middleware import Middleware
 
+from . import settings_registry
 from .api.routes import routes as api_routes
 from .config import settings
 from .storage.migrate import current as alembic_current, run_migrations
@@ -168,6 +169,7 @@ async def health(request: Request) -> JSONResponse:
 
 @asynccontextmanager
 async def lifespan(starlette_app):
+    settings_registry.check_file_values()
     if settings.auto_migrate:
         run_migrations()
     async with streamable_http_app.lifespan(starlette_app):

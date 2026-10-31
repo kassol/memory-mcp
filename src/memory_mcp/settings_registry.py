@@ -29,7 +29,6 @@ class Setting:
     # Tuning parameters only: the value the evaluation chose, and what the evaluation found.
     recommended: Optional[Number] = None
     note: Optional[str] = None
-    kind: str = "runtime"
 
 
 _SETTINGS = (
@@ -137,9 +136,6 @@ def _describe(setting: Setting, console: dict[str, Number]) -> dict:
         "label": setting.label,
         "group": setting.group,
         "type": setting.type,
-        "kind": setting.kind,
-        "editable": True,
-        "secret": False,
         "description": setting.description,
         "default": setting.default,
         "min": setting.min,
@@ -155,6 +151,25 @@ def _describe(setting: Setting, console: dict[str, Number]) -> dict:
 async def describe_all() -> list[dict]:
     console = await _console_values()
     return [_describe(s, console) for s in _SETTINGS]
+
+
+def check_file_values() -> None:
+    """Raise ValueError naming every configuration-file value outside its setting's range.
+
+    Called at service start, so a bad file value stops the service with the reason instead of
+    silently degrading recall or maintenance.
+    """
+    problems = []
+    for setting in _SETTINGS:
+        value = _file_value(setting.key)
+        if value is None:
+            continue
+        try:
+            validate(setting, value)
+        except ValueError as exc:
+            problems.append(f"configuration file: {exc}")
+    if problems:
+        raise ValueError("; ".join(problems))
 
 
 def validate(setting: Setting, value: object) -> Number:

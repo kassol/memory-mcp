@@ -99,6 +99,21 @@ test("keyboard shortcuts move between cases and rule on them", async () => {
   expect(db.calls.some((c) => c.path === "/api/v1/findings/f1/dismiss")).toBe(true);
 });
 
+test("C and A do nothing on an archived record, and the other shortcuts keep working", async () => {
+  seedDuplicate();
+  const { user } = await renderAt("/docket");
+  const left = await screen.findByRole("region", { name: "左侧记录" });
+  await user.click(within(left).getByRole("button", { name: "归档" }));
+  await user.type(within(left).getByRole("textbox", { name: "归档原因" }), "dup");
+  await user.click(within(left).getByRole("button", { name: "确认归档" }));
+  await waitFor(() => expect(within(screen.getByRole("region", { name: "左侧记录" })).getByText("已失效")).toBeInTheDocument());
+
+  await user.keyboard("a");
+  expect(screen.queryByRole("textbox", { name: "归档原因" })).not.toBeInTheDocument();
+  await user.keyboard("j");
+  expect(await screen.findByRole("heading", { name: "卷宗 02" })).toBeInTheDocument();
+});
+
 test("an empty docket says so", async () => {
   await renderAt("/docket");
   expect(await screen.findByText("没有待审的发现")).toBeInTheDocument();
