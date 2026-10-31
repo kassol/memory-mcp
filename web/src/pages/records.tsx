@@ -49,7 +49,12 @@ const columns: ColumnDef<MemoryItem>[] = [
   {
     accessorKey: "entity_key",
     header: "Key",
-    cell: ({ row }) => <span className="font-mono text-xs">{row.original.entity_key}</span>,
+    // Keys run long (60+ characters); cap the column so content and times stay on screen.
+    cell: ({ row }) => (
+      <span className="block max-w-40 truncate font-mono text-xs md:max-w-64" title={row.original.entity_key}>
+        {row.original.entity_key}
+      </span>
+    ),
   },
   {
     accessorKey: "entity_type",
@@ -60,7 +65,7 @@ const columns: ColumnDef<MemoryItem>[] = [
     accessorKey: "content",
     header: "内容",
     enableSorting: false,
-    cell: ({ row }) => <span className="line-clamp-2 min-w-48 max-w-xl text-sm whitespace-normal">{row.original.content}</span>,
+    cell: ({ row }) => <span className="line-clamp-2 min-w-48 text-sm whitespace-normal">{row.original.content}</span>,
   },
   {
     accessorKey: "created_at",
