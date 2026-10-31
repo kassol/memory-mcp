@@ -1,0 +1,3 @@
+# Console frontend: React SPA built in a separate Docker stage
+
+The console moves from static HTML and plain JavaScript to React with TypeScript, Vite, TanStack Router, Query, Table and Form, shadcn/ui on Tailwind, lucide icons and shadcn charts. Source lives in `web/` with a committed pnpm lock file; a Node stage in the Dockerfile builds it and copies the output into the Python package's `ui/` directory, so the runtime image has no Node and build output is not committed. The scope grew from one review page to an overview, docket, records, maintenance and a settings area full of forms; hand-written DOM code would not scale to that. TanStack Start was not chosen because it needs a Node server and the backend is Python.
