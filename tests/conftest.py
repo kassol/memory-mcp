@@ -39,6 +39,8 @@ def test_env(tmp_path, monkeypatch):
 
     import memory_mcp.settings_registry as settings_registry
     importlib.reload(settings_registry)
+    import memory_mcp.console_auth as console_auth
+    importlib.reload(console_auth)
 
     import memory_mcp.storage.vector as vector
     importlib.reload(vector)

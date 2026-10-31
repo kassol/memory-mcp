@@ -5,16 +5,20 @@ import { setupServer } from "msw/node";
 import type { Finding, MemoryItem, MemoryView, Setting } from "@/lib/types";
 
 export const TOKEN = "good-token";
+export const PASSWORD = "admin-password";
 const BASE = "http://localhost:3000/api/v1";
 
 interface Db {
+  /** Console state: the admin password (null until set) and the current browser's session. */
+  password: string | null;
+  session: "none" | "bootstrap" | "full";
   memories: MemoryView[];
   findings: Finding[];
   settings: Setting[];
   calls: { method: string; path: string; body: unknown }[];
 }
 
-export const db: Db = { memories: [], findings: [], settings: [], calls: [] };
+export const db: Db = { password: PASSWORD, session: "full", memories: [], findings: [], settings: [], calls: [] };
 
 let seq = 0;
 export function memory(over: Partial<MemoryView> & { entity_key: string; content: string }): MemoryView {
@@ -52,6 +56,8 @@ export function setting(over: Partial<Setting> & { key: string }): Setting {
 
 export function reset() {
   seq = 0;
+  db.password = PASSWORD;
+  db.session = "full";
   db.memories = [];
   db.findings = [];
   db.settings = [];
@@ -61,9 +67,6 @@ export function reset() {
 const ok = (data: unknown) => HttpResponse.json({ ok: true, data });
 const fail = (error: string, status: number) => HttpResponse.json({ ok: false, error }, { status });
 
-function authorized(request: Request) {
-  return request.headers.get("Authorization") === `Bearer ${TOKEN}`;
-}
 
 const record = (m: MemoryView) => ({
   ...m,
@@ -89,13 +92,47 @@ type Params = Record<string, string>;
 const guard =
   (fn: (args: { request: Request; params: Params }) => Response | Promise<Response>) =>
   async ({ request, params }: { request: Request; params: Record<string, string | readonly string[] | undefined> }) => {
-    if (!request.headers.get("Authorization")) return fail("Unauthorized", 401);
-    if (!authorized(request)) return fail("Forbidden", 403);
+    // The cookie is HttpOnly and invisible here; the mock keeps one browser's session in db.session.
+    if (db.session === "none") return fail("Unauthorized", 401);
+    if (db.session === "bootstrap") return fail("Set the admin password first", 403);
     await log(request, new URL(request.url).pathname + new URL(request.url).search);
     return fn({ request, params: params as Params });
   };
 
 export const handlers = [
+  http.get(`${BASE}/console/session`, () =>
+    ok({ signed_in: db.session !== "none", password_set: db.password !== null, bootstrap: db.session === "bootstrap" })),
+  http.post(`${BASE}/console/login`, async ({ request }) => {
+    const body = (await request.json()) as { password?: string; token?: string };
+    db.calls.push({ method: "POST", path: "/api/v1/console/login", body });
+    if (db.password === null) {
+      if (body.token !== TOKEN) return fail("令牌无效", 401);
+      db.session = "bootstrap";
+    } else {
+      if (body.password !== db.password) return fail("口令错误", 401);
+      db.session = "full";
+    }
+    return ok({ signed_in: true });
+  }),
+  http.post(`${BASE}/console/logout`, () => {
+    db.session = "none";
+    return ok({ signed_in: false });
+  }),
+  http.put(`${BASE}/console/password`, async ({ request }) => {
+    const body = (await request.json()) as { current_password?: string; new_password: string };
+    db.calls.push({ method: "PUT", path: "/api/v1/console/password", body });
+    if (db.session === "none") return fail("Unauthorized", 401);
+    if (!body.new_password) return fail("新口令不能为空", 400);
+    if (db.password !== null && body.current_password !== db.password) return fail("当前口令错误", 400);
+    db.password = body.new_password;
+    db.session = "full";
+    return ok({ password_set: true });
+  }),
+  http.delete(`${BASE}/console/sessions`, () => {
+    db.calls.push({ method: "DELETE", path: "/api/v1/console/sessions", body: undefined });
+    db.session = "none";
+    return ok({ signed_out: 2 });
+  }),
   http.get(`${BASE}/findings`, guard(() => {
     const items = db.findings.filter((f) => f.status === "open");
     return ok({ items, total: items.length });

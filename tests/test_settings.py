@@ -6,7 +6,10 @@ import anyio
 import pytest
 from starlette.testclient import TestClient
 
-AUTH = {"Authorization": "Bearer test-token"}
+# Settings accept only a console session (docs/adr/0001); the client signs in once and sends the
+# matching Origin on every request, as the console page does.
+ORIGIN = "https://testserver"
+AUTH = {"Origin": ORIGIN}
 
 
 @pytest.fixture()
@@ -16,14 +19,18 @@ def client(test_env):
     from starlette.applications import Starlette
     from starlette.middleware import Middleware
 
+    import memory_mcp.api.console as console_mod
     import memory_mcp.api.routes as routes_mod
     import memory_mcp.tools.recall as recall_mod
     import memory_mcp.transport.auth as auth_mod
 
-    for mod in (recall_mod, routes_mod, auth_mod):
+    for mod in (recall_mod, routes_mod, console_mod, auth_mod):
         importlib.reload(mod)
-    app = Starlette(routes=routes_mod.routes, middleware=[Middleware(auth_mod.AuthMiddleware)])
-    return TestClient(app)
+    app = Starlette(routes=[*console_mod.routes, *routes_mod.routes], middleware=[Middleware(auth_mod.AuthMiddleware)])
+    c = TestClient(app, base_url=ORIGIN)
+    assert c.post("/api/v1/console/login", json={"token": "test-token"}, headers=AUTH).status_code == 200
+    assert c.put("/api/v1/console/password", json={"new_password": "pw"}, headers=AUTH).status_code == 200
+    return c
 
 
 def _item(client, key: str) -> dict:
@@ -33,8 +40,9 @@ def _item(client, key: str) -> dict:
 
 
 def test_settings_need_the_console_sign_in(client):
+    client.cookies.clear()
     assert client.get("/api/v1/settings").status_code == 401
-    assert client.put("/api/v1/settings/fts_weight", json={"value": 1}).status_code == 401
+    assert client.put("/api/v1/settings/fts_weight", json={"value": 1}, headers=AUTH).status_code == 401
 
 
 def test_list_reports_value_source_and_metadata(client):

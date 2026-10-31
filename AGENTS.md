@@ -56,6 +56,16 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-10-31 管理口令与面板会话（#10）
+- 面板改用管理口令登录（docs/adr/0001）。新增 `console_auth.py` 与 migration `0006_console_auth`（`console_admin` 存 scrypt 口令哈希；`console_sessions` 只存会话令牌的 SHA-256、7 天滑动过期、bootstrap 标记）
+- 首次部署：没有口令时，配置文件里的访问令牌可开一个 bootstrap 会话，只能设置口令；设置后该令牌不能再登录面板。不做登录限流与锁定（ADR 0001）
+- Cookie `mm_session`：HttpOnly、Secure、SameSite=Strict、Path=/、Max-Age 7 天。以 cookie 认证的写请求必须带与服务同源的 Origin（反代后按 `X-Forwarded-Proto` 与 Host 比对）
+- 鉴权分层（`transport/auth.py`）：MCP 只接受访问令牌；设置类接口（`/api/v1/settings`，后续 Provider、令牌、重启同列）只接受完整面板会话，访问令牌 403；记忆与发现接口两者都接受；bootstrap 会话只能调用 `/api/v1/console/*`。#9 留下的「任一访问令牌可改设置」至此关闭
+- REST：`GET /api/v1/console/session`、`POST /api/v1/console/login`（`{password}`，或无口令时 `{token}`）、`POST /api/v1/console/logout`、`PUT /api/v1/console/password`（`{current_password?, new_password}`）、`DELETE /api/v1/console/sessions`（退出所有设备）
+- 重置命令：`python -m memory_mcp.reset_password`，删除口令与全部会话，不打印任何秘密
+- 面板：登录 / 首次登录 / 设置口令三个视图；「设置 → 安全」改口令、退出所有设备；页面不再接触访问令牌
+- 测试：`tests/test_console_auth.py`（bootstrap 限制、口令存在后令牌被拒、cookie 属性与只存哈希、缺失或不符 Origin 被拒、反代后的 Origin、设置接口拒绝 Bearer、数据接口两者皆可、MCP 拒绝 cookie、改口令、退出与退出所有设备、7 天滑动过期、重置命令）；`tests/test_settings.py` 改为面板会话；前端 `sign-in.test.tsx`
+
 ### 2026-10-31 面板改用 shadcn/ui 默认外观与 TanStack Table（#8 补齐）
 - 动机：首版把 shadcn 组件改成自定义「登记簿」样式，且档案没有用 TanStack Table，不符合 #8 与 #7 的要求；改为采用 shadcn 原生外观，登记簿视觉作废
 - `shadcn init`（radix-nova、neutral、Geist）后组件按生成原样使用：Sidebar（可折叠为图标，手机为抽屉）、Card、Badge、Table、Select、Sheet、Field、Alert、Empty、Kbd、Command、sonner；`next-themes` 管深浅色（默认跟随系统，侧栏底部可切换）。DESIGN.md 重写
@@ -69,7 +79,7 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 - 设置注册表 `settings_registry.py`：每项声明 key、中文名、分组（行为 / 高级）、类型、默认值、范围；高级参数另有推荐值与评估依据。生效值 = 面板值（SQLite `console_settings`，migration `0005_console_settings`）> 配置文件或环境变量（`Settings` 同名字段，`None` 表示未设置）> 默认值，并报告来源。面板值在进程内缓存，本进程是唯一写入方
 - 注册项：行为参数 `similarity_threshold`、`maintenance_max_llm_calls`；高级参数 `fts_weight`、`rrf_k`、`candidates_per_source`、`graph_seeds`、`decay_lambda`、`cross_key_min_cosine`、`cross_key_neighbours`。原 `hybrid_search` 与 `maintenance` 的模块常量删除，默认值与评估说明迁入注册表；混合检索每次 search 读取，维护每轮开始时读取一次
 - 配置文件里超出范围的值在服务启动时报错并列出原因（`check_file_values`），不再静默生效
-- REST：`GET /api/v1/settings`（值、来源、元数据）；`PUT /api/v1/settings/{key}`（`{value}`，类型或范围不符 400 并给原因，未知 key 404）；`DELETE /api/v1/settings/{key}`（删掉面板值，恢复为配置文件值或默认值）。在 #10 之前沿用访问令牌鉴权，属已知过渡：任一访问令牌都能改设置（ADR 0001 要求只接受面板会话，由 #10 收口）
+- REST：`GET /api/v1/settings`（值、来源、元数据）；`PUT /api/v1/settings/{key}`（`{value}`，类型或范围不符 400 并给原因，未知 key 404）；`DELETE /api/v1/settings/{key}`（删掉面板值，恢复为配置文件值或默认值）。在 #10 之前沿用访问令牌鉴权（#10 已改为只接受面板会话）
 - 面板迁到 `web/`：侧栏导航（概览、待审、档案、维护、设置；概览与维护在 #16 之前显示简短空状态），命令面板（⌘K，跳页面或检索记忆并打开），hash 路由（`#/records?memory=<id>` 可直达），随系统深浅色，手机为顶栏加抽屉。待审、档案、详情与版本历史与旧版一一对应（登录、改正、归档需原因、判为误报、分页、类型过滤、最久未更新排序、检索）；待审新增快捷键 J / K 切换、C / A 改正或归档（Shift 作用于右侧）、D 判为误报，已失效记录上 C / A 不生效。设置页：分组、来源标签、恢复为配置文件值、推荐值与评估依据、范围校验、偏离推荐值的提示与「恢复推荐值」
 - （当日由上方「面板改用 shadcn/ui 默认外观」一条取代：档案改为 TanStack Table，组件改为 shadcn 默认外观）
 - 构建：Dockerfile 增加 `node:24-slim` 阶段（corepack pnpm，`--frozen-lockfile`），产物复制进包内 `ui/`，运行镜像无 Node；`pyproject.toml` 以 hatch `artifacts` 打包被忽略的产物；`StaticFiles(check_dir=False)`，没有构建产物时服务照常启动、`/ui/` 返回 404

@@ -29,6 +29,5 @@ beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => {
   cleanup();
   server.resetHandlers();
-  sessionStorage.clear();
 });
 afterAll(() => server.close());

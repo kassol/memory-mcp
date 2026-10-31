@@ -121,7 +121,12 @@ data/
 
 ## 管理面板
 
-服务在 `/ui/` 提供管理面板（React 单页应用，源码在 `web/`）：待审的发现、档案与版本历史、设置。登录时输入访问令牌（与 `MEMORY_MCP_AUTH_TOKEN` 相同），令牌只保存在本标签页。
+服务在 `/ui/` 提供管理面板（React 单页应用，源码在 `web/`）：待审的发现、档案与版本历史、设置。
+
+- 面板用管理口令登录，与 agent 使用的访问令牌分开。首次部署时还没有口令：用配置文件里的访问令牌（`MEMORY_MCP_AUTH_TOKEN`）登录一次，随即设置管理口令；设置后访问令牌不能再登录面板
+- 登录状态保存在 HttpOnly、Secure、SameSite=Strict 的 cookie 里，7 天有效，使用时自动延长；「设置 → 安全」可以修改口令、退出所有设备。面板必须经 HTTPS 访问（Secure cookie）
+- 设置类接口只接受面板会话；记忆与发现接口同时接受访问令牌和面板会话；MCP 只接受访问令牌
+- 忘记口令：在部署主机的 compose 目录执行 `docker compose exec memory-mcp python -m memory_mcp.reset_password`，删除口令并退出所有面板会话，然后用访问令牌重新走首次登录
 
 - 镜像构建时由 Dockerfile 的 Node 阶段编译面板，产物放进 Python 包的 `ui/` 目录；产物不入库，运行镜像里没有 Node
 - 档案页可按 key、类型、写入时间、生效时间排序，按 key 与类型过滤；对应 `GET /api/v1/memories?sort=&direction=&key=&entity_type=`（返回 `matched` 为过滤后总数）与 `GET /api/v1/memories/types`
@@ -130,7 +135,7 @@ data/
 
 ## 设置
 
-行为参数（语义合并门槛、维护单轮模型调用上限）和高级参数（混合检索与维护检查的数值，如 `fts_weight`、`rrf_k`、`cross_key_min_cosine`）可在面板「设置」页修改，保存后下一次调用即生效。生效值的优先级为：面板值 > 配置文件或环境变量（`MEMORY_MCP_<KEY>`，如 `MEMORY_MCP_FTS_WEIGHT`）> 默认值；面板显示每项的来源，可一键恢复为配置文件值。配置文件里超出范围的值会让服务启动失败并给出原因。REST：`GET /api/v1/settings`、`PUT /api/v1/settings/{key}`（`{value}`）、`DELETE /api/v1/settings/{key}`（恢复）。
+行为参数（语义合并门槛、维护单轮模型调用上限）和高级参数（混合检索与维护检查的数值，如 `fts_weight`、`rrf_k`、`cross_key_min_cosine`）可在面板「设置」页修改，保存后下一次调用即生效。生效值的优先级为：面板值 > 配置文件或环境变量（`MEMORY_MCP_<KEY>`，如 `MEMORY_MCP_FTS_WEIGHT`）> 默认值；面板显示每项的来源，可一键恢复为配置文件值。配置文件里超出范围的值会让服务启动失败并给出原因。REST（只接受面板会话）：`GET /api/v1/settings`、`PUT /api/v1/settings/{key}`（`{value}`）、`DELETE /api/v1/settings/{key}`（恢复）。
 
 ## 后台维护
 

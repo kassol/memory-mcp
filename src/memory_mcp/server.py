@@ -22,6 +22,7 @@ from starlette.requests import Request
 from starlette.middleware import Middleware
 
 from . import settings_registry
+from .api.console import routes as console_routes
 from .api.routes import routes as api_routes
 from .config import settings
 from .storage.migrate import current as alembic_current, run_migrations
@@ -188,6 +189,7 @@ app = Starlette(
     routes=[
         Route("/mcp", endpoint=streamable_http_app, methods=["GET", "POST", "DELETE"]),
         Route("/health", endpoint=health, methods=["GET"]),
+        *console_routes,
         *api_routes,
         Mount("/ui", app=ui_app, name="ui"),
     ],

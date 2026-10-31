@@ -14,6 +14,8 @@ REQUIRED_TABLES = {
     "memory_findings",
     "memory_checks",
     "console_settings",
+    "console_admin",
+    "console_sessions",
     "alembic_version",
 }
 
@@ -147,7 +149,7 @@ def test_head_drops_working_memory_cache_and_downgrade_restores_it(test_env):
             return _names(rows)
 
         migrate_mod.run_migrations()
-        assert migrate_mod.current() == "0005_console_settings"
+        assert migrate_mod.current() == "0006_console_auth"
         assert "working_memory_cache" not in await tables()
 
         migrate_mod.downgrade("0001_initial_v2")
@@ -225,7 +227,8 @@ def test_0003_drops_threads_and_keeps_memories_intact(test_env):
             assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
             assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
             names, columns = _schema(conn)
-            maintenance = {"memory_findings", "memory_checks", "idx_memory_findings_status", "console_settings"}
+            maintenance = {"memory_findings", "memory_checks", "idx_memory_findings_status", "console_settings",
+                           "console_admin", "console_sessions"}
             assert REQUIRED_TABLES - maintenance <= names and REQUIRED_TRIGGERS <= names
             assert REQUIRED_INDEXES - maintenance <= names
             assert THREAD_OBJECTS <= names if expect_threads else not (THREAD_OBJECTS & names)
@@ -333,7 +336,7 @@ def test_0005_adds_console_settings_and_downgrade_keeps_earlier_tables(test_env)
         finally:
             conn.close()
 
-    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "0005_console_settings")  # test_env already migrated to head
     assert migrate_mod.current() == "0005_console_settings"
     conn = sqlite3.connect(db_path)
     try:
@@ -351,3 +354,37 @@ def test_0005_adds_console_settings_and_downgrade_keeps_earlier_tables(test_env)
     assert "console_settings" not in names() and {"memory_findings", "memory_checks"} <= names()
     command.upgrade(cfg, "head")
     assert "console_settings" in names()
+
+
+def test_0006_adds_console_auth_tables_and_downgrade_removes_them(test_env):
+    from alembic import command
+
+    import memory_mcp.storage.migrate as migrate_mod
+    importlib.reload(migrate_mod)
+    cfg = migrate_mod._make_config()
+    db_path = migrate_mod.settings.sqlite_path
+    objects = {"console_admin", "console_sessions"}
+
+    def names() -> set[str]:
+        conn = sqlite3.connect(db_path)
+        try:
+            return {r[0] for r in conn.execute("SELECT name FROM sqlite_master")}
+        finally:
+            conn.close()
+
+    assert migrate_mod.current() == "0006_console_auth" and objects <= names()
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("INSERT INTO console_admin VALUES (1, 'h', '2026-10-31')")
+        try:
+            conn.execute("INSERT INTO console_admin VALUES (2, 'h', '2026-10-31')")
+            raise AssertionError("one admin password only")
+        except sqlite3.IntegrityError:
+            pass
+        conn.commit()
+    finally:
+        conn.close()
+    command.downgrade(cfg, "0005_console_settings")
+    assert not (objects & names()) and "console_settings" in names()
+    command.upgrade(cfg, "head")
+    assert objects <= names()

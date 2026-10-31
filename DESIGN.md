@@ -24,7 +24,8 @@ Source of truth: `web/components.json`, `web/src/index.css` (theme variables for
 - Docket: a list of cases (bordered buttons with the case number, a kind badge and a two-line detail) in a 20rem column, and the case on the right: heading with kind badge, the check's opinion, the record cards (two columns from `xl` for a pair), a `Separator`, the ruling row with "判为误报", and `Kbd` shortcut hints. On phones the list and the case are separate views with "返回列表".
 - Records: search input with an icon, key filter, type `Select` (with counts), then a bordered `Table` (TanStack Table, server-side sorting and paging; sortable headers are ghost buttons with an arrow icon), then "第 n / m 页" with 上一页 / 下一页. Phones hide the two time columns. A row opens a right `Sheet` with the record card and its version history.
 - Settings: a short intro, then one `Card` per group (行为参数, 高级参数). Each setting is a row: label, key, source badge, description, recommended value and evaluation note on the left; input with 保存, range or `FieldError`, an `Alert` when a tuning value differs from its recommendation, and outline restore buttons on the right.
-- Sign-in: centered `Card` on `bg-muted` with the product mark above it.
+- Sign-in: centered `Card` on `bg-muted` with the product mark above it; three views keyed separately: 登录 (admin password), 首次登录 (configuration-file access token, only while no password exists), 设置管理口令 (password twice).
+- Settings has two tabs: 参数 (the setting cards) and 安全 (change password; sign out every device, destructive).
 
 ## Components
 

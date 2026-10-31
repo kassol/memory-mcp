@@ -1,45 +1,60 @@
-// Sign-in state for the access token (until the admin password ticket replaces it).
-import { useQueryClient } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+// Console session state. The cookie itself is invisible to scripts; the page asks the service.
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
 
-import { api, clearToken, getToken, setToken, setUnauthorizedHandler } from "@/lib/api";
+import { consoleApi, setUnauthorizedHandler } from "@/lib/api";
+
+export interface SessionStatus {
+  signed_in: boolean;
+  password_set: boolean;
+  bootstrap: boolean;
+}
 
 interface Session {
-  signedIn: boolean;
-  message: string;
-  signIn: (token: string) => Promise<void>;
-  signOut: () => void;
+  status: SessionStatus | undefined;
+  /** Sign in with the admin password, or with the access token while no password exists. */
+  signIn: (credential: { password: string } | { token: string }) => Promise<void>;
+  setPassword: (newPassword: string, currentPassword?: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  signOutEverywhere: () => Promise<void>;
 }
 
 const SessionContext = createContext<Session | null>(null);
+const KEY = ["console-session"] as const;
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const [signedIn, setSignedIn] = useState(() => !!getToken());
-  const [message, setMessage] = useState("");
+  const status = useQuery({ queryKey: KEY, queryFn: () => consoleApi<SessionStatus>("/console/session"), staleTime: Infinity });
 
-  const signOut = useCallback(() => {
-    clearToken();
-    queryClient.clear();
-    setSignedIn(false);
+  // Data is dropped whenever the session changes, so nothing from one session shows in the next.
+  const refresh = useCallback(async () => {
+    const next = await consoleApi<SessionStatus>("/console/session");
+    queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== KEY[0] });
+    queryClient.setQueryData(KEY, next);
   }, [queryClient]);
 
-  useEffect(() => {
-    setUnauthorizedHandler(() => {
-      queryClient.clear();
-      setMessage("令牌无效，请重新输入。");
-      setSignedIn(false);
-    });
-  }, [queryClient]);
+  useEffect(() => setUnauthorizedHandler(() => void refresh()), [refresh]);
 
-  const signIn = useCallback(async (token: string) => {
-    setToken(token);
-    setMessage("");
-    await api("/findings?status=open");
-    setSignedIn(true);
-  }, []);
+  const value = useMemo<Session>(() => ({
+    status: status.data,
+    signIn: async (credential) => {
+      await consoleApi("/console/login", { method: "POST", body: credential });
+      await refresh();
+    },
+    setPassword: async (newPassword, currentPassword) => {
+      await consoleApi("/console/password", { method: "PUT", body: { new_password: newPassword, current_password: currentPassword } });
+      await refresh();
+    },
+    signOut: async () => {
+      await consoleApi("/console/logout", { method: "POST" });
+      await refresh();
+    },
+    signOutEverywhere: async () => {
+      await consoleApi("/console/sessions", { method: "DELETE" });
+      await refresh();
+    },
+  }), [status.data, refresh]);
 
-  const value = useMemo(() => ({ signedIn, message, signIn, signOut }), [signedIn, message, signIn, signOut]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

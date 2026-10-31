@@ -116,7 +116,7 @@ function AppSidebar({ onPalette }: { onPalette: () => void }) {
         <SidebarMenu>
           <ThemeItem />
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={signOut} tooltip="退出">
+            <SidebarMenuButton onClick={() => void signOut()} tooltip="退出">
               <LogOut />
               <span>退出</span>
             </SidebarMenuButton>
@@ -128,10 +128,11 @@ function AppSidebar({ onPalette }: { onPalette: () => void }) {
 }
 
 export function Shell() {
-  const { signedIn } = useSession();
+  const { status } = useSession();
   const [palette, setPalette] = useState(false);
 
-  if (!signedIn) return <SignInPage />;
+  if (!status) return null;
+  if (!status.signed_in || status.bootstrap) return <SignInPage />;
 
   return (
     <SidebarProvider className="h-full">

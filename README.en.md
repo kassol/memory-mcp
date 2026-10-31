@@ -101,7 +101,12 @@ On the deploy host, run `ops/backup-db.sh` daily from cron. It keeps the newest 
 
 ## Console
 
-The service serves a management console at `/ui/` (a React single-page app; source in `web/`): open findings, records with version history, and settings. Sign in with the access token (`MEMORY_MCP_AUTH_TOKEN`); it is kept in the current tab only.
+The service serves a management console at `/ui/` (a React single-page app; source in `web/`): open findings, records with version history, and settings. 
+
+- The console signs in with an admin password, separate from the access tokens agents use. A fresh deployment has no password yet: sign in once with the configuration-file access token (`MEMORY_MCP_AUTH_TOKEN`), then set the admin password. After that, the access token cannot open the console.
+- The session lives in an HttpOnly, Secure, SameSite=Strict cookie for 7 days and extends while used. Settings → Security changes the password and signs out every device. Serve the console over HTTPS (Secure cookie).
+- Settings endpoints accept only a console session; memory and finding endpoints accept an access token or a console session; MCP accepts only access tokens.
+- Forgotten password: on the deploy host, in the compose directory, run `docker compose exec memory-mcp python -m memory_mcp.reset_password`. It removes the password and signs out every console session; then sign in with the access token again.
 
 - The Dockerfile builds the console in a Node stage and copies the output into the Python package's `ui/` directory. The output is not committed, and the runtime image has no Node.
 - Records sort by key, type, written and valid-from time, and filter by key and type: `GET /api/v1/memories?sort=&direction=&key=&entity_type=` (`matched` is the filtered total) and `GET /api/v1/memories/types`.
@@ -110,7 +115,7 @@ The service serves a management console at `/ui/` (a React single-page app; sour
 
 ## Settings
 
-Behaviour settings (semantic merge threshold, maintenance LLM budget) and tuning parameters (hybrid recall and maintenance check values such as `fts_weight`, `rrf_k`, `cross_key_min_cosine`) can be changed on the console's settings page; a save applies on the next call. The effective value is the console value, else the configuration file or environment (`MEMORY_MCP_<KEY>`, for example `MEMORY_MCP_FTS_WEIGHT`), else the default. The console shows the source of each value and can revert to the file value. A configuration-file value outside its range stops the service at start with the reason. REST: `GET /api/v1/settings`, `PUT /api/v1/settings/{key}` (`{value}`), `DELETE /api/v1/settings/{key}` (revert).
+Behaviour settings (semantic merge threshold, maintenance LLM budget) and tuning parameters (hybrid recall and maintenance check values such as `fts_weight`, `rrf_k`, `cross_key_min_cosine`) can be changed on the console's settings page; a save applies on the next call. The effective value is the console value, else the configuration file or environment (`MEMORY_MCP_<KEY>`, for example `MEMORY_MCP_FTS_WEIGHT`), else the default. The console shows the source of each value and can revert to the file value. A configuration-file value outside its range stops the service at start with the reason. REST (console session only): `GET /api/v1/settings`, `PUT /api/v1/settings/{key}` (`{value}`), `DELETE /api/v1/settings/{key}` (revert).
 
 ## Maintenance
 

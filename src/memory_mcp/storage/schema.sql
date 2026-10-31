@@ -1,4 +1,4 @@
--- memory-mcp v2 schema reference at head 0005_console_settings (authoritative version: alembic versions/)
+-- memory-mcp v2 schema reference at head 0006_console_auth (authoritative version: alembic versions/)
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -155,4 +155,21 @@ CREATE TABLE console_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at TIMESTAMP NOT NULL
+);
+
+-- ---------------------------------------------------------------------------
+-- console sign-in (docs/adr/0001): admin password hash and session hashes
+-- ---------------------------------------------------------------------------
+CREATE TABLE console_admin (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  password_hash TEXT NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE console_sessions (
+  token_hash TEXT PRIMARY KEY,
+  bootstrap INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL,
+  last_used_at TIMESTAMP NOT NULL,
+  expires_at TIMESTAMP NOT NULL
 );

@@ -14,10 +14,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, enc, failed } from "@/lib/api";
 import { keys, useSettings } from "@/lib/queries";
 import { invalidReason } from "@/lib/settings";
 import { SOURCE } from "@/lib/terms";
+import { SecuritySection } from "@/pages/security";
 import type { Setting } from "@/lib/types";
 
 function SettingRow({ s }: { s: Setting }) {
@@ -147,23 +149,32 @@ export function SettingsPage() {
     <>
       <PageHeader title="设置" />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-6">
-          <p className="text-sm text-muted-foreground">
-            这里保存的值优先于配置文件，保存后下一次调用即生效，无需重启。恢复后改用配置文件里的值；配置文件没有设置时用默认值。
-          </p>
-          {settings.error && <ErrorState error={settings.error} onRetry={() => void settings.refetch()} />}
-          {settings.isPending && <Loading />}
-          {settings.data && (
-            <>
-              <Section title="行为参数" description="写入合并与后台维护的行为。" items={settings.data.filter((s) => s.group === "behaviour")} />
-              <Section
-                title="高级参数"
-                description="混合检索与维护检查里经线上评估定下的数值。偏离推荐值前先确认评估依据。"
-                items={settings.data.filter((s) => s.group === "advanced")}
-              />
-            </>
-          )}
-        </div>
+        <Tabs defaultValue="parameters" className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-6">
+          <TabsList>
+            <TabsTrigger value="parameters">参数</TabsTrigger>
+            <TabsTrigger value="security">安全</TabsTrigger>
+          </TabsList>
+          <TabsContent value="parameters" className="flex flex-col gap-6">
+            <p className="text-sm text-muted-foreground">
+              这里保存的值优先于配置文件，保存后下一次调用即生效，无需重启。恢复后改用配置文件里的值；配置文件没有设置时用默认值。
+            </p>
+            {settings.error && <ErrorState error={settings.error} onRetry={() => void settings.refetch()} />}
+            {settings.isPending && <Loading />}
+            {settings.data && (
+              <>
+                <Section title="行为参数" description="写入合并与后台维护的行为。" items={settings.data.filter((s) => s.group === "behaviour")} />
+                <Section
+                  title="高级参数"
+                  description="混合检索与维护检查里经线上评估定下的数值。偏离推荐值前先确认评估依据。"
+                  items={settings.data.filter((s) => s.group === "advanced")}
+                />
+              </>
+            )}
+          </TabsContent>
+          <TabsContent value="security" className="flex flex-col gap-6">
+            <SecuritySection />
+          </TabsContent>
+        </Tabs>
       </div>
     </>
   );
