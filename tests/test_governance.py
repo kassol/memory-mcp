@@ -122,7 +122,7 @@ def test_list_pages_and_orders_by_valid_from(client):
                             headers=AUTH).json()["data"]["memory_id"]
 
     default = client.get("/api/v1/memories", headers=AUTH).json()["data"]
-    assert set(default) == {"results", "total"}
+    assert set(default) == {"results", "total", "matched"}
     assert [m["entity_key"] for m in default["results"]] == ["fact:k0", "fact:k4", "fact:k3", "fact:k2", "fact:k1"]
     assert default["results"][0]["memory_id"] == corrected
 
@@ -299,3 +299,34 @@ def test_dismiss_only_changes_an_open_finding(client):
     assert client.post(f"/api/v1/findings/{fid}/dismiss", headers=AUTH).status_code == 409
     resolved = client.get("/api/v1/findings?status=resolved", headers=AUTH).json()["data"]["items"]
     assert [f["id"] for f in resolved] == [fid]
+
+
+def test_list_sorts_by_any_column_filters_by_key_and_counts_matches(client):
+    for key, content in [("fact:beta", "b"), ("tool:alpha", "a"), ("fact:gamma", "g")]:
+        _remember(client, key, content)
+
+    def keys(query: str) -> list[str]:
+        res = client.get(f"/api/v1/memories?{query}", headers=AUTH)
+        assert res.status_code == 200, res.text
+        return [m["entity_key"] for m in res.json()["data"]["results"]]
+
+    assert keys("sort=entity_key&direction=asc") == ["fact:beta", "fact:gamma", "tool:alpha"]
+    assert keys("sort=entity_key&direction=desc") == ["tool:alpha", "fact:gamma", "fact:beta"]
+    assert keys("sort=created_at&direction=asc") == ["fact:beta", "tool:alpha", "fact:gamma"]
+    assert keys("sort=entity_type&direction=desc&limit=1") == ["tool:alpha"]
+    assert keys("key=A&sort=entity_key&direction=asc") == ["fact:beta", "fact:gamma", "tool:alpha"]
+    assert keys("key=GAM") == ["fact:gamma"]  # case-insensitive substring of the key
+    assert keys("key=%25") == []  # LIKE wildcards in the filter are literal
+
+    data = client.get("/api/v1/memories?entity_type=fact&limit=1", headers=AUTH).json()["data"]
+    assert (data["total"], data["matched"]) == (1, 2)
+    assert client.get("/api/v1/memories?sort=content", headers=AUTH).status_code == 400
+    assert client.get("/api/v1/memories?sort=entity_key&direction=up", headers=AUTH).status_code == 400
+
+
+def test_entity_types_with_current_counts(client):
+    for key in ("fact:a", "fact:b", "tool:c"):
+        _remember(client, key, key)
+    res = client.get("/api/v1/memories/types", headers=AUTH)
+    assert res.status_code == 200
+    assert res.json()["data"]["items"] == [{"entity_type": "fact", "count": 2}, {"entity_type": "tool", "count": 1}]

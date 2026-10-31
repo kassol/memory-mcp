@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-React with TypeScript, Vite, TanStack Router, Query and Form, shadcn/ui on Tailwind and lucide icons (docs/adr/0003). Source in `web/`; the Dockerfile builds it in a Node stage into the Python package's `ui/` directory, served by the service under `/ui/`. Build output is not committed; the runtime image has no Node.
+React with TypeScript, Vite, TanStack Router, Query, Table and Form, shadcn/ui (default look) on Tailwind and lucide icons (docs/adr/0003). Source in `web/`; the Dockerfile builds it in a Node stage into the Python package's `ui/` directory, served by the service under `/ui/`. Build output is not committed; the runtime image has no Node.
 
 ## Users
 

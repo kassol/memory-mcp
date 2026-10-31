@@ -77,29 +77,64 @@ class MemoryRepository:
             rows = await db.fetchall(sql, (entity_key,))
         return [row_to_memory(r) for r in rows]
 
+    # Columns the records list can sort by; the value is the SQL expression.
+    SORTABLE = {"entity_key": "entity_key", "entity_type": "entity_type",
+                "created_at": "created_at", "valid_from": "valid_from"}
+
+    @staticmethod
+    def _current_where(entity_type: Optional[str], key: Optional[str]) -> tuple[str, list]:
+        clauses = ["is_current = 1"]
+        params: list = []
+        if entity_type:
+            clauses.append("entity_type = ?")
+            params.append(entity_type)
+        if key:
+            # Substring match on the key; LIKE wildcards in the filter are literal.
+            escaped = key.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            clauses.append("entity_key LIKE ? ESCAPE '\\'")
+            params.append(f"%{escaped}%")
+        return " AND ".join(clauses), params
+
     async def list_current(
         self,
         entity_type: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
         order: str = "created_at",
+        sort: Optional[str] = None,
+        direction: str = "desc",
+        key: Optional[str] = None,
     ) -> List[MemoryNode]:
-        """Current memories: newest created first, or oldest valid_from first (stale ones first)."""
-        order_by = {"created_at": "created_at DESC, id", "valid_from": "valid_from ASC, id"}[order]
-        clauses = ["is_current = 1"]
-        params: list = []
-        if entity_type:
-            clauses.append("entity_type = ?")
-            params.append(entity_type)
-        sql = (
-            f"SELECT {_COLUMNS} FROM memories "
-            f"WHERE {' AND '.join(clauses)} "
-            f"ORDER BY {order_by} LIMIT ? OFFSET ?"
-        )
+        """Current memories, one page.
+
+        Without `sort`, `order` keeps its meaning: newest created first, or oldest valid_from
+        first (stale ones first). With `sort`, any column in SORTABLE in either direction.
+        """
+        if sort:
+            order_by = f"{self.SORTABLE[sort]} {'ASC' if direction == 'asc' else 'DESC'}, id"
+        else:
+            order_by = {"created_at": "created_at DESC, id", "valid_from": "valid_from ASC, id"}[order]
+        where, params = self._current_where(entity_type, key)
+        sql = f"SELECT {_COLUMNS} FROM memories WHERE {where} ORDER BY {order_by} LIMIT ? OFFSET ?"
         params.extend([int(limit), int(offset)])
         async with self._store.get_db() as db:
             rows = await db.fetchall(sql, params)
         return [row_to_memory(r) for r in rows]
+
+    async def count_current(self, entity_type: Optional[str] = None, key: Optional[str] = None) -> int:
+        where, params = self._current_where(entity_type, key)
+        async with self._store.get_db() as db:
+            row = await db.fetchone(f"SELECT COUNT(*) AS n FROM memories WHERE {where}", params)
+        return row["n"]
+
+    async def current_types(self) -> list[dict]:
+        """Entity types of current memories with their counts, by type name."""
+        async with self._store.get_db() as db:
+            rows = await db.fetchall(
+                "SELECT entity_type, COUNT(*) AS count FROM memories WHERE is_current = 1 "
+                "GROUP BY entity_type ORDER BY entity_type"
+            )
+        return [dict(r) for r in rows]
 
     async def get_current_by_entity_keys(self, entity_keys: Iterable[str]) -> List[MemoryNode]:
         """Current memory of each key, in input key order; keys without one are skipped."""

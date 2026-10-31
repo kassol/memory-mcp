@@ -35,6 +35,8 @@ export interface MemoryItem {
   entity_type: string;
   content: string;
   created_at: string;
+  /** Present in the records list, absent in search results. */
+  valid_from?: string;
 }
 
 export type SettingSource = "console" | "file" | "default";

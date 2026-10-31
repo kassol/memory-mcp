@@ -104,6 +104,7 @@ On the deploy host, run `ops/backup-db.sh` daily from cron. It keeps the newest 
 The service serves a management console at `/ui/` (a React single-page app; source in `web/`): open findings, records with version history, and settings. Sign in with the access token (`MEMORY_MCP_AUTH_TOKEN`); it is kept in the current tab only.
 
 - The Dockerfile builds the console in a Node stage and copies the output into the Python package's `ui/` directory. The output is not committed, and the runtime image has no Node.
+- Records sort by key, type, written and valid-from time, and filter by key and type: `GET /api/v1/memories?sort=&direction=&key=&entity_type=` (`matched` is the filtered total) and `GET /api/v1/memories/types`.
 - Local development: `cd web && pnpm install && pnpm dev` (the Vite dev server proxies `/api` to `127.0.0.1:8765`). `pnpm build` writes the output to `src/memory_mcp/ui/`.
 - Frontend checks: `pnpm typecheck`, `pnpm lint`, `pnpm test`.
 

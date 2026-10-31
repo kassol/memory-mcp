@@ -1,17 +1,23 @@
-// Docket: open findings, one case file at a time, ruled by correct / archive / dismiss.
+// Docket: open findings, one case at a time, ruled by correct / archive / dismiss.
 import { useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Inbox } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { CaseFile, EmptyRow, Ledger, Row, Rows, SkeletonRows, Workspace } from "@/components/ledger";
+import { EmptyState, ErrorState, Loading, PageHeader } from "@/components/page";
 import { RecordCard, type EditMode } from "@/components/record-card";
-import { Empty, ErrorNote, Skeleton, Stamp } from "@/components/registry";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { api, enc, failed } from "@/lib/api";
 import { keys, useFindings, useMemory } from "@/lib/queries";
 import { caseNo, KIND } from "@/lib/terms";
 import type { Finding, MemoryRecord, MemoryView } from "@/lib/types";
-import { useWide } from "@/lib/use-media";
+import { cn } from "@/lib/utils";
 
 type Slot = 0 | 1;
 
@@ -20,7 +26,7 @@ function isTyping(target: EventTarget | null) {
   return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
 }
 
-function Slot({ id, mode, onMode, onChanged, label }: {
+function SlotCard({ id, mode, onMode, onChanged, label }: {
   id: string;
   mode: EditMode;
   onMode: (m: EditMode) => void;
@@ -28,15 +34,8 @@ function Slot({ id, mode, onMode, onChanged, label }: {
   label: string;
 }) {
   const memory = useMemory(id);
-  if (memory.error) return <ErrorNote error={memory.error} onRetry={() => void memory.refetch()} />;
-  if (!memory.data) {
-    return (
-      <div className="flex-1">
-        <Skeleton />
-        <Skeleton className="w-[60%]" />
-      </div>
-    );
-  }
+  if (memory.error) return <ErrorState error={memory.error} onRetry={() => void memory.refetch()} />;
+  if (!memory.data) return <Skeleton className="h-48 w-full" />;
   return <RecordCard r={memory.data} label={label} mode={mode} onMode={onMode} onChanged={onChanged} />;
 }
 
@@ -44,7 +43,7 @@ function Case({ finding, index, onDismissed, onBack, onMove }: {
   finding: Finding;
   index: number;
   onDismissed: () => void;
-  onBack: () => void;
+  onBack?: () => void;
   onMove: (step: 1 | -1) => void;
 }) {
   const queryClient = useQueryClient();
@@ -96,63 +95,103 @@ function Case({ finding, index, onDismissed, onBack, onMove }: {
 
   const side = ["左侧", "右侧"];
   return (
-    <CaseFile onBack={onBack}>
-      <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-2">
-        <Stamp tone="kind">{KIND[finding.kind] ?? finding.kind}</Stamp>
-        <h2 className="m-0 text-lg font-[650]">卷宗 {caseNo(index)}</h2>
+    <div className="flex flex-col gap-4 p-4 md:p-6">
+      {onBack && (
+        <Button variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
+          <ArrowLeft />
+          返回列表
+        </Button>
+      )}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">卷宗 {caseNo(index)}</h2>
+          <Badge variant="outline">{KIND[finding.kind] ?? finding.kind}</Badge>
+        </div>
+        <p className="max-w-prose text-sm text-muted-foreground">
+          {finding.detail ? (
+            <>
+              <span className="font-medium text-foreground">检查意见：</span>
+              {finding.detail}
+            </>
+          ) : (
+            "同一主题下有不止一条当前版本，保留正确的一条，归档其余。"
+          )}
+        </p>
       </div>
-      <p className="mt-2 mb-5 max-w-[72ch] text-ink-2">
-        {finding.detail ? (
-          <>
-            <b className="font-semibold text-ink">检查意见：</b>
-            {finding.detail}
-          </>
-        ) : (
-          "同一主题下有不止一条当前版本，保留正确的一条，归档其余。"
-        )}
-      </p>
-      <div
-        data-single={!pair || undefined}
-        className={`group/records grid grid-cols-1 items-start gap-5 ${pair ? "xl:grid-cols-2" : ""}`}
-      >
+      <div className={cn("grid grid-cols-1 items-start gap-4", pair && "xl:grid-cols-2")}>
         {ids.map((id, i) => (
-          <div key={i} className="flex min-w-0">
-            <Slot
-              id={id}
-              label={pair ? `${side[i]}记录` : "记录"}
-              mode={editing?.slot === i ? editing.mode : null}
-              onMode={(mode) => setEditing(mode ? { slot: i as Slot, mode } : null)}
-              onChanged={changed(i as Slot)}
-            />
-          </div>
+          <SlotCard
+            key={i}
+            id={id}
+            label={pair ? `${side[i]}记录` : "记录"}
+            mode={editing?.slot === i ? editing.mode : null}
+            onMode={(mode) => setEditing(mode ? { slot: i as Slot, mode } : null)}
+            onChanged={changed(i as Slot)}
+          />
         ))}
       </div>
-      <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-rule-strong pt-4">
-        <span className="mr-auto text-[0.8125rem] text-ink-3">改正或归档任一条后，这件发现会在下一次维护时自动关闭。</span>
-        <Button disabled={dismissing} onClick={() => void dismiss()}>
+      <Separator />
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="mr-auto text-sm text-muted-foreground">改正或归档任一条后，这件发现会在下一次维护时自动关闭。</p>
+        <Button variant="outline" disabled={dismissing} onClick={() => void dismiss()}>
           判为误报
         </Button>
       </div>
-      <p className="mt-4 hidden flex-wrap gap-x-3 gap-y-1 text-xs text-ink-3 md:flex" aria-label="快捷键">
-        <span><kbd>J</kbd> <kbd>K</kbd> 下一件 / 上一件</span>
-        <span><kbd>C</kbd> 改正</span>
-        <span><kbd>A</kbd> 归档</span>
-        {pair && <span><kbd>⇧</kbd> 加上一键作用于右侧</span>}
-        <span><kbd>D</kbd> 判为误报</span>
-      </p>
-    </CaseFile>
+      <div className="hidden flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground md:flex" aria-label="快捷键">
+        <span><Kbd>J</Kbd> <Kbd>K</Kbd> 下一件 / 上一件</span>
+        <span><Kbd>C</Kbd> 改正</span>
+        <span><Kbd>A</Kbd> 归档</span>
+        {pair && <span><Kbd>⇧</Kbd> 加上一键作用于右侧</span>}
+        <span><Kbd>D</Kbd> 判为误报</span>
+      </div>
+    </div>
+  );
+}
+
+function CaseList({ items, selectedId, onOpen }: { items: Finding[]; selectedId: string | null; onOpen: (id: string) => void }) {
+  return (
+    <ul role="listbox" aria-label="待审的发现" className="flex flex-col gap-1 p-2">
+      {items.map((f, i) => (
+        <li key={f.id} role="option" aria-selected={f.id === selectedId}>
+          <button
+            type="button"
+            onClick={() => onOpen(f.id)}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+              e.preventDefault();
+              const li = e.currentTarget.parentElement;
+              const next = e.key === "ArrowDown" ? li?.nextElementSibling : li?.previousElementSibling;
+              (next?.querySelector("button") as HTMLElement | null)?.focus();
+            }}
+            className={cn(
+              "flex w-full flex-col gap-1 rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent",
+              f.id === selectedId && "bg-muted",
+            )}
+          >
+            <div className="flex w-full items-center gap-2">
+              <span className="font-medium">卷宗 {caseNo(i)}</span>
+              <Badge variant="outline" className="ml-auto">
+                {KIND[f.kind] ?? f.kind}
+              </Badge>
+            </div>
+            <span className="line-clamp-2 text-xs text-muted-foreground">{f.detail || f.entity_key || ""}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
 export function DocketPage() {
   const findings = useFindings();
   const queryClient = useQueryClient();
-  const wide = useWide();
+  const isMobile = useIsMobile();
   const [chosen, setChosen] = useState<string | null>(null);
   const items = findings.data?.items ?? [];
-  // Wide screens always show a case (the first by default); phones show the list until a row is opened.
-  const selectedId = items.some((f) => f.id === chosen) ? chosen : wide ? (items[0]?.id ?? null) : null;
+  // Wide screens always show a case (the first by default); phones show the list until a case is opened.
+  const selectedId = items.some((f) => f.id === chosen) ? chosen : isMobile ? null : (items[0]?.id ?? null);
   const index = items.findIndex((f) => f.id === selectedId);
+  const reading = isMobile && index >= 0;
 
   const remove = (finding: Finding) => {
     const at = items.indexOf(finding);
@@ -167,50 +206,36 @@ export function DocketPage() {
   };
 
   return (
-    <Workspace reading={selectedId !== null && (chosen !== null || wide)}>
-      <Ledger
-        label="待审列表"
-        head={<div className="text-[0.8125rem] text-ink-3">待审的发现，按发现时间排列。逐条裁定：改正、归档或判为误报。</div>}
-        foot={<span>{findings.data ? `${items.length} 件待审` : ""}</span>}
-      >
-        <Rows label="待审的发现">
-          {findings.isPending && <SkeletonRows />}
-          {findings.error && <li><ErrorNote error={findings.error} onRetry={() => void findings.refetch()} /></li>}
-          {findings.data && !items.length && (
-            <EmptyRow>
-              <strong className="mb-1 block text-base text-ink">没有待审的发现</strong>
-              维护检查每天运行一次，新的发现会出现在这里。
-            </EmptyRow>
-          )}
-          {items.map((f, i) => (
-            <Row
-              key={f.id}
-              no={caseNo(i)}
-              rowKey={KIND[f.kind] ?? f.kind}
-              gist={f.detail || f.entity_key || ""}
-              selected={f.id === selectedId}
-              onOpen={() => setChosen(f.id)}
-            />
-          ))}
-        </Rows>
-      </Ledger>
-      {index >= 0 ? (
-        <Case
-          key={items[index].id}
-          finding={items[index]}
-          index={index}
-          onDismissed={() => remove(items[index])}
-          onBack={() => setChosen(null)}
-          onMove={move}
-        />
-      ) : (
-        findings.data &&
-        !items.length && (
-          <CaseFile>
-            <Empty title="卷宗已清空">可以到「档案」里按最久未更新排序，检查陈旧记忆。</Empty>
-          </CaseFile>
-        )
+    <>
+      <PageHeader title="待审">
+        {findings.data && <span className="text-sm text-muted-foreground">{items.length} 件待审</span>}
+      </PageHeader>
+      {findings.isPending && <div className="p-4"><Loading /></div>}
+      {findings.error && <div className="p-4"><ErrorState error={findings.error} onRetry={() => void findings.refetch()} /></div>}
+      {findings.data && !items.length && (
+        <EmptyState icon={Inbox} title="没有待审的发现">
+          维护检查每天运行一次，新的发现会出现在这里。可以到「档案」里按最久未更新排序，检查陈旧记忆。
+        </EmptyState>
       )}
-    </Workspace>
+      {!!items.length && (
+        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[20rem_1fr]">
+          <ScrollArea className={cn("min-h-0 border-r", reading && "hidden")}>
+            <CaseList items={items} selectedId={selectedId} onOpen={setChosen} />
+          </ScrollArea>
+          {index >= 0 && (
+            <ScrollArea className="min-h-0">
+              <Case
+                key={items[index].id}
+                finding={items[index]}
+                index={index}
+                onDismissed={() => remove(items[index])}
+                onBack={isMobile ? () => setChosen(null) : undefined}
+                onMove={move}
+              />
+            </ScrollArea>
+          )}
+        </div>
+      )}
+    </>
   );
 }

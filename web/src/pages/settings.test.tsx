@@ -15,17 +15,18 @@ beforeEach(() => {
   );
 });
 
-const row = (label: string) => screen.getByLabelText(label).closest("li") as HTMLElement;
+// One setting row: the label, its description and its form.
+const row = (label: string) => screen.getByLabelText(label).closest("form")!.parentElement as HTMLElement;
 
 test("settings are grouped with their source, range and evaluation note", async () => {
   await renderAt("/settings");
-  expect(await screen.findByRole("heading", { name: "行为参数" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "高级参数" })).toBeInTheDocument();
+  expect(await screen.findByText("行为参数")).toBeInTheDocument();
+  expect(screen.getByText("高级参数")).toBeInTheDocument();
   const fts = row("全文检索权重");
-  expect(within(fts).getByText("默认值")).toBeInTheDocument();
+  expect(within(fts).getByText("来源：默认值")).toBeInTheDocument();
   expect(within(fts).getByText(/全文 ×2 时 14 条/)).toBeInTheDocument();
   expect(within(fts).getByText("范围 0 – 10")).toBeInTheDocument();
-  expect(within(row("RRF 常数 k")).getByText("配置文件")).toBeInTheDocument();
+  expect(within(row("RRF 常数 k")).getByText("来源：配置文件")).toBeInTheDocument();
 });
 
 test("an out-of-range value is rejected before saving", async () => {
@@ -38,8 +39,7 @@ test("an out-of-range value is rejected before saving", async () => {
   await user.clear(input);
   await user.type(input, "1.5");
   expect(within(row("全文检索权重")).queryByRole("alert")).not.toBeInTheDocument();
-  expect(within(row("全文检索权重")).getByText("范围 0 – 10")).toBeInTheDocument();
-  const budget = await screen.findByLabelText("维护单轮模型调用上限");
+  const budget = screen.getByLabelText("维护单轮模型调用上限");
   await user.clear(budget);
   await user.type(budget, "2.5");
   expect(within(row("维护单轮模型调用上限")).getByRole("alert")).toHaveTextContent("需要是整数");
@@ -55,23 +55,21 @@ test("saving a tuning value marks it as a console value and warns it departs fro
   await toast("全文检索权重已保存");
   expect(db.calls.find((c) => c.method === "PUT")).toMatchObject({ path: "/api/v1/settings/fts_weight", body: { value: 1 } });
   const fts = row("全文检索权重");
-  expect(within(fts).getByText("面板")).toBeInTheDocument();
+  expect(within(fts).getByText("来源：面板")).toBeInTheDocument();
   expect(within(fts).getByText(/与推荐值不同/)).toBeInTheDocument();
 
   await user.click(within(fts).getByRole("button", { name: "恢复推荐值" }));
-  await toast("全文检索权重已保存");
-  expect(screen.getByLabelText("全文检索权重")).toHaveValue("2");
+  expect(await screen.findByDisplayValue("2")).toBeInTheDocument();
   expect(within(row("全文检索权重")).queryByText(/与推荐值不同/)).not.toBeInTheDocument();
 });
 
 test("revert drops the console value and shows the file value again", async () => {
   db.settings[2] = { ...db.settings[2], value: 30, source: "console" };
   const { user } = await renderAt("/settings");
-  const rrf = await screen.findByLabelText("RRF 常数 k");
-  expect(rrf).toHaveValue("30");
+  expect(await screen.findByLabelText("RRF 常数 k")).toHaveValue("30");
   await user.click(within(row("RRF 常数 k")).getByRole("button", { name: "恢复为配置文件值" }));
   await toast("RRF 常数 k已恢复为配置文件");
   expect(screen.getByLabelText("RRF 常数 k")).toHaveValue("60");
-  expect(within(row("RRF 常数 k")).getByText("配置文件")).toBeInTheDocument();
+  expect(within(row("RRF 常数 k")).getByText("来源：配置文件")).toBeInTheDocument();
   expect(db.calls.find((c) => c.method === "DELETE")?.path).toBe("/api/v1/settings/rrf_k");
 });

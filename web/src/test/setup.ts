@@ -16,6 +16,9 @@ window.matchMedia ??= ((query: string) => ({
   dispatchEvent: () => false,
 })) as typeof window.matchMedia;
 Element.prototype.scrollIntoView ??= () => {};
+// Radix Select uses pointer capture, which jsdom does not implement.
+Element.prototype.hasPointerCapture ??= () => false;
+Element.prototype.releasePointerCapture ??= () => {};
 globalThis.ResizeObserver ??= class {
   observe() {}
   unobserve() {}

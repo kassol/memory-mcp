@@ -6,9 +6,13 @@ async def recall_all_tool(arguments: dict) -> dict:
     limit = arguments.get("limit", 100)
     offset = arguments.get("offset", 0)
     order = arguments.get("order", "created_at")
+    sort = arguments.get("sort")
+    direction = arguments.get("direction", "desc")
+    key = arguments.get("key")
 
     memories = await vector_store.list_current(
-        entity_type=entity_type, limit=limit, offset=offset, order=order
+        entity_type=entity_type, limit=limit, offset=offset, order=order,
+        sort=sort, direction=direction, key=key,
     )
     results = [
         {
@@ -22,4 +26,6 @@ async def recall_all_tool(arguments: dict) -> dict:
         }
         for node in memories
     ]
-    return {"results": results, "total": len(results)}
+    # total: items in this page (unchanged meaning); matched: all current memories the filters match.
+    matched = await vector_store.count_current(entity_type=entity_type, key=key)
+    return {"results": results, "total": len(results), "matched": matched}

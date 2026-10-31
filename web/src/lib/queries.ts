@@ -6,7 +6,7 @@ import type { Finding, MemoryItem, MemoryRecord, Setting } from "@/lib/types";
 export const keys = {
   findings: ["findings", "open"] as const,
   memory: (id: string) => ["memory", id] as const,
-  records: (order: string, type: string) => ["records", order, type] as const,
+  records: ["records"] as const,
   search: (query: string, type: string) => ["search", query, type] as const,
   settings: ["settings"] as const,
 };

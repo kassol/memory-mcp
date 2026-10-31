@@ -19,7 +19,7 @@
 - `web/` - 管理面板源码（React 单页应用，pnpm，锁文件入库）；`pnpm build` 输出到 `src/memory_mcp/ui/`
 - `src/memory_mcp/ui/` - 面板构建产物（不入库，由 Dockerfile 的 Node 阶段生成，随包发布，挂在 `/ui/`）
 - `src/memory_mcp/settings_registry.py` - 设置注册表：可在面板修改的设置、元数据与生效值
-- `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 治理台的产品与视觉记录（`.impeccable/review/` 等工作文件不入库）
+- `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 面板的产品与视觉记录（视觉为 shadcn/ui 默认外观；`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
 
@@ -36,6 +36,7 @@
 - Tool 返回值统一为 JSON 字符串
 - 运行时设置一律经 `settings_registry.get()` 在调用时读取，不在 import 时取值、不写模块常量；新增可调参数先在注册表声明（类型、默认、范围，高级参数带推荐值与评估依据）
 - 面板中记忆文本只按文本渲染：ESLint 禁止 `dangerouslySetInnerHTML` 与 `innerHTML`
+- 面板组件用 shadcn CLI 生成（`web/src/components/ui/`、`web/src/hooks/`），保持生成原样，不改类名；外观只经 `web/src/index.css` 的主题变量调整
 - 记忆数据持久化：向量存储 + 图存储并行
 - 变更必须更新本文件
 - 涉及线上服务能力的任务，只有更新到线上并完成线上验证后才算终结；仅完成本地代码、测试或文档不算完成
@@ -55,6 +56,14 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-10-31 面板改用 shadcn/ui 默认外观与 TanStack Table（#8 补齐）
+- 动机：首版把 shadcn 组件改成自定义「登记簿」样式，且档案没有用 TanStack Table，不符合 #8 与 #7 的要求；改为采用 shadcn 原生外观，登记簿视觉作废
+- `shadcn init`（radix-nova、neutral、Geist）后组件按生成原样使用：Sidebar（可折叠为图标，手机为抽屉）、Card、Badge、Table、Select、Sheet、Field、Alert、Empty、Kbd、Command、sonner；`next-themes` 管深浅色（默认跟随系统，侧栏底部可切换）。DESIGN.md 重写
+- 档案改为 TanStack Table：按 key、类型、写入时间、生效时间服务端排序，按 key 子串与类型（带数量）过滤，分页显示第 n / m 页；详情在右侧 Sheet 中打开；手机隐藏两列时间
+- REST：`GET /api/v1/memories` 新增 `sort`（`entity_key` / `entity_type` / `created_at` / `valid_from`）、`direction`（`asc` / `desc`）、`key`（不区分大小写的子串，LIKE 通配符按字面匹配），返回新增 `matched`（过滤后总数）；不带新参数时排序与 `total` 含义不变。新增 `GET /api/v1/memories/types`（当前记忆的类型与数量）
+- ESLint：生成组件只检查「禁止原始 HTML」一条规则
+- 测试：`tests/test_governance.py` 增排序、过滤、计数、类型列表；前端页面测试改为新界面（23 个）
+
 ### 2026-10-31 设置注册表与 React 面板（#9、#8）
 - 动机：#7 把面板扩展为管理入口，表单规模超出手写 DOM 的承载能力（docs/adr/0003）；可调参数此前只能改宿主机 `.env` 并重新部署
 - 设置注册表 `settings_registry.py`：每项声明 key、中文名、分组（行为 / 高级）、类型、默认值、范围；高级参数另有推荐值与评估依据。生效值 = 面板值（SQLite `console_settings`，migration `0005_console_settings`）> 配置文件或环境变量（`Settings` 同名字段，`None` 表示未设置）> 默认值，并报告来源。面板值在进程内缓存，本进程是唯一写入方
@@ -62,8 +71,7 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 - 配置文件里超出范围的值在服务启动时报错并列出原因（`check_file_values`），不再静默生效
 - REST：`GET /api/v1/settings`（值、来源、元数据）；`PUT /api/v1/settings/{key}`（`{value}`，类型或范围不符 400 并给原因，未知 key 404）；`DELETE /api/v1/settings/{key}`（删掉面板值，恢复为配置文件值或默认值）。在 #10 之前沿用访问令牌鉴权，属已知过渡：任一访问令牌都能改设置（ADR 0001 要求只接受面板会话，由 #10 收口）
 - 面板迁到 `web/`：侧栏导航（概览、待审、档案、维护、设置；概览与维护在 #16 之前显示简短空状态），命令面板（⌘K，跳页面或检索记忆并打开），hash 路由（`#/records?memory=<id>` 可直达），随系统深浅色，手机为顶栏加抽屉。待审、档案、详情与版本历史与旧版一一对应（登录、改正、归档需原因、判为误报、分页、类型过滤、最久未更新排序、检索）；待审新增快捷键 J / K 切换、C / A 改正或归档（Shift 作用于右侧）、D 判为误报，已失效记录上 C / A 不生效。设置页：分组、来源标签、恢复为配置文件值、推荐值与评估依据、范围校验、偏离推荐值的提示与「恢复推荐值」
-- 列表未用 TanStack Table：档案沿用登记簿的列表（每行 key 加两行摘要），没有可排序的表格列；#7 的「可排序、可过滤的表格」随后续票据再引入
-- shadcn/ui 组件按 DESIGN.md 重写样式（按钮四种变体、输入框、toast），shadcn 角色令牌映射到登记簿令牌
+- （当日由上方「面板改用 shadcn/ui 默认外观」一条取代：档案改为 TanStack Table，组件改为 shadcn 默认外观）
 - 构建：Dockerfile 增加 `node:24-slim` 阶段（corepack pnpm，`--frozen-lockfile`），产物复制进包内 `ui/`，运行镜像无 Node；`pyproject.toml` 以 hatch `artifacts` 打包被忽略的产物；`StaticFiles(check_dir=False)`，没有构建产物时服务照常启动、`/ui/` 返回 404
 - 测试：`tests/test_settings.py`（优先级、来源、恢复、非法值原因、保存后下一次 recall 生效、配置文件越界阻止启动）；`tests/test_migrations.py` 覆盖 0005 升降级；原有测试只把常量覆盖改为注册表覆盖，断言不变。`tests/test_governance.py` 的 UI 测试改用临时目录提供构建产物；「不含 `innerHTML`」由 ESLint 规则承担。前端 `web/src/pages/*.test.tsx`（Vitest + Testing Library + MSW）：登录、待审裁定与快捷键、档案分页 / 排序 / 过滤 / 检索 / 详情 / 改正 / 归档、设置校验 / 保存 / 恢复
 

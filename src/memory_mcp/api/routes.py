@@ -78,11 +78,28 @@ async def handle_recall_all(request: Request) -> JSONResponse:
         if params["order"] not in {"created_at", "valid_from"}:
             return err("order must be created_at or valid_from")
         arguments["order"] = params["order"]
+    if "sort" in params:
+        from ..storage.repositories.memories import MemoryRepository
+        if params["sort"] not in MemoryRepository.SORTABLE:
+            return err(f"sort must be one of {', '.join(MemoryRepository.SORTABLE)}")
+        arguments["sort"] = params["sort"]
+    if "direction" in params:
+        if params["direction"] not in {"asc", "desc"}:
+            return err("direction must be asc or desc")
+        arguments["direction"] = params["direction"]
+    if params.get("key"):
+        arguments["key"] = params["key"]
     try:
         result = await recall_all.recall_all_tool(arguments)
     except Exception as e:
         return err(str(e), 500)
     return ok(result)
+
+
+# GET /api/v1/memories/types  — entity types of current memories with counts (records filter)
+async def handle_memory_types(request: Request) -> JSONResponse:
+    from ..storage.vector import vector_store
+    return ok({"items": await vector_store.current_types()})
 
 
 # GET /api/v1/memories/{entity_key:path}/trace
@@ -293,6 +310,7 @@ async def handle_revert_setting(request: Request) -> JSONResponse:
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
+    Route("/api/v1/memories/types", endpoint=handle_memory_types, methods=["GET"]),
     # By-id routes share the prefix with the {entity_key:path} routes. They differ by method or
     # suffix (GET / archive / correct vs DELETE / trace), and Starlette prefers a route that
     # matches the method, so the two shapes coexist. tests/test_governance.py covers the order.

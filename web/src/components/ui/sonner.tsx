@@ -1,17 +1,42 @@
+import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
-// Registry toast (DESIGN.md): ink background with sheet text; errors on the archive red fill.
-// Follows the system scheme through the CSS variables, so no theme prop is needed.
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme = "system" } = useTheme()
+
   return (
     <Sonner
+      theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      icons={{
+        success: (
+          <CircleCheckIcon className="size-4" />
+        ),
+        info: (
+          <InfoIcon className="size-4" />
+        ),
+        warning: (
+          <TriangleAlertIcon className="size-4" />
+        ),
+        error: (
+          <OctagonXIcon className="size-4" />
+        ),
+        loading: (
+          <Loader2Icon className="size-4 animate-spin" />
+        ),
+      }}
+      style={
+        {
+          "--normal-bg": "var(--popover)",
+          "--normal-text": "var(--popover-foreground)",
+          "--normal-border": "var(--border)",
+          "--border-radius": "var(--radius)",
+        } as React.CSSProperties
+      }
       toastOptions={{
-        unstyled: true,
         classNames: {
-          toast:
-            "flex items-center gap-2 rounded-[6px] bg-ink px-3.5 py-2 text-sm text-sheet shadow-[0_6px_20px_oklch(0%_0_0/0.18)] max-w-[calc(100vw-2rem)]",
-          error: "!bg-danger-fill !text-[oklch(99%_0_0)]",
+          toast: "cn-toast",
         },
       }}
       {...props}

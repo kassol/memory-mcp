@@ -16,8 +16,9 @@ function seedDuplicate() {
   return { a, b, c };
 }
 
-const rows = () => within(screen.getByRole("listbox")).getAllByRole("option");
+const rows = () => within(screen.getByRole("listbox", { name: "待审的发现" })).getAllByRole("option");
 const toast = async (text: string) => expect((await screen.findAllByText(text))[0]).toBeInTheDocument();
+const docketCount = () => within(screen.getByRole("navigation", { name: "页面" })).getByRole("link", { name: /待审/ }).parentElement!;
 
 beforeEach(reset);
 
@@ -30,7 +31,8 @@ test("the first case opens with both records side by side in full", async () => 
   expect(within(left).getByText("Lives in Shanghai")).toBeInTheDocument();
   expect(within(right).getByText("Lives in Shanghai, near the river")).toBeInTheDocument();
   expect(screen.getByText("Both say where the owner lives.", { selector: "p" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: /待审\s*2/ })).toBeInTheDocument();
+  expect(rows()).toHaveLength(2);
+  await waitFor(() => expect(docketCount()).toHaveTextContent("2"));
 });
 
 test("dismissing removes the case and opens the next one", async () => {
@@ -42,7 +44,7 @@ test("dismissing removes the case and opens the next one", async () => {
   expect(db.calls.some((c) => c.method === "POST" && c.path === "/api/v1/findings/f1/dismiss")).toBe(true);
   expect(await screen.findByText("vim and emacs both current.", { selector: "p" })).toBeInTheDocument();
   expect(rows()).toHaveLength(1);
-  expect(screen.getByRole("link", { name: /待审\s*1/ })).toBeInTheDocument();
+  expect(docketCount()).toHaveTextContent("1");
 });
 
 test("correcting a record shows the new version in its place", async () => {
@@ -57,7 +59,7 @@ test("correcting a record shows the new version in its place", async () => {
   await toast("已保存改正版本");
   const updated = await screen.findByRole("region", { name: "左侧记录" });
   expect(await within(updated).findByText("Lives in Hangzhou")).toBeInTheDocument();
-  expect(within(updated).getByText("改正", { selector: "span" })).toBeInTheDocument();
+  expect(within(updated).getByText("改正", { selector: "[data-slot=badge]" })).toBeInTheDocument();
   expect(db.calls.find((c) => c.path.endsWith("/correct"))?.body).toEqual({ content: "Lives in Hangzhou" });
 });
 
@@ -117,5 +119,4 @@ test("C and A do nothing on an archived record, and the other shortcuts keep wor
 test("an empty docket says so", async () => {
   await renderAt("/docket");
   expect(await screen.findByText("没有待审的发现")).toBeInTheDocument();
-  expect(screen.getByText("卷宗已清空")).toBeInTheDocument();
 });

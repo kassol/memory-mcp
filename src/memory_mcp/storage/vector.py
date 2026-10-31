@@ -236,10 +236,20 @@ class VectorStore:
         limit: int = 100,
         offset: int = 0,
         order: str = "created_at",
+        sort: Optional[str] = None,
+        direction: str = "desc",
+        key: Optional[str] = None,
     ) -> List[MemoryNode]:
         return await self._repo.list_current(
-            entity_type=entity_type, limit=limit, offset=offset, order=order
+            entity_type=entity_type, limit=limit, offset=offset, order=order,
+            sort=sort, direction=direction, key=key,
         )
+
+    async def count_current(self, entity_type: Optional[str] = None, key: Optional[str] = None) -> int:
+        return await self._repo.count_current(entity_type=entity_type, key=key)
+
+    async def current_types(self) -> list[dict]:
+        return await self._repo.current_types()
 
 
 vector_store = VectorStore()

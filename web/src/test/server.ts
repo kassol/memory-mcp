@@ -76,6 +76,7 @@ const item = (m: MemoryView): MemoryItem => ({
   entity_type: m.entity_type,
   content: m.content,
   created_at: m.created_at,
+  valid_from: m.valid_from,
 });
 
 async function log(request: Request, path: string) {
@@ -110,17 +111,25 @@ export const handlers = [
     const results = db.memories.filter((m) => m.is_current && m.content.includes(query)).map(item);
     return ok({ results, total: results.length });
   })),
+  http.get(`${BASE}/memories/types`, guard(() => {
+    const counts = new Map<string, number>();
+    for (const m of db.memories.filter((x) => x.is_current)) counts.set(m.entity_type, (counts.get(m.entity_type) ?? 0) + 1);
+    const items = [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([entity_type, count]) => ({ entity_type, count }));
+    return ok({ items });
+  })),
   http.get(`${BASE}/memories`, guard(({ request }) => {
     const q = new URL(request.url).searchParams;
     const limit = Number(q.get("limit") ?? 100);
     const offset = Number(q.get("offset") ?? 0);
     const type = q.get("entity_type");
-    let rows = db.memories.filter((m) => m.is_current && (!type || m.entity_type === type));
-    rows = q.get("order") === "valid_from"
-      ? [...rows].sort((a, b) => a.valid_from.localeCompare(b.valid_from))
-      : [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const key = q.get("key")?.toLowerCase();
+    const sort = (q.get("sort") ?? "created_at") as keyof MemoryView;
+    const dir = q.get("direction") === "asc" ? 1 : -1;
+    const rows = db.memories
+      .filter((m) => m.is_current && (!type || m.entity_type === type) && (!key || m.entity_key.toLowerCase().includes(key)))
+      .sort((a, b) => dir * String(a[sort]).localeCompare(String(b[sort])));
     const results = rows.slice(offset, offset + limit).map(item);
-    return ok({ results, total: results.length });
+    return ok({ results, total: results.length, matched: rows.length });
   })),
   http.get(`${BASE}/memories/:id`, guard(({ params }) => {
     const m = db.memories.find((x) => x.memory_id === params.id);

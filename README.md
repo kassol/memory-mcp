@@ -124,6 +124,7 @@ data/
 服务在 `/ui/` 提供管理面板（React 单页应用，源码在 `web/`）：待审的发现、档案与版本历史、设置。登录时输入访问令牌（与 `MEMORY_MCP_AUTH_TOKEN` 相同），令牌只保存在本标签页。
 
 - 镜像构建时由 Dockerfile 的 Node 阶段编译面板，产物放进 Python 包的 `ui/` 目录；产物不入库，运行镜像里没有 Node
+- 档案页可按 key、类型、写入时间、生效时间排序，按 key 与类型过滤；对应 `GET /api/v1/memories?sort=&direction=&key=&entity_type=`（返回 `matched` 为过滤后总数）与 `GET /api/v1/memories/types`
 - 本地开发：`cd web && pnpm install && pnpm dev`（Vite 开发服务把 `/api` 代理到 `127.0.0.1:8765`）；`pnpm build` 把产物写进 `src/memory_mcp/ui/`
 - 前端检查：`pnpm typecheck`、`pnpm lint`、`pnpm test`
 

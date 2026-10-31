@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { FileText } from "lucide-react";
 import { useDeferredValue, useEffect, useState } from "react";
 
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { searchMemories } from "@/lib/queries";
 import { NAV } from "@/nav";
 
@@ -31,6 +31,17 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
     staleTime: 30_000,
   });
 
+  // cmdk keeps its own highlighted item; results that arrive after typing would leave nothing
+  // highlighted, so Enter did nothing. Highlight the first visible entry whenever the list changes.
+  const pages = NAV.filter((n) => !query || n.label.includes(query));
+  const first = pages[0] ? `page:${pages[0].to}` : memories.data?.[0] ? `memory:${memories.data[0].memory_id}` : "";
+  const [picked, setPicked] = useState("");
+  const [seen, setSeen] = useState(first);
+  if (seen !== first) {
+    setSeen(first);
+    setPicked(first);
+  }
+
   const go = (fn: () => void) => {
     onOpenChange(false);
     setText("");
@@ -38,12 +49,13 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   };
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} shouldFilter={false} className="top-[20%] translate-y-0 sm:max-w-xl">
+    <CommandDialog open={open} onOpenChange={onOpenChange}>
+      <Command shouldFilter={false} value={picked} onValueChange={setPicked}>
       <CommandInput placeholder="跳转到页面，或输入内容检索记忆" value={text} onValueChange={setText} />
       <CommandList>
         <CommandEmpty>{memories.isFetching ? "检索中…" : "没有匹配的页面或记忆"}</CommandEmpty>
         <CommandGroup heading="页面">
-          {NAV.filter((n) => !query || n.label.includes(query)).map((n) => (
+          {pages.map((n) => (
             <CommandItem key={n.to} value={`page:${n.to}`} onSelect={() => go(() => void navigate({ to: n.to }))}>
               <n.icon aria-hidden />
               {n.label}
@@ -60,7 +72,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
               >
                 <FileText aria-hidden />
                 <span className="grid min-w-0">
-                  <span className="truncate font-mono text-xs text-ink-2">{m.entity_key}</span>
+                  <span className="truncate font-mono text-xs text-muted-foreground">{m.entity_key}</span>
                   <span className="truncate">{m.content}</span>
                 </span>
               </CommandItem>
@@ -68,6 +80,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           </CommandGroup>
         )}
       </CommandList>
+      </Command>
     </CommandDialog>
   );
 }
