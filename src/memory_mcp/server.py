@@ -134,7 +134,8 @@ async def call_tool(ctx: ServerRequestContext, params: CallToolRequestParams) ->
             token = getattr(getattr(ctx.request, "state", None), "token", None)
             result = await remember.remember_tool(arguments, origin_token=token.name if token else None)
         elif name == "recall":
-            result = await recall.recall_tool(arguments)
+            token = getattr(getattr(ctx.request, "state", None), "token", None)
+            result = await recall.recall_tool(arguments, origin_token=token.name if token else None)
         elif name == "trace":
             result = await trace.trace_tool(arguments)
         elif name == "forget":

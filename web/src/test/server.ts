@@ -2,7 +2,17 @@
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 
-import type { AccessToken, Finding, MemoryItem, MemoryView, ModelRole, Provider, Setting } from "@/lib/types";
+import type {
+  AccessToken,
+  DailyStat,
+  Finding,
+  MemoryItem,
+  MemoryView,
+  ModelRole,
+  Provider,
+  RecallLogEntry,
+  Setting,
+} from "@/lib/types";
 
 export const TOKEN = "good-token";
 export const PASSWORD = "admin-password";
@@ -18,6 +28,8 @@ interface Db {
   tokens: AccessToken[];
   providers: Provider[];
   roles: ModelRole[];
+  recallLog: RecallLogEntry[];
+  dailyStats: DailyStat[];
   calls: { method: string; path: string; body: unknown }[];
 }
 
@@ -30,6 +42,8 @@ export const db: Db = {
   tokens: [],
   providers: [],
   roles: [],
+  recallLog: [],
+  dailyStats: [],
   calls: [],
 };
 
@@ -105,6 +119,8 @@ export function reset() {
   db.tokens = [initialToken()];
   db.providers = [fileProvider()];
   db.roles = defaultRoles();
+  db.recallLog = [];
+  db.dailyStats = [];
   db.calls = [];
 }
 
@@ -247,8 +263,14 @@ export const handlers = [
   http.put(`${BASE}/settings/:key`, guard(async ({ request, params }) => {
     const s = db.settings.find((x) => x.key === params.key);
     if (!s) return fail("Unknown setting", 404);
-    const { value } = (await request.json()) as { value: number };
-    if (value < s.min || value > s.max) return fail(`${s.key} must be between ${s.min} and ${s.max}`, 400);
+    const { value } = (await request.json()) as { value: number | boolean };
+    if (s.type === "bool" && typeof value !== "boolean") return fail(`${s.key} 只能是 true 或 false`, 400);
+    if (s.type !== "bool") {
+      const n = Number(value);
+      if (s.min !== null && s.max !== null && (n < s.min || n > s.max)) {
+        return fail(`${s.key} must be between ${s.min} and ${s.max}`, 400);
+      }
+    }
     Object.assign(s, { value, source: "console" });
     return ok(s);
   })),
@@ -337,6 +359,17 @@ export const handlers = [
     if (!p) return fail("Provider not found", 404);
     if (p.base_url.includes("fail")) return fail("HTTP 401：invalid api key", 502);
     return ok({ items: ["gpt-4o-mini", "gpt-4.1"] });
+  })),
+  http.get(`${BASE}/recall-log`, guard(({ request }) => {
+    const limit = Number(new URL(request.url).searchParams.get("limit") ?? 50);
+    const items = [...db.recallLog].sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
+    return ok({ items, total: db.recallLog.length });
+  })),
+  http.get(`${BASE}/recall-log/daily`, guard(() => ok({ items: db.dailyStats }))),
+  http.delete(`${BASE}/recall-log`, guard(() => {
+    const deleted = db.recallLog.length;
+    db.recallLog = [];
+    return ok({ deleted });
   })),
   http.get(`${BASE}/model-roles`, guard(() => ok({ items: db.roles }))),
   http.post(`${BASE}/model-roles/:role/test`, guard(({ params }) => {

@@ -1,13 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { api, enc } from "@/lib/api";
-import type { AccessToken, Finding, MemoryItem, MemoryRecord, ModelRole, Provider, Setting } from "@/lib/types";
+import type {
+  AccessToken,
+  DailyStat,
+  Finding,
+  MemoryItem,
+  MemoryRecord,
+  ModelRole,
+  Provider,
+  RecallLogEntry,
+  Setting,
+} from "@/lib/types";
 
 export const keys = {
   findings: ["findings", "open"] as const,
   memory: (id: string) => ["memory", id] as const,
   models: (providerId: string) => ["models", providerId] as const,
   providers: ["providers"] as const,
+  recallLog: (limit: number) => ["recall-log", limit] as const,
   roles: ["model-roles"] as const,
   records: ["records"] as const,
   search: (query: string, type: string) => ["search", query, type] as const,
@@ -57,6 +68,18 @@ export const useModels = (providerId: string) =>
     enabled: !!providerId,
     retry: false,
     staleTime: 5 * 60 * 1000,
+  });
+
+export const useRecallLog = (limit: number) =>
+  useQuery({
+    queryKey: keys.recallLog(limit),
+    queryFn: () => api<{ items: RecallLogEntry[]; total: number }>(`/recall-log?limit=${limit}`),
+  });
+
+export const useDailyStats = (days = 30) =>
+  useQuery({
+    queryKey: ["daily-stats", days],
+    queryFn: () => api<{ items: DailyStat[] }>(`/recall-log/daily?days=${days}`).then((d) => d.items),
   });
 
 export const useSettings = () =>

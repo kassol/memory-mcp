@@ -14,6 +14,7 @@ from .config import settings
 from .storage.sqlite import get_db
 
 Number = Union[int, float]
+Value = Union[int, float, bool]
 
 
 @dataclass(frozen=True)
@@ -21,10 +22,10 @@ class Setting:
     key: str
     label: str
     group: str  # "behaviour" | "advanced"
-    type: str  # "int" | "float"
-    default: Number
-    min: Number
-    max: Number
+    type: str  # "int" | "float" | "bool"
+    default: Value
+    min: Optional[Number]
+    max: Optional[Number]
     description: str
     # Tuning parameters only: the value the evaluation chose, and what the evaluation found.
     recommended: Optional[Number] = None
@@ -39,6 +40,11 @@ _SETTINGS = (
     Setting(
         "maintenance_max_llm_calls", "维护单轮模型调用上限", "behaviour", "int", 100, 0, 1000,
         "一轮维护最多调用模型的次数。内部矛盾与跨 key 重复各用一半，一类用不完的给另一类；没判完的留到下一轮。",
+    ),
+    Setting(
+        "recall_log_enabled", "记录检索", "behaviour", "bool", True, None, None,
+        "开启时每次 recall 记一条检索记录（查询、访问令牌、耗时、结果条数与前三条记忆），保留 30 天，可清空。"
+        "关闭后不再记录，日统计照常。",
     ),
     Setting(
         "fts_weight", "全文检索权重", "advanced", "float", 2.0, 0.0, 10.0,
@@ -87,7 +93,7 @@ _SETTINGS = (
 
 SETTINGS: dict[str, Setting] = {s.key: s for s in _SETTINGS}
 
-_console: Optional[dict[str, Number]] = None  # cache of console_settings; this process is its only writer
+_console: Optional[dict[str, Value]] = None  # cache of console_settings; this process is its only writer
 
 
 class UnknownSetting(LookupError):
@@ -101,7 +107,7 @@ def _setting(key: str) -> Setting:
         raise UnknownSetting(f"Unknown setting: {key}") from None
 
 
-async def _console_values() -> dict[str, Number]:
+async def _console_values() -> dict[str, Value]:
     global _console
     if _console is None:
         async with get_db() as db:
@@ -110,11 +116,11 @@ async def _console_values() -> dict[str, Number]:
     return _console
 
 
-def _file_value(key: str) -> Optional[Number]:
+def _file_value(key: str) -> Optional[Value]:
     return getattr(settings, key, None)
 
 
-async def get(key: str) -> Number:
+async def get(key: str) -> Value:
     setting = _setting(key)
     console = await _console_values()
     if key in console:
@@ -123,7 +129,7 @@ async def get(key: str) -> Number:
     return setting.default if file_value is None else file_value
 
 
-def _describe(setting: Setting, console: dict[str, Number]) -> dict:
+def _describe(setting: Setting, console: dict[str, Value]) -> dict:
     file_value = _file_value(setting.key)
     if setting.key in console:
         value, source = console[setting.key], "console"
@@ -172,8 +178,12 @@ def check_file_values() -> None:
         raise ValueError("; ".join(problems))
 
 
-def validate(setting: Setting, value: object) -> Number:
+def validate(setting: Setting, value: object) -> Value:
     """The value to store, or ValueError with the reason."""
+    if setting.type == "bool":
+        if not isinstance(value, bool):
+            raise ValueError(f"{setting.key} 只能是 true 或 false")
+        return value
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{setting.key} must be a number")
     if setting.type == "int":
@@ -182,7 +192,7 @@ def validate(setting: Setting, value: object) -> Number:
         value = int(value)
     else:
         value = float(value)
-    if not setting.min <= value <= setting.max:
+    if not setting.min <= value <= setting.max:  # type: ignore[operator]
         raise ValueError(f"{setting.key} must be between {setting.min} and {setting.max}")
     return value
 

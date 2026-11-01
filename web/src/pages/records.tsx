@@ -23,6 +23,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { keys, searchMemories, useMemory } from "@/lib/queries";
+import { RecallLogPanel } from "@/pages/recall-log";
 import { when } from "@/lib/terms";
 import type { MemoryItem, MemoryView } from "@/lib/types";
 
@@ -102,6 +103,8 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
   const [keyDraft, setKeyDraft] = useState("");
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
+  // Records and the recall log share this page: both answer "what has been asked and what is known".
+  const [view, setView] = useState<"records" | "log">("records");
 
   const types = useQuery({
     queryKey: ["memory-types"],
@@ -169,9 +172,21 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
   return (
     <>
       <PageHeader title="档案">
-        {!query && list.data && <span className="text-sm text-muted-foreground">共 {matched} 条</span>}
+        {view === "records" && !query && list.data && <span className="text-sm text-muted-foreground">共 {matched} 条</span>}
       </PageHeader>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
+        <div className="flex items-center gap-1">
+          <Button variant={view === "records" ? "secondary" : "ghost"} size="sm" onClick={() => setView("records")}>
+            档案
+          </Button>
+          <Button variant={view === "log" ? "secondary" : "ghost"} size="sm" onClick={() => setView("log")}>
+            检索记录
+          </Button>
+        </div>
+        {view === "log" ? (
+          <RecallLogPanel onMemory={onMemory} />
+        ) : (
+          <>
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
           <div className="relative md:w-96">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -299,6 +314,8 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
 
       <Sheet open={!!memory} onOpenChange={(open) => !open && onMemory(null)}>

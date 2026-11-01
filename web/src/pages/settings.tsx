@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, enc, failed } from "@/lib/api";
 import { keys, useSettings } from "@/lib/queries";
@@ -30,7 +31,7 @@ function SettingRow({ s }: { s: Setting }) {
   const id = useId();
   const differs = s.recommended !== null && s.value !== s.recommended;
 
-  const save = async (value: number | null) => {
+  const save = async (value: number | boolean | null) => {
     try {
       const next = await api<Setting>(`/settings/${enc(s.key)}`, value === null ? { method: "DELETE" } : { method: "PUT", body: { value } });
       queryClient.setQueryData<Setting[]>(keys.settings, (old) => old?.map((x) => (x.key === s.key ? next : x)));
@@ -70,6 +71,19 @@ function SettingRow({ s }: { s: Setting }) {
           </FieldDescription>
         )}
       </FieldContent>
+      {s.type === "bool" ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <Switch id={id} aria-label={s.label} checked={Boolean(s.value)} onCheckedChange={(checked) => void save(checked)} />
+            <span className="text-sm">{s.value ? "开启" : "关闭"}</span>
+          </div>
+          {s.source === "console" && (
+            <Button type="button" variant="outline" size="sm" onClick={() => void save(null)}>
+              恢复为{s.file_value !== null ? "配置文件值" : "默认值"}
+            </Button>
+          )}
+        </div>
+      ) : (
       <form
         className="flex flex-col gap-2"
         onSubmit={(e) => {
@@ -123,6 +137,7 @@ function SettingRow({ s }: { s: Setting }) {
           )}
         </div>
       </form>
+      )}
     </div>
   );
 }

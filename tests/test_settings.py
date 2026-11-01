@@ -57,7 +57,7 @@ def test_list_reports_value_source_and_metadata(client):
 
     keys = {i["key"] for i in client.get("/api/v1/settings", headers=AUTH).json()["data"]["items"]}
     assert keys == {
-        "similarity_threshold", "maintenance_max_llm_calls",
+        "similarity_threshold", "maintenance_max_llm_calls", "recall_log_enabled",
         "fts_weight", "rrf_k", "candidates_per_source", "graph_seeds", "decay_lambda",
         "cross_key_min_cosine", "cross_key_neighbours",
     }

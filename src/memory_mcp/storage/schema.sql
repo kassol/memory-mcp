@@ -1,4 +1,4 @@
--- memory-mcp v2 schema reference at head 0009_model_roles (authoritative version: alembic versions/)
+-- memory-mcp v2 schema reference at head 0010_recall_log (authoritative version: alembic versions/)
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -224,3 +224,28 @@ CREATE TABLE model_roles (
   timeout REAL NOT NULL,
   updated_at TIMESTAMP NOT NULL
 );
+
+-- ---------------------------------------------------------------------------
+-- recall log and daily statistics (issue #15): the log keeps query, token,
+-- latency and top memory ids for 30 days; daily_events counts writes and
+-- recalls per day and token for 90 days, whatever the log setting says
+-- ---------------------------------------------------------------------------
+CREATE TABLE recall_log (
+  id TEXT PRIMARY KEY,
+  at TIMESTAMP NOT NULL,
+  token TEXT,
+  query TEXT NOT NULL,
+  latency_ms REAL NOT NULL,
+  results INTEGER NOT NULL,
+  memory_ids TEXT NOT NULL
+);
+CREATE INDEX idx_recall_log_at ON recall_log(at);
+
+CREATE TABLE daily_events (
+  id INTEGER PRIMARY KEY,
+  day TEXT NOT NULL,
+  token TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  latency_ms REAL
+);
+CREATE INDEX idx_daily_events_day ON daily_events(day);

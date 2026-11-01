@@ -23,6 +23,7 @@
 - `src/memory_mcp/providers.py` - Provider 记录、API key 的 AES-GCM 加密与生效值解析（配置文件 Provider 的覆盖与恢复）
 - `src/memory_mcp/engine/model_client.py` - 三种协议的 chat / embedding / 模型列表，调用结果写回 Provider 的最近调用状态
 - `src/memory_mcp/model_roles.py` - 模型用途：写入与维护各自的 Provider、模型与超时；向量用途只读
+- `src/memory_mcp/recall_log.py` - 检索记录（30 天、可关闭、可清空）与日统计（90 天，写入 / 召回数、召回耗时中位数）
 - `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 面板的产品与视觉记录（视觉为 shadcn/ui 默认外观；`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
@@ -60,6 +61,18 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-11-01 检索记录与日统计（#15）
+- 动机：调优只能看现象，召回没有可对照的查询、令牌、耗时与结果；写入量也只有总量（#7）
+- migration `0010_recall_log`：`recall_log`（时间、令牌、查询、耗时、结果数、前三条记忆 id）与 `daily_events`（日、令牌、kind = recall / write、耗时）。`daily_events` 每行一次事件，召回耗时中位数因此由真实值算出，不用近似
+- 新增 `recall_log.py`：`record`（召回：总是写日事件，设置打开时再写日志）、`record_write`（remember 存下新版本时写日事件）、`recent` / `clear` / `daily` / `prune`。保留期 30 / 90 天，清理在记录时最多每小时执行一次，不需要额外 cron
+- `recall_tool` 新增关键字参数 `origin_token`（与 `remember_tool` 同法，由传输层填入，客户端不能伪造），测量检索耗时并记录；`remember_tool` 在 created / evolved 两处记录写入数，no_change 不算
+- 观测失败不影响主路径：日志写入异常只打 warning，召回与写入照常返回
+- 设置注册表新增 `bool` 类型与 `recall_log_enabled`（默认开）；配置文件可用 `MEMORY_MCP_RECALL_LOG_ENABLED`
+- REST（只接受面板会话，`_ADMIN` 增加 `/api/v1/recall-log`）：`GET /api/v1/recall-log?limit=&offset=`、`GET /api/v1/recall-log/daily?days=`（按日与令牌给出写入数、召回数与召回耗时中位数）、`DELETE /api/v1/recall-log`（清空日志，日统计保留）
+- 面板：档案页顶部切换「档案 / 检索记录」；记录表显示时间、查询、令牌、耗时、结果，前三条结果可直接打开；顶部有记录开关（恢复默认可点）与清空；设置页的布尔项渲染成开关（新增 shadcn `switch`）
+- 测试：`tests/test_recall_log.py`（召回写入日志与日事件、只留前三条 id、分页、关闭后只有日统计、清空保留统计、按日与令牌聚合与中位数、清理 30 / 90 天与每小时一次、只接受面板会话、参数校验）；`tests/test_migrations.py` 覆盖 0010 升降级；前端 `recall-log.test.tsx`（列表、打开结果、清空、开关）
+- 未做：日统计的图表留给 #16
+
 ### 2026-11-01 模型用途：写入与维护（#13）
 - 动机：所有模型调用共用一个 Provider 与模型，remember 需要的快路径与维护需要的强模型不能分开（#7）
 - 新增 `model_roles.py` 与 migration `0009_model_roles`：`model_roles`（role 主键、provider_id 外键、model、timeout）。写入用途服务 key 分配、合并与冲突判定；维护用途服务后台检查的判定。没有行时用此前的行为：配置文件 Provider、`llm_model`、30 秒

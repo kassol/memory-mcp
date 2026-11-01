@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # code default in settings_registry applies. Read them through settings_registry.get().
     similarity_threshold: Optional[float] = None
     maintenance_max_llm_calls: Optional[int] = None
+    recall_log_enabled: Optional[bool] = None
     fts_weight: Optional[float] = None
     rrf_k: Optional[int] = None
     candidates_per_source: Optional[int] = None

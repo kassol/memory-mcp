@@ -148,6 +148,13 @@ data/
 - 「测试连接」列出该 Provider 的模型，不消耗 token；列表页显示每个 Provider 最近一次调用的结果与时间，失败时显示原因
 - REST（只接受面板会话）：`GET /api/v1/providers`、`POST /api/v1/providers`（`{name, protocol, base_url, api_key}`）、`PUT /api/v1/providers/{id}`（地址或 key 传 `null` 表示恢复配置文件值，仅配置文件 Provider 可这样做）、`DELETE /api/v1/providers/{id}`、`POST /api/v1/providers/test`（`{protocol, base_url, api_key?}` 或 `{id}`）、`GET /api/v1/providers/{id}/models`
 
+## 检索记录与统计
+
+- 每次 recall 记一条检索记录：时间、访问令牌、查询文本、耗时、结果条数，以及前三条结果的 id；在面板「档案 → 检索记录」查看，可直接打开返回的记忆。保留 30 天，可一键清空
+- 记录由设置 `recall_log_enabled` 控制（默认开，也可用 `MEMORY_MCP_RECALL_LOG_ENABLED`），关闭后不再记录
+- 日统计与检索记录独立：按天与访问令牌统计写入数、召回数与召回耗时中位数，保留 90 天，关闭记录也照常统计
+- REST（只接受面板会话）：`GET /api/v1/recall-log?limit=&offset=`、`GET /api/v1/recall-log/daily?days=`、`DELETE /api/v1/recall-log`（清空记录，统计保留）
+
 ## 模型用途
 
 三类模型调用各自选择 Provider、模型与超时（面板「设置 → 模型用途」，保存后下一次调用即生效）：

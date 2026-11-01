@@ -1,7 +1,8 @@
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from .. import settings_registry
+from .. import recall_log, settings_registry
 from ..engine import key_assignment, merge
 from ..engine.conflict import conflict_detector
 from ..engine.embedding import embedding_service
@@ -10,6 +11,16 @@ from ..engine.models import MemoryNode, MutationType
 from ..engine.tokenizer import tokenize
 from ..storage.graph import graph_store
 from ..storage.vector import vector_store
+
+logger = logging.getLogger(__name__)
+
+
+async def _record_write(origin_token: str | None) -> None:
+    """Count the stored version for the daily statistics; a failure must not fail the write."""
+    try:
+        await recall_log.record_write(origin_token)
+    except Exception:
+        logger.warning("daily write statistic failed", exc_info=True)
 
 
 def _distance_to_relevance(distance: float | None) -> float | None:
@@ -108,6 +119,7 @@ async def remember_tool(arguments: dict, *, origin_token: str | None = None) -> 
             fields=provenance,
         )
         await graph_store.upsert_entity(entity_key, entity_type, new_node.id)
+        await _record_write(origin_token)
         return {
             "status": "evolved",
             "memory_id": new_node.id,
@@ -150,6 +162,7 @@ async def remember_tool(arguments: dict, *, origin_token: str | None = None) -> 
                         fields=provenance,
                     )
                     await graph_store.upsert_entity(candidate.entity_key, candidate.entity_type, new_node.id)
+                    await _record_write(origin_token)
                     return {
                         "status": "evolved",
                         "memory_id": new_node.id,
@@ -184,6 +197,7 @@ async def remember_tool(arguments: dict, *, origin_token: str | None = None) -> 
     )
     await vector_store.insert(new_node)
     await graph_store.upsert_entity(entity_key, entity_type, new_node.id)
+    await _record_write(origin_token)
     return {
         "status": "created",
         "memory_id": new_node.id,

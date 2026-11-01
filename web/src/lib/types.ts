@@ -56,16 +56,38 @@ export interface Setting {
   key: string;
   label: string;
   group: "behaviour" | "advanced";
-  type: "int" | "float";
+  type: "int" | "float" | "bool";
   description: string;
-  default: number;
-  min: number;
-  max: number;
+  default: number | boolean;
+  /** null for a boolean setting. */
+  min: number | null;
+  max: number | null;
   recommended: number | null;
   note: string | null;
-  value: number;
+  value: number | boolean;
   source: SettingSource;
-  file_value: number | null;
+  file_value: number | boolean | null;
+}
+
+/** One line of the recall log (issue #15): what was asked, by which token, and what came back. */
+export interface RecallLogEntry {
+  id: string;
+  at: string;
+  token: string | null;
+  query: string;
+  latency_ms: number;
+  results: number;
+  /** Up to the first three result ids. */
+  memory_ids: string[];
+}
+
+/** One day and access token of the daily statistics (issue #15). */
+export interface DailyStat {
+  day: string;
+  token: string;
+  writes: number;
+  recalls: number;
+  median_latency_ms: number | null;
 }
 
 /** A model provider as listed; the API key appears only as its last four characters. */

@@ -47,8 +47,9 @@ async def handle_recall(request: Request) -> JSONResponse:
         arguments["include_evolution"] = params["include_evolution"].lower() == "true"
     if "explain" in params:
         arguments["explain"] = params["explain"].lower() in {"1", "true"}
+    token = getattr(request.state, "token", None)
     try:
-        result = await recall.recall_tool(arguments)
+        result = await recall.recall_tool(arguments, origin_token=token.name if token else None)
     except ValueError as e:
         return err(str(e))
     except Exception as e:
@@ -490,6 +491,37 @@ async def handle_test_role(request: Request) -> JSONResponse:
     return ok({"ok": True, "reply": reply[:200], "error": None})
 
 
+# GET /api/v1/recall-log?limit=&offset=  — the recall log, newest first
+async def handle_recall_log(request: Request) -> JSONResponse:
+    from .. import recall_log
+    try:
+        limit = int(request.query_params.get("limit", 50))
+        offset = int(request.query_params.get("offset", 0))
+    except ValueError:
+        return err("limit and offset must be integers")
+    if limit < 1 or limit > 200 or offset < 0:
+        return err("limit must be 1-200 and offset must not be negative")
+    return ok(await recall_log.recent(limit=limit, offset=offset))
+
+
+# GET /api/v1/recall-log/daily?days=  — per day and token: writes, recalls, median recall latency
+async def handle_daily_stats(request: Request) -> JSONResponse:
+    from .. import recall_log
+    try:
+        days = int(request.query_params.get("days", 30))
+    except ValueError:
+        return err("days must be an integer")
+    if not 1 <= days <= recall_log.STATS_DAYS:
+        return err(f"days must be between 1 and {recall_log.STATS_DAYS}")
+    return ok({"items": await recall_log.daily(days=days)})
+
+
+# DELETE /api/v1/recall-log  — clear the log; the daily statistics are separate and stay
+async def handle_clear_recall_log(request: Request) -> JSONResponse:
+    from .. import recall_log
+    return ok(await recall_log.clear())
+
+
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
@@ -527,4 +559,7 @@ routes = [
     Route("/api/v1/model-roles/{role}/test", endpoint=handle_test_role, methods=["POST"]),
     Route("/api/v1/model-roles/{role}", endpoint=handle_set_role, methods=["PUT"]),
     Route("/api/v1/model-roles/{role}", endpoint=handle_clear_role, methods=["DELETE"]),
+    Route("/api/v1/recall-log/daily", endpoint=handle_daily_stats, methods=["GET"]),
+    Route("/api/v1/recall-log", endpoint=handle_recall_log, methods=["GET"]),
+    Route("/api/v1/recall-log", endpoint=handle_clear_recall_log, methods=["DELETE"]),
 ]

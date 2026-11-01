@@ -19,6 +19,8 @@ REQUIRED_TABLES = {
     "access_tokens",
     "providers",
     "model_roles",
+    "recall_log",
+    "daily_events",
     "alembic_version",
 }
 
@@ -152,7 +154,7 @@ def test_head_drops_working_memory_cache_and_downgrade_restores_it(test_env):
             return _names(rows)
 
         migrate_mod.run_migrations()
-        assert migrate_mod.current() == "0009_model_roles"
+        assert migrate_mod.current() == "0010_recall_log"
         assert "working_memory_cache" not in await tables()
 
         migrate_mod.downgrade("0001_initial_v2")
@@ -231,7 +233,8 @@ def test_0003_drops_threads_and_keeps_memories_intact(test_env):
             assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
             names, columns = _schema(conn)
             maintenance = {"memory_findings", "memory_checks", "idx_memory_findings_status", "console_settings",
-                           "console_admin", "console_sessions", "access_tokens", "providers", "model_roles"}
+                           "console_admin", "console_sessions", "access_tokens", "providers", "model_roles", "recall_log",
+                           "daily_events", "idx_recall_log_at", "idx_daily_events_day"}
             assert REQUIRED_TABLES - maintenance <= names and REQUIRED_TRIGGERS <= names
             assert REQUIRED_INDEXES - maintenance <= names
             assert THREAD_OBJECTS <= names if expect_threads else not (THREAD_OBJECTS & names)
@@ -505,7 +508,7 @@ def test_0009_adds_model_roles_and_downgrade_removes_them(test_env):
     command.downgrade(cfg, "0008_providers")  # test_env already migrated to head
     assert "model_roles" not in tables()
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0009_model_roles")
     assert migrate_mod.current() == "0009_model_roles"
     assert query("SELECT count(*) FROM model_roles") == [(0,)]
     # A role names a provider, so an unknown provider is rejected by the foreign key.
@@ -520,4 +523,40 @@ def test_0009_adds_model_roles_and_downgrade_removes_them(test_env):
 
     command.downgrade(cfg, "0008_providers")
     assert "model_roles" not in tables()
+    assert query("PRAGMA integrity_check") == [("ok",)]
+
+
+def test_0010_adds_the_recall_log_and_daily_events(test_env):
+    from alembic import command
+
+    import memory_mcp.storage.migrate as migrate_mod
+    importlib.reload(migrate_mod)
+    cfg = migrate_mod._make_config()
+    db_path = migrate_mod.settings.sqlite_path
+
+    def query(sql: str, args=()):
+        conn = sqlite3.connect(db_path)
+        try:
+            with conn:
+                return conn.execute(sql, args).fetchall()
+        finally:
+            conn.close()
+
+    def tables() -> set[str]:
+        return {r[0] for r in query("SELECT name FROM sqlite_master WHERE type = 'table'")}
+
+    command.downgrade(cfg, "0009_model_roles")  # test_env already migrated to head
+    assert "recall_log" not in tables() and "daily_events" not in tables()
+
+    command.upgrade(cfg, "head")
+    assert migrate_mod.current() == "0010_recall_log"
+    assert query("SELECT count(*) FROM recall_log") == [(0,)] and query("SELECT count(*) FROM daily_events") == [(0,)]
+    query(
+        "INSERT INTO recall_log (id, at, token, query, latency_ms, results, memory_ids) "
+        "VALUES ('r1', '2026-11-01T00:00:00+00:00', 'initial', 'q', 12.5, 2, '[\"a\", \"b\"]')"
+    )
+    query("INSERT INTO daily_events (day, token, kind, latency_ms) VALUES ('2026-11-01', 'initial', 'recall', 12.5)")
+
+    command.downgrade(cfg, "0009_model_roles")
+    assert "recall_log" not in tables() and "daily_events" not in tables()
     assert query("PRAGMA integrity_check") == [("ok",)]
