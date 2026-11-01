@@ -19,7 +19,7 @@
 - `web/` - 管理面板源码（React 单页应用，pnpm，锁文件入库）；`pnpm build` 输出到 `src/memory_mcp/ui/`
 - `src/memory_mcp/ui/` - 面板构建产物（不入库，由 Dockerfile 的 Node 阶段生成，随包发布，挂在 `/ui/`）
 - `src/memory_mcp/settings_registry.py` - 设置注册表：可在面板修改的设置、元数据与生效值
-- `src/memory_mcp/access_tokens.py` - 具名访问令牌：鉴权、创建、吊销、停用初始令牌
+- `src/memory_mcp/access_tokens.py` - 具名访问令牌：鉴权、创建、吊销；初始令牌的哈希写入与重置
 - `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 面板的产品与视觉记录（视觉为 shadcn/ui 默认外观；`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
@@ -57,6 +57,14 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-11-01 初始令牌改为普通令牌（#11 后续）
+- 动机：初始令牌原先是特例（不存哈希、与配置值比较、只能停用 / 启用），后端用 `id == initial`、前端用 `source === file` 各自判断。改为与其他令牌同一条路径
+- 服务启动时（migration 之后）`store_initial_hash` 把 `MEMORY_MCP_AUTH_TOKEN` 的哈希写入 `initial` 行，只在它为空时写一次。配置值只在首次使用；之后改 `.env` 不生效。哈希不在 migration 里写：migration 按约定不读取 Settings（`migrations/env.py`），故无新 migration
+- 鉴权只按哈希查表；初始令牌可由面板吊销，删除停用 / 启用与 REST `PUT /api/v1/tokens/initial`。面板 bootstrap 仍只接受未吊销的初始令牌（`opens_bootstrap`）
+- 口令重置命令在同一事务里把初始令牌按 `.env` 当前值重新写入并恢复生效（对 agent 也生效），作为吊销后的找回路径；能执行该命令的人本就能读到 `.env`
+- 面板：初始令牌与其他令牌一样显示「吊销」，确认框提示仍在用它的客户端与找回方式
+- 测试：初始令牌可吊销、改配置值不生效、重置按新值恢复并可开 bootstrap、吊销后不能开 bootstrap、具名令牌不能开 bootstrap、启动时写入哈希
+
 ### 2026-11-01 具名访问令牌（#11）
 - 新增 `access_tokens.py` 与 migration `0007_access_tokens`：`access_tokens`（id、名称唯一、SHA-256 哈希、来源 file / console、创建、最近使用、revoked_at）；`memories` 新增列 `origin_token`。配置文件令牌是 id 为 `initial` 的行，不存哈希，仍与配置值做常数时间比较；它的 `revoked_at` 表示停用，可以再启用；停用期间它也不能开面板 bootstrap 会话（重置口令后需先在库里启用，见 README），泄露后停用的令牌不能抢先设置口令。其他令牌只能吊销，名称在吊销后仍占用，保证记忆里的令牌名只指向一个令牌
 - 最近使用时间在鉴权时写入，每个令牌每分钟最多一次

@@ -178,7 +178,7 @@ CREATE TABLE console_sessions (
 
 -- ---------------------------------------------------------------------------
 -- named access tokens (issue #11): only hashes are stored; id 'initial' is the
--- configuration-file token (no hash), disabled by setting revoked_at
+-- configuration-file token, whose hash startup stores once (NULL until then)
 -- ---------------------------------------------------------------------------
 CREATE TABLE access_tokens (
   id TEXT PRIMARY KEY,

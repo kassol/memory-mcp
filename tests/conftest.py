@@ -43,6 +43,8 @@ def test_env(tmp_path, monkeypatch):
     importlib.reload(console_auth)
     import memory_mcp.access_tokens as access_tokens
     importlib.reload(access_tokens)
+    # As at service startup: the initial token takes the configuration value's hash.
+    access_tokens.store_initial_hash(config.settings.sqlite_path, config.settings.auth_token)
     import memory_mcp.reset_password as reset_password
     importlib.reload(reset_password)
 

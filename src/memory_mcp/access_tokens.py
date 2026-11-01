@@ -2,13 +2,15 @@
 
 Clients (agents, the CLI, the maintenance cron) authenticate with a Bearer access token. Each token
 has a name, which `remember` records on the versions it writes. Only the SHA-256 of a token is
-stored; the value is shown once on creation. The configuration-file token is the initial token
-(row id `initial`, no hash): it is compared in constant time with the configured value and can be
-disabled and enabled again. Other tokens can only be revoked. Last use is written at most once a
-minute per token, so a busy client does not write on every request.
+stored; the value is shown once on creation, and a token can be revoked but not restored.
+
+The initial token (row id `initial`) is an ordinary token whose value comes from the configuration
+file: startup stores its hash once, after which editing the configuration file does not change it.
+It is the only token that may open the console bootstrap session while no admin password exists.
+The password reset command stores the current configuration value again and restores the token.
+Last use is written at most once a minute per token, so a busy client does not write on every request.
 """
 import hashlib
-import hmac
 import secrets
 import sqlite3
 from dataclasses import dataclass
@@ -16,7 +18,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
 
-from .config import settings
 from .storage.sqlite import get_db
 
 INITIAL = "initial"
@@ -45,34 +46,45 @@ class Identity:
     name: str
 
 
-def _is_config_value(value: str) -> bool:
-    return hmac.compare_digest(value.encode(), settings.auth_token.encode())
+def store_initial_hash(db_path: str, value: str) -> None:
+    """At startup: give the initial token the configuration value's hash, once."""
+    con = sqlite3.connect(db_path)
+    try:
+        with con:
+            con.execute(
+                "UPDATE access_tokens SET token_hash = ? WHERE id = ? AND token_hash IS NULL", (_hash(value), INITIAL)
+            )
+    finally:
+        con.close()
 
 
-async def is_enabled_initial(value: str) -> bool:
-    """Whether `value` is the configuration-file token and it is not disabled (console bootstrap)."""
-    if not _is_config_value(value):
-        return False
-    async with get_db() as db:
-        row = await db.fetchone("SELECT revoked_at FROM access_tokens WHERE id = ?", (INITIAL,))
-    return row is not None and row["revoked_at"] is None
+def restore_initial_offline(con: sqlite3.Connection, value: str) -> None:
+    """Password reset: the initial token takes the current configuration value and is live again."""
+    con.execute("UPDATE access_tokens SET token_hash = ?, revoked_at = NULL WHERE id = ?", (_hash(value), INITIAL))
 
 
 async def authenticate(value: str) -> Optional[Identity]:
-    """The live token for a Bearer value, or None if unknown, revoked or disabled."""
-    if _is_config_value(value):
-        where, arg = "id = ?", INITIAL
-    else:
-        where, arg = "token_hash = ?", _hash(value)
+    """The live token for a Bearer value, or None if unknown or revoked."""
     now = _now()
     async with get_db() as db:
-        row = await db.fetchone(f"SELECT id, name, last_used_at, revoked_at FROM access_tokens WHERE {where}", (arg,))
+        row = await db.fetchone(
+            "SELECT id, name, last_used_at, revoked_at FROM access_tokens WHERE token_hash = ?", (_hash(value),)
+        )
         if row is None or row["revoked_at"] is not None:
             return None
         last = row["last_used_at"]
         if last is None or now - datetime.fromisoformat(last) >= _LAST_USE_INTERVAL:
             await db.execute("UPDATE access_tokens SET last_used_at = ? WHERE id = ?", (now.isoformat(), row["id"]))
     return Identity(name=row["name"])
+
+
+async def opens_bootstrap(value: str) -> bool:
+    """Whether `value` is the live initial token (console bootstrap while no password exists)."""
+    async with get_db() as db:
+        row = await db.fetchone(
+            "SELECT 1 FROM access_tokens WHERE id = ? AND token_hash = ? AND revoked_at IS NULL", (INITIAL, _hash(value))
+        )
+    return row is not None
 
 
 async def list_tokens() -> list[dict]:
@@ -112,23 +124,8 @@ async def create_token(name: str) -> dict:
 
 
 async def revoke_token(token_id: str) -> dict:
-    if token_id == INITIAL:
-        raise TokenError("初始令牌不能吊销，只能停用")
     token = await _get(token_id)
     if token["revoked_at"] is None:
         async with get_db() as db:
             await db.execute("UPDATE access_tokens SET revoked_at = ? WHERE id = ?", (_now().isoformat(), token_id))
     return await _get(token_id)
-
-
-async def set_initial_enabled(enabled: bool) -> dict:
-    """Disable or enable the initial token; disabling it again keeps the first time."""
-    async with get_db() as db:
-        if enabled:
-            await db.execute("UPDATE access_tokens SET revoked_at = NULL WHERE id = ?", (INITIAL,))
-        else:
-            await db.execute(
-                "UPDATE access_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
-                (_now().isoformat(), INITIAL),
-            )
-    return await _get(INITIAL)

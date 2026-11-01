@@ -117,36 +117,97 @@ def test_revoked_token_is_rejected_and_others_keep_working(app, console):
     assert listed(console)["b"]["revoked_at"] is None
 
 
-def test_disabled_initial_token_is_rejected_and_can_be_enabled_again(app, console):
+def test_initial_token_is_revoked_like_any_other(app, console):
     c = TestClient(app, base_url=ORIGIN)
     initial = listed(console)["initial"]
     assert initial["source"] == "file" and initial["revoked_at"] is None
-    # The initial token is disabled, not revoked.
-    assert console.delete(f"/api/v1/tokens/{initial['id']}", headers={"Origin": ORIGIN}).status_code == 400
-
-    res = console.put("/api/v1/tokens/initial", json={"enabled": False}, headers={"Origin": ORIGIN})
+    res = console.delete(f"/api/v1/tokens/{initial['id']}", headers={"Origin": ORIGIN})
     assert res.status_code == 200, res.text
     assert c.get("/api/v1/memories", headers=INITIAL).status_code == 403
+    assert c.post("/mcp", json={}, headers=INITIAL).status_code == 403
     assert listed(console)["initial"]["revoked_at"] is not None
 
-    assert console.put("/api/v1/tokens/initial", json={"enabled": True}, headers={"Origin": ORIGIN}).status_code == 200
+
+def _set_config_token(monkeypatch, value: str) -> None:
+    import memory_mcp.config as config
+
+    monkeypatch.setattr(config.settings, "auth_token", value)
+
+
+def test_the_configuration_value_counts_only_on_first_use(app, console, monkeypatch):
+    c = TestClient(app, base_url=ORIGIN)
+    # The stored hash is the token now; editing the configuration file does not change it.
+    _set_config_token(monkeypatch, "edited-in-env")
     assert c.get("/api/v1/memories", headers=INITIAL).status_code == 200
+    assert c.get("/api/v1/memories", headers=bearer("edited-in-env")).status_code == 403
 
 
-def test_disabled_initial_token_cannot_open_a_bootstrap_session(app, console):
-    console.put("/api/v1/tokens/initial", json={"enabled": False}, headers={"Origin": ORIGIN})
+def test_reset_restores_the_initial_token_from_the_configuration_value(app, console, monkeypatch):
+    initial = listed(console)["initial"]
+    console.delete(f"/api/v1/tokens/{initial['id']}", headers={"Origin": ORIGIN})
+    _set_config_token(monkeypatch, "rotated-in-env")
     from memory_mcp import reset_password
 
-    reset_password.main()  # no password again: only the initial token could sign in now
+    reset_password.main()
+    c = TestClient(app, base_url=ORIGIN)
+    assert c.get("/api/v1/memories", headers=INITIAL).status_code == 403
+    assert c.get("/api/v1/memories", headers=bearer("rotated-in-env")).status_code == 200
+    # The restored initial token opens the bootstrap session to set a new password.
+    res = c.post("/api/v1/console/login", json={"token": "rotated-in-env"}, headers={"Origin": ORIGIN})
+    assert res.status_code == 200
+
+
+def test_revoked_initial_token_cannot_open_a_bootstrap_session(app, console):
+    initial = listed(console)["initial"]
+    console.delete(f"/api/v1/tokens/{initial['id']}", headers={"Origin": ORIGIN})
+    import sqlite3
+
+    import memory_mcp.config as config
+
+    con = sqlite3.connect(config.settings.sqlite_path)
+    with con:
+        con.execute("DELETE FROM console_admin")  # no password, without the reset command
+    con.close()
     c = TestClient(app, base_url=ORIGIN)
     res = c.post("/api/v1/console/login", json={"token": "test-token"}, headers={"Origin": ORIGIN})
     assert res.status_code == 401
 
 
-def test_disabling_twice_keeps_the_first_time(app, console):
-    first = console.put("/api/v1/tokens/initial", json={"enabled": False}, headers={"Origin": ORIGIN}).json()
-    again = console.put("/api/v1/tokens/initial", json={"enabled": False}, headers={"Origin": ORIGIN}).json()
-    assert again["data"]["revoked_at"] == first["data"]["revoked_at"]
+def test_a_named_token_cannot_open_a_bootstrap_session(app, console):
+    value = create(console, "agent")["value"]
+    import sqlite3
+
+    import memory_mcp.config as config
+
+    con = sqlite3.connect(config.settings.sqlite_path)
+    with con:
+        con.execute("DELETE FROM console_admin")
+    con.close()
+    c = TestClient(app, base_url=ORIGIN)
+    assert c.post("/api/v1/console/login", json={"token": value}, headers={"Origin": ORIGIN}).status_code == 401
+
+
+def test_startup_stores_the_initial_token_hash_once(test_env):
+    import sqlite3
+
+    import anyio
+
+    import memory_mcp.config as config
+    import memory_mcp.server as server
+
+    importlib.reload(server)
+    con = sqlite3.connect(config.settings.sqlite_path)
+    with con:
+        con.execute("UPDATE access_tokens SET token_hash = NULL WHERE id = 'initial'")  # as right after 0007
+    con.close()
+
+    async def start():
+        async with server.app.router.lifespan_context(server.app):
+            pass
+
+    anyio.run(start)
+    c = TestClient(server.app, base_url=ORIGIN)
+    assert c.get("/api/v1/memories", headers=INITIAL).status_code == 200
 
 
 def test_rest_body_cannot_set_the_origin_through_a_console_session(app, console):
@@ -168,9 +229,9 @@ def test_token_value_is_shown_once_and_only_its_hash_is_stored(app, console):
     import memory_mcp.config as config
 
     con = sqlite3.connect(config.settings.sqlite_path)
-    stored = [r[0] for r in con.execute("SELECT token_hash FROM access_tokens WHERE token_hash IS NOT NULL")]
+    stored = [r[0] for r in con.execute("SELECT token_hash FROM access_tokens")]
     con.close()
-    assert stored and all(created["value"] not in h for h in stored)
+    assert len(stored) == 2 and all(h and created["value"] not in h and "test-token" not in h for h in stored)
 
 
 def test_names_are_required_and_unique_even_after_revocation(app, console):
@@ -210,7 +271,6 @@ def test_token_management_accepts_only_a_console_session(app, console):
     for headers in (bearer(value), INITIAL):
         assert c.get("/api/v1/tokens", headers=headers).status_code == 403
         assert c.post("/api/v1/tokens", json={"name": "x"}, headers=headers).status_code == 403
-        assert c.put("/api/v1/tokens/initial", json={"enabled": False}, headers=headers).status_code == 403
     assert c.get("/api/v1/tokens").status_code == 401
     assert console.post("/api/v1/tokens", json={"name": "x"}).status_code == 403  # cookie write without Origin
 

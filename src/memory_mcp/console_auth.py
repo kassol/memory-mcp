@@ -3,7 +3,8 @@
 The console never holds an access token. It signs in with the admin password and gets a random
 session token in an HttpOnly, Secure, SameSite=Strict cookie; only the token's hash is stored, with
 a 7-day expiry that slides on every use. While no password exists, the configuration-file access
-token opens one bootstrap session that may only set the password, unless that token is disabled.
+token (the initial token) opens one bootstrap session that may only set the password, unless that
+token is revoked.
 """
 import base64
 import hashlib
@@ -88,7 +89,7 @@ async def sign_in(password: Optional[str], token: Optional[str]) -> str:
     """A new session token, or SignInError. The token path works only while no password exists."""
     stored = await _password_hash()
     if stored is None:
-        if token and await access_tokens.is_enabled_initial(token):
+        if token and await access_tokens.opens_bootstrap(token):
             return await _new_session(bootstrap=True)
         raise SignInError("尚未设置管理口令，请用配置文件里的访问令牌登录一次" if password else "令牌无效")
     if password and _verify(password, stored):
@@ -149,13 +150,15 @@ async def end_all_sessions() -> int:
     return cur.rowcount or 0
 
 
-def reset_password_offline(db_path: str) -> int:
-    """Remove the admin password and every session (host command); returns sessions removed."""
+def reset_password_offline(db_path: str, config_token: str) -> int:
+    """Remove the admin password and every session, and restore the initial token from the configuration
+    value so it can open the bootstrap session (host command); returns sessions removed."""
     con = sqlite3.connect(db_path)
     try:
         with con:
             con.execute("DELETE FROM console_admin")
             removed = con.execute("DELETE FROM console_sessions").rowcount
+            access_tokens.restore_initial_offline(con, config_token)
     finally:
         con.close()
     return removed

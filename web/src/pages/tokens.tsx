@@ -1,4 +1,5 @@
-// Access tokens (issue #11): list, create (value shown once), revoke, disable the initial token.
+// Access tokens (issue #11): list, create (value shown once), revoke. The initial token from the
+// configuration file is an ordinary token; only its source differs.
 import { useForm } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
@@ -30,79 +31,46 @@ import { keys, useTokens } from "@/lib/queries";
 import { when } from "@/lib/terms";
 import type { AccessToken } from "@/lib/types";
 
-const isInitial = (t: AccessToken) => t.source === "file";
-
-function useReplace() {
-  const queryClient = useQueryClient();
-  return (next: AccessToken) =>
-    queryClient.setQueryData<AccessToken[]>(keys.tokens, (old) => old?.map((t) => (t.id === next.id ? next : t)));
-}
-
 function State({ t }: { t: AccessToken }) {
-  if (t.revoked_at === null) return <Badge variant="secondary">启用中</Badge>;
-  return <Badge variant="outline">{isInitial(t) ? "已停用" : "已吊销"}</Badge>;
+  return t.revoked_at === null ? <Badge variant="secondary">启用中</Badge> : <Badge variant="outline">已吊销</Badge>;
 }
 
-function Confirm({ t, verb, description, onConfirm }: { t: AccessToken; verb: string; description: string; onConfirm: () => void }) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          {verb}
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {verb}「{t.name}」？
-          </AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={onConfirm}>
-            {verb}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-function Actions({ t }: { t: AccessToken }) {
-  const replace = useReplace();
-  const run = async (path: string, init: { method: string; body?: unknown }, done: string) => {
+function Revoke({ t }: { t: AccessToken }) {
+  const queryClient = useQueryClient();
+  const revoke = async () => {
     try {
-      replace(await api<AccessToken>(path, init));
-      toast.success(done);
+      const next = await api<AccessToken>(`/tokens/${enc(t.id)}`, { method: "DELETE" });
+      queryClient.setQueryData<AccessToken[]>(keys.tokens, (old) => old?.map((x) => (x.id === next.id ? next : x)));
+      toast.success(`已吊销「${t.name}」`);
     } catch (error) {
       failed(error);
     }
   };
-  if (isInitial(t)) {
-    const setEnabled = (enabled: boolean) =>
-      run("/tokens/initial", { method: "PUT", body: { enabled } }, enabled ? "初始令牌已启用" : "初始令牌已停用");
-    return t.revoked_at === null ? (
-      <Confirm
-        t={t}
-        verb="停用"
-        description="停用后，仍在使用配置文件里那个令牌的客户端（包括宿主机上的维护定时任务）会被拒绝。可以随时重新启用。"
-        onConfirm={() => void setEnabled(false)}
-      />
-    ) : (
-      <Button variant="outline" size="sm" onClick={() => void setEnabled(true)}>
-        启用
-      </Button>
-    );
-  }
   if (t.revoked_at !== null) return null;
   return (
-    <Confirm
-      t={t}
-      verb="吊销"
-      description="吊销后使用这个令牌的客户端会被拒绝，不能恢复。名称会保留，不能再用于新令牌。"
-      onConfirm={() => void run(`/tokens/${enc(t.id)}`, { method: "DELETE" }, `已吊销「${t.name}」`)}
-    />
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          吊销
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>吊销「{t.name}」？</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t.source === "file"
+              ? "吊销后，仍在使用配置文件里那个令牌的客户端（包括宿主机上的维护定时任务）会被拒绝，面板不能恢复。只有在部署主机上执行口令重置命令时，它才会按配置文件里的值重新生效。"
+              : "吊销后使用这个令牌的客户端会被拒绝，不能恢复。名称会保留，不能再用于新令牌。"}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={() => void revoke()}>
+            吊销
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -236,11 +204,11 @@ export function TokensSection() {
                       <State t={t} />
                     </div>
                   </TableCell>
-                  <TableCell className="hidden text-muted-foreground md:table-cell">{isInitial(t) ? "配置文件" : "面板"}</TableCell>
+                  <TableCell className="hidden text-muted-foreground md:table-cell">{t.source === "file" ? "配置文件" : "面板"}</TableCell>
                   <TableCell className="hidden text-xs text-muted-foreground tabular-nums md:table-cell">{when(t.created_at)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground tabular-nums">{t.last_used_at ? when(t.last_used_at) : "从未使用"}</TableCell>
                   <TableCell className="text-right">
-                    <Actions t={t} />
+                    <Revoke t={t} />
                   </TableCell>
                 </TableRow>
               ))}

@@ -47,7 +47,6 @@ export interface AccessToken {
   source: "file" | "console";
   created_at: string;
   last_used_at: string | null;
-  /** Revoked, or for the initial token, disabled. */
   revoked_at: string | null;
 }
 

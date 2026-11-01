@@ -224,12 +224,6 @@ export const handlers = [
     db.tokens.push(token);
     return HttpResponse.json({ ok: true, data: { ...token, value: `value-of-${name}` } }, { status: 201 });
   })),
-  http.put(`${BASE}/tokens/initial`, guard(async ({ request }) => {
-    const { enabled } = (await request.json()) as { enabled: boolean };
-    const t = db.tokens.find((x) => x.id === "initial")!;
-    t.revoked_at = enabled ? null : "2026-11-01T10:05:00+00:00";
-    return ok(t);
-  })),
   http.delete(`${BASE}/tokens/:id`, guard(({ params }) => {
     const t = db.tokens.find((x) => x.id === params.id);
     if (!t) return fail("Token not found", 404);

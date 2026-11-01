@@ -66,16 +66,14 @@ test("revoking a token asks first, then marks it revoked", async () => {
   expect(db.calls.find((c) => c.method === "DELETE")?.path).toBe("/api/v1/tokens/t1");
 });
 
-test("the initial token is disabled and enabled again, never revoked", async () => {
+test("the initial token is revoked like any other, with a warning about the clients that use it", async () => {
   const { user } = await openTokens();
   await findName("initial");
-  expect(within(row("initial")).queryByRole("button", { name: "吊销" })).not.toBeInTheDocument();
-  await user.click(within(row("initial")).getByRole("button", { name: "停用" }));
-  await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "停用" }));
-  expect(await within(row("initial")).findByText("已停用")).toBeInTheDocument();
-  expect(db.calls.find((c) => c.method === "PUT")).toMatchObject({ path: "/api/v1/tokens/initial", body: { enabled: false } });
-
-  await user.click(within(row("initial")).getByRole("button", { name: "启用" }));
-  expect(await within(row("initial")).findByText("启用中")).toBeInTheDocument();
-  expect(db.calls.filter((c) => c.method === "PUT").at(-1)?.body).toEqual({ enabled: true });
+  await user.click(within(row("initial")).getByRole("button", { name: "吊销" }));
+  const dialog = await screen.findByRole("alertdialog");
+  expect(within(dialog).getByText(/维护定时任务/)).toBeInTheDocument();
+  await user.click(within(dialog).getByRole("button", { name: "吊销" }));
+  expect(await within(row("initial")).findByText("已吊销")).toBeInTheDocument();
+  expect(within(row("initial")).queryByRole("button")).not.toBeInTheDocument();
+  expect(db.calls.find((c) => c.method === "DELETE")?.path).toBe("/api/v1/tokens/initial");
 });
