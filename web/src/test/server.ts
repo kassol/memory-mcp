@@ -133,6 +133,9 @@ export function reset() {
   db.calls = [];
 }
 
+/** Health probes that still answer 503, as they do while the service restarts. */
+let healthDown = 0;
+
 const ok = (data: unknown) => HttpResponse.json({ ok: true, data });
 const fail = (error: string, status: number) => HttpResponse.json({ ok: false, error }, { status });
 
@@ -431,7 +434,13 @@ export const handlers = [
     if (p.base_url.includes("fail")) return fail("HTTP 401：invalid api key", 502);
     return ok({ items: ["gpt-4o-mini", "gpt-4.1"] });
   })),
-  http.get("http://localhost:3000/health", () => HttpResponse.json({ status: "ok" })),
+  http.get("http://localhost:3000/health", () => {
+    if (healthDown > 0) {
+      healthDown -= 1;
+      return HttpResponse.json({ status: "starting" }, { status: 503 });
+    }
+    return HttpResponse.json({ status: "ok" });
+  }),
   http.get(`${BASE}/overview`, guard(() => ok(overview()))),
   http.get(`${BASE}/overview/rounds`, guard(() => ok({ items: db.rounds }))),
   http.post(`${BASE}/maintenance/run`, guard(() => {
@@ -468,6 +477,7 @@ export const handlers = [
     db.startup.overrides = { ...db.startup.overrides, ...db.startup.draft };
     db.startup.last_apply = { status: "applied", at: "2026-11-01T10:00:00+00:00", finished_at: "2026-11-01T10:00:05+00:00" };
     db.startup.draft = {};
+    healthDown = 2;
     return HttpResponse.json({ ok: true, data: { applying: true } }, { status: 202 });
   })),
   http.get(`${BASE}/recall-log`, guard(({ request }) => {

@@ -70,7 +70,9 @@ test("applying restarts the service and reports the result", async () => {
   const region = await card();
   await user.click(within(region).getByRole("button", { name: "应用并重启" }));
   await waitFor(() => expect(db.calls.find((c) => c.path === "/api/v1/startup-settings/apply")?.method).toBe("POST"));
-  expect(await within(region).findByText("已生效")).toBeInTheDocument();
+  // The page waits for the process to go away, then for it to come back, then re-reads the settings.
+  expect(await within(region).findByText("重启中…")).toBeInTheDocument();
+  expect(await within(region).findByText("已生效", {}, { timeout: 10000 })).toBeInTheDocument();
   expect(db.startup.effective.debug).toBe(true);
   expect(db.startup.draft).toEqual({});
 });

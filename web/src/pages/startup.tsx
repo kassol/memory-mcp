@@ -55,22 +55,51 @@ function pendingKeys(s: StartupSettings, values: Values): Record<string, string 
   return body;
 }
 
-function waitForHealth(): Promise<void> {
-  // The service is gone while it restarts; the same server answers again once it is up.
-  const deadline = Date.now() + 90_000;
-  return new Promise((resolve, reject) => {
-    const poll = async () => {
-      try {
-        const res = await fetch("/health", { cache: "no-store" });
-        if (res.ok) return resolve();
-      } catch {
-        // still down
-      }
-      if (Date.now() > deadline) return reject(new Error("服务在 90 秒内没有恢复"));
-      setTimeout(() => void poll(), 1500);
-    };
-    void poll();
-  });
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** One health probe, bounded: during a restart a request can hang instead of failing. */
+async function healthy(): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const res = await fetch("/health", { cache: "no-store", signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The old process answers /health until it exits, so "healthy" right after apply means nothing:
+ * wait for it to go away first, then for the service to be back.
+ */
+async function waitForRestart(): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < 15_000) {
+    if (!(await healthy())) break;
+    await sleep(300);
+  }
+  while (Date.now() - started < 120_000) {
+    if (await healthy()) return;
+    await sleep(1500);
+  }
+  throw new Error("服务在 120 秒内没有恢复");
+}
+
+/** The reload itself can land while the proxy still returns 502 to the new process. */
+async function retry<T>(run: () => Promise<T>, attempts = 8): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      last = error;
+      await sleep(1500);
+    }
+  }
+  throw last instanceof Error ? last : new Error(String(last));
 }
 
 export function StartupSection() {
@@ -127,15 +156,14 @@ export function StartupSection() {
   };
 
   const apply = async () => {
+    setRestarting(true);
+    setProblems(null);
     try {
       await api<{ applying: boolean }>("/startup-settings/apply", { method: "POST" });
-      setRestarting(true);
-      setProblems(null);
-      await waitForHealth();
+      await waitForRestart();
+      store(await retry(() => api<StartupSettings>("/startup-settings")));
       toast.success("服务已用新设置重启");
-      store(await api<StartupSettings>("/startup-settings"));
     } catch (error) {
-      setRestarting(false);
       failed(error);
     } finally {
       setRestarting(false);
