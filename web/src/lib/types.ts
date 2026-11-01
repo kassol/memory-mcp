@@ -39,6 +39,18 @@ export interface MemoryItem {
   valid_from?: string;
 }
 
+/** An access token as listed; the value appears only in the create response. */
+export interface AccessToken {
+  id: string;
+  name: string;
+  /** "file": the initial token from the configuration file; "console": created here. */
+  source: "file" | "console";
+  created_at: string;
+  last_used_at: string | null;
+  /** Revoked, or for the initial token, disabled. */
+  revoked_at: string | null;
+}
+
 export type SettingSource = "console" | "file" | "default";
 
 export interface Setting {

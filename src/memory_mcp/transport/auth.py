@@ -2,8 +2,8 @@
 
 A request carries either an access token (Bearer) or a console session (cookie):
 - MCP accepts only access tokens.
-- Administrative endpoints (settings, and later providers, tokens, restart) accept only a full
-  console session; a bootstrap session may only set the password.
+- Administrative endpoints (settings, access tokens, and later providers, restart) accept only a
+  full console session; a bootstrap session may only set the password.
 - Memory and finding endpoints accept either.
 - State-changing requests authenticated by cookie must carry an Origin equal to the service's own.
 """
@@ -11,12 +11,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from .. import console_auth
+from .. import access_tokens, console_auth
 
 _PUBLIC = ("/health",)
 # Sign-in and session status work without credentials; their handlers check the session themselves.
 _CONSOLE = "/api/v1/console/"
-_ADMIN = ("/api/v1/settings",)
+_ADMIN = ("/api/v1/settings", "/api/v1/tokens")
 _SAFE = {"GET", "HEAD", "OPTIONS"}
 
 
@@ -51,11 +51,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         bearer = _bearer(request)
         if bearer is not None:
-            if not console_auth.is_config_token(bearer):
-                return _deny("Forbidden", 403)
             if path.startswith(_ADMIN) or path.startswith(_CONSOLE):
                 return _deny("This endpoint accepts only a console session", 403)
+            token = await access_tokens.authenticate(bearer)
+            if token is None:
+                return _deny("Forbidden", 403)
             request.state.credential = "access_token"
+            # The MCP handlers see this request as ctx.request; remember records token.name.
+            request.state.token = token
             return await call_next(request)
 
         if path == "/mcp":

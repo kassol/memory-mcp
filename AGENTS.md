@@ -19,6 +19,7 @@
 - `web/` - 管理面板源码（React 单页应用，pnpm，锁文件入库）；`pnpm build` 输出到 `src/memory_mcp/ui/`
 - `src/memory_mcp/ui/` - 面板构建产物（不入库，由 Dockerfile 的 Node 阶段生成，随包发布，挂在 `/ui/`）
 - `src/memory_mcp/settings_registry.py` - 设置注册表：可在面板修改的设置、元数据与生效值
+- `src/memory_mcp/access_tokens.py` - 具名访问令牌：鉴权、创建、吊销、停用初始令牌
 - `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 面板的产品与视觉记录（视觉为 shadcn/ui 默认外观；`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
@@ -56,6 +57,14 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-11-01 具名访问令牌（#11）
+- 新增 `access_tokens.py` 与 migration `0007_access_tokens`：`access_tokens`（id、名称唯一、SHA-256 哈希、来源 file / console、创建、最近使用、revoked_at）；`memories` 新增列 `origin_token`。配置文件令牌是 id 为 `initial` 的行，不存哈希，仍与配置值做常数时间比较；它的 `revoked_at` 表示停用，可以再启用。其他令牌只能吊销，名称在吊销后仍占用，保证记忆里的令牌名只指向一个令牌
+- 最近使用时间在鉴权时写入，每个令牌每分钟最多一次
+- `AuthMiddleware` 改为经 `access_tokens.authenticate` 鉴权，把令牌放在 `request.state.token`；REST `POST /api/v1/memories` 与 MCP `remember`（从 `ctx.request` 取）把令牌名写入 `origin_token`，客户端传入的同名字段被覆盖；面板会话写入时为空。人工改正保留原来的 `origin_token`。`GET /api/v1/memories/{id}` 返回项新增 `origin_token`
+- REST（只接受面板会话，归入 `_ADMIN`）：`GET /api/v1/tokens`；`POST /api/v1/tokens`（`{name}`，201，响应含 `value`，空名 400，重名 409）；`DELETE /api/v1/tokens/{id}`（吊销，初始令牌 400，不存在 404）；`PUT /api/v1/tokens/initial`（`{enabled}`）。列表与响应都不含哈希
+- 面板：「设置 → 访问令牌」列出名称、来源、创建、最近使用与状态；创建后在对话框里显示一次令牌值并可复制；吊销与停用前确认。新增 shadcn `alert-dialog`
+- 测试：`tests/test_access_tokens.py`（REST 与 MCP 经新令牌读写、吊销与停用后被拒、初始令牌可再启用、令牌值只返回一次且只存哈希、名称唯一、最近使用每分钟一写、管理接口拒绝访问令牌、来源记录令牌名）；`tests/test_migrations.py` 覆盖 0007 升降级；前端 `tokens.test.tsx`
+
 ### 2026-10-31 管理口令与面板会话（#10）
 - 面板改用管理口令登录（docs/adr/0001）。新增 `console_auth.py` 与 migration `0006_console_auth`（`console_admin` 存 scrypt 口令哈希；`console_sessions` 只存会话令牌的 SHA-256、7 天滑动过期、bootstrap 标记）
 - 首次部署：没有口令时，配置文件里的访问令牌可开一个 bootstrap 会话，只能设置口令；设置后该令牌不能再登录面板。不做登录限流与锁定（ADR 0001）

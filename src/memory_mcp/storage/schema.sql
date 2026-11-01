@@ -41,7 +41,9 @@ CREATE TABLE memories (
 
   access_count INTEGER NOT NULL DEFAULT 0,
   last_accessed_at TIMESTAMP,
-  reinforce_count INTEGER NOT NULL DEFAULT 0
+  reinforce_count INTEGER NOT NULL DEFAULT 0,
+  -- name of the access token that wrote this version (0007)
+  origin_token TEXT
 );
 CREATE INDEX idx_memories_entity_key ON memories(entity_key);
 CREATE INDEX idx_memories_entity_type ON memories(entity_type);
@@ -172,4 +174,18 @@ CREATE TABLE console_sessions (
   created_at TIMESTAMP NOT NULL,
   last_used_at TIMESTAMP NOT NULL,
   expires_at TIMESTAMP NOT NULL
+);
+
+-- ---------------------------------------------------------------------------
+-- named access tokens (issue #11): only hashes are stored; id 'initial' is the
+-- configuration-file token (no hash), disabled by setting revoked_at
+-- ---------------------------------------------------------------------------
+CREATE TABLE access_tokens (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  token_hash TEXT UNIQUE,
+  source TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  last_used_at TIMESTAMP,
+  revoked_at TIMESTAMP
 );

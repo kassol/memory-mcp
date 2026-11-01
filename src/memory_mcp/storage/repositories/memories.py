@@ -10,7 +10,7 @@ _COLUMNS = (
     "parent_id, mutation_type, mutation_reason, created_at, valid_from, valid_until, "
     "is_current, confidence, review_status, archived_reason, archived_at, conflict, "
     "conflict_with_id, tags, source, origin_client, origin_session_id, "
-    "access_count, last_accessed_at, reinforce_count"
+    "access_count, last_accessed_at, reinforce_count, origin_token"
 )
 
 

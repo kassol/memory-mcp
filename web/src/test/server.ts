@@ -2,7 +2,7 @@
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 
-import type { Finding, MemoryItem, MemoryView, Setting } from "@/lib/types";
+import type { AccessToken, Finding, MemoryItem, MemoryView, Setting } from "@/lib/types";
 
 export const TOKEN = "good-token";
 export const PASSWORD = "admin-password";
@@ -15,10 +15,20 @@ interface Db {
   memories: MemoryView[];
   findings: Finding[];
   settings: Setting[];
+  tokens: AccessToken[];
   calls: { method: string; path: string; body: unknown }[];
 }
 
-export const db: Db = { password: PASSWORD, session: "full", memories: [], findings: [], settings: [], calls: [] };
+export const db: Db = { password: PASSWORD, session: "full", memories: [], findings: [], settings: [], tokens: [], calls: [] };
+
+export const initialToken = (): AccessToken => ({
+  id: "initial",
+  name: "initial",
+  source: "file",
+  created_at: "2026-10-31T08:00:00+00:00",
+  last_used_at: "2026-11-01T09:30:00+00:00",
+  revoked_at: null,
+});
 
 let seq = 0;
 export function memory(over: Partial<MemoryView> & { entity_key: string; content: string }): MemoryView {
@@ -61,6 +71,7 @@ export function reset() {
   db.memories = [];
   db.findings = [];
   db.settings = [];
+  db.tokens = [initialToken()];
   db.calls = [];
 }
 
@@ -203,6 +214,27 @@ export const handlers = [
     if (!s) return fail("Unknown setting", 404);
     Object.assign(s, s.file_value !== null ? { value: s.file_value, source: "file" } : { value: s.default, source: "default" });
     return ok(s);
+  })),
+  http.get(`${BASE}/tokens`, guard(() => ok({ items: db.tokens }))),
+  http.post(`${BASE}/tokens`, guard(async ({ request }) => {
+    const name = String(((await request.json()) as { name?: string }).name ?? "").trim();
+    if (!name) return fail("名称不能为空", 400);
+    if (db.tokens.some((t) => t.name === name)) return fail(`名称已被使用：${name}`, 409);
+    const token: AccessToken = { id: `t${db.tokens.length}`, name, source: "console", created_at: "2026-11-01T10:00:00+00:00", last_used_at: null, revoked_at: null };
+    db.tokens.push(token);
+    return HttpResponse.json({ ok: true, data: { ...token, value: `value-of-${name}` } }, { status: 201 });
+  })),
+  http.put(`${BASE}/tokens/initial`, guard(async ({ request }) => {
+    const { enabled } = (await request.json()) as { enabled: boolean };
+    const t = db.tokens.find((x) => x.id === "initial")!;
+    t.revoked_at = enabled ? null : "2026-11-01T10:05:00+00:00";
+    return ok(t);
+  })),
+  http.delete(`${BASE}/tokens/:id`, guard(({ params }) => {
+    const t = db.tokens.find((x) => x.id === params.id);
+    if (!t) return fail("Token not found", 404);
+    t.revoked_at ??= "2026-11-01T10:05:00+00:00";
+    return ok(t);
   })),
 ];
 

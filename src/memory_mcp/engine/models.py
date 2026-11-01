@@ -61,6 +61,7 @@ class MemoryNode(BaseModel):
     source: str = "conversation"
     origin_client: Optional[str] = None         # β
     origin_session_id: Optional[str] = None     # β
+    origin_token: Optional[str] = None          # name of the access token that wrote this version
 
     # Access stats (δ)
     access_count: int = 0

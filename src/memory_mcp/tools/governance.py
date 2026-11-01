@@ -23,6 +23,7 @@ def memory_view(node: MemoryNode) -> dict:
         "is_current": node.is_current,
         "conflict": node.conflict,
         "archived_reason": node.archived_reason,
+        "origin_token": node.origin_token,
     }
 
 
@@ -60,6 +61,7 @@ async def correct_memory(memory_id: str, content: str) -> dict:
         "title_tokens": node.title_tokens,
         "origin_client": node.origin_client,
         "origin_session_id": node.origin_session_id,
+        "origin_token": node.origin_token,
     }
     new_node = await evolve_memory(
         content, node, embedding, mutation_type_override=MutationType.CORRECTION,

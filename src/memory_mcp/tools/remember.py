@@ -46,6 +46,8 @@ async def remember_tool(arguments: dict) -> dict:
     skip_semantic_merge = arguments.get("skip_semantic_merge", False)
     origin_client = arguments.get("origin_client")
     origin_session_id = arguments.get("origin_session_id")
+    # Set by the transport from the authenticated access token, never taken from the client.
+    origin_token = arguments.get("origin_token")
     title = arguments.get("title")
 
     if not content:
@@ -60,6 +62,7 @@ async def remember_tool(arguments: dict) -> dict:
         for k, v in {
             "origin_client": origin_client,
             "origin_session_id": origin_session_id,
+            "origin_token": origin_token,
             "title": title,
             "title_tokens": tokenize(title) if title else None,
         }.items()
@@ -175,6 +178,7 @@ async def remember_tool(arguments: dict) -> dict:
         tags=tags,
         origin_client=origin_client,
         origin_session_id=origin_session_id,
+        origin_token=origin_token,
     )
     await vector_store.insert(new_node)
     await graph_store.upsert_entity(entity_key, entity_type, new_node.id)

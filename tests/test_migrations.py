@@ -16,6 +16,7 @@ REQUIRED_TABLES = {
     "console_settings",
     "console_admin",
     "console_sessions",
+    "access_tokens",
     "alembic_version",
 }
 
@@ -149,7 +150,7 @@ def test_head_drops_working_memory_cache_and_downgrade_restores_it(test_env):
             return _names(rows)
 
         migrate_mod.run_migrations()
-        assert migrate_mod.current() == "0006_console_auth"
+        assert migrate_mod.current() == "0007_access_tokens"
         assert "working_memory_cache" not in await tables()
 
         migrate_mod.downgrade("0001_initial_v2")
@@ -228,7 +229,7 @@ def test_0003_drops_threads_and_keeps_memories_intact(test_env):
             assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
             names, columns = _schema(conn)
             maintenance = {"memory_findings", "memory_checks", "idx_memory_findings_status", "console_settings",
-                           "console_admin", "console_sessions"}
+                           "console_admin", "console_sessions", "access_tokens"}
             assert REQUIRED_TABLES - maintenance <= names and REQUIRED_TRIGGERS <= names
             assert REQUIRED_INDEXES - maintenance <= names
             assert THREAD_OBJECTS <= names if expect_threads else not (THREAD_OBJECTS & names)
@@ -372,6 +373,7 @@ def test_0006_adds_console_auth_tables_and_downgrade_removes_them(test_env):
         finally:
             conn.close()
 
+    command.downgrade(cfg, "0006_console_auth")  # test_env already migrated to head
     assert migrate_mod.current() == "0006_console_auth" and objects <= names()
     conn = sqlite3.connect(db_path)
     try:
@@ -388,3 +390,48 @@ def test_0006_adds_console_auth_tables_and_downgrade_removes_them(test_env):
     assert not (objects & names()) and "console_settings" in names()
     command.upgrade(cfg, "head")
     assert objects <= names()
+
+
+def test_0007_adds_access_tokens_and_origin_token_and_downgrade_removes_them(test_env):
+    from alembic import command
+
+    import memory_mcp.storage.migrate as migrate_mod
+    importlib.reload(migrate_mod)
+    cfg = migrate_mod._make_config()
+    db_path = migrate_mod.settings.sqlite_path
+
+    def query(sql: str, args=()):
+        conn = sqlite3.connect(db_path)
+        try:
+            with conn:
+                return conn.execute(sql, args).fetchall()
+        finally:
+            conn.close()
+
+    def memory_columns() -> set[str]:
+        return {r[1] for r in query("PRAGMA table_info(memories)")}
+
+    command.downgrade(cfg, "0006_console_auth")  # test_env already migrated to head
+    query(
+        "INSERT INTO memories (id, entity_key, entity_type, content, mutation_type, created_at, valid_from) "
+        "VALUES ('m1', 'fact:a', 'fact', 'kept', 'initial', '2026-10-31', '2026-10-31')"
+    )
+    command.upgrade(cfg, "head")
+    assert migrate_mod.current() == "0007_access_tokens"
+    # The configuration-file token is seeded as the enabled initial token, without a hash.
+    assert query("SELECT id, name, token_hash, source, revoked_at FROM access_tokens") == [
+        ("initial", "initial", None, "file", None),
+    ]
+    assert "origin_token" in memory_columns()
+    assert query("SELECT content, origin_token FROM memories WHERE id = 'm1'") == [("kept", None)]
+    try:
+        query("INSERT INTO access_tokens (id, name, source, created_at) VALUES ('x', 'initial', 'console', 'now')")
+        raise AssertionError("token names are unique")
+    except sqlite3.IntegrityError:
+        pass
+
+    command.downgrade(cfg, "0006_console_auth")
+    assert "origin_token" not in memory_columns()
+    assert not query("SELECT name FROM sqlite_master WHERE name = 'access_tokens'")
+    assert query("SELECT content FROM memories WHERE id = 'm1'") == [("kept",)]
+    assert query("PRAGMA integrity_check") == [("ok",)]

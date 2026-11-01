@@ -105,7 +105,9 @@ The service serves a management console at `/ui/` (a React single-page app; sour
 
 - The console signs in with an admin password, separate from the access tokens agents use. A fresh deployment has no password yet: sign in once with the configuration-file access token (`MEMORY_MCP_AUTH_TOKEN`), then set the admin password. After that, the access token cannot open the console.
 - The session lives in an HttpOnly, Secure, SameSite=Strict cookie for 7 days and extends while used. Settings → Security changes the password and signs out every device. Serve the console over HTTPS (Secure cookie).
-- Settings endpoints accept only a console session; memory and finding endpoints accept an access token or a console session; MCP accepts only access tokens.
+- Settings endpoints (access token management included) accept only a console session; memory and finding endpoints accept an access token or a console session; MCP accepts only access tokens.
+- Access tokens: in Settings → Access tokens, create one named token per client (an agent host, the CLI). The value is shown once on creation; only its hash is stored. Revoke tokens one by one; a revoked name stays taken. The configuration-file token is listed as the initial token and can be disabled and enabled again. Each token shows its last use (updated at most once a minute). Memories written with a token record its name in `origin_token`. The maintenance cron on the host (`ops/run-maintenance.sh`) reads the initial token from `.env`: give it a named token before you disable the initial token.
+- REST: `GET /api/v1/tokens`, `POST /api/v1/tokens` (`{name}`; the response carries `value`), `DELETE /api/v1/tokens/{id}` (revoke), `PUT /api/v1/tokens/initial` (`{enabled}`).
 - Forgotten password: on the deploy host, in the compose directory, run `docker compose exec memory-mcp python -m memory_mcp.reset_password`. It removes the password and signs out every console session; then sign in with the access token again.
 
 - The Dockerfile builds the console in a Node stage and copies the output into the Python package's `ui/` directory. The output is not committed, and the runtime image has no Node.

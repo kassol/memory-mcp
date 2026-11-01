@@ -20,6 +20,7 @@ import { keys, useSettings } from "@/lib/queries";
 import { invalidReason } from "@/lib/settings";
 import { SOURCE } from "@/lib/terms";
 import { SecuritySection } from "@/pages/security";
+import { TokensSection } from "@/pages/tokens";
 import type { Setting } from "@/lib/types";
 
 function SettingRow({ s }: { s: Setting }) {
@@ -152,6 +153,7 @@ export function SettingsPage() {
         <Tabs defaultValue="parameters" className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-6">
           <TabsList>
             <TabsTrigger value="parameters">参数</TabsTrigger>
+            <TabsTrigger value="tokens">访问令牌</TabsTrigger>
             <TabsTrigger value="security">安全</TabsTrigger>
           </TabsList>
           <TabsContent value="parameters" className="flex flex-col gap-6">
@@ -170,6 +172,9 @@ export function SettingsPage() {
                 />
               </>
             )}
+          </TabsContent>
+          <TabsContent value="tokens" className="flex flex-col gap-6">
+            <TokensSection />
           </TabsContent>
           <TabsContent value="security" className="flex flex-col gap-6">
             <SecuritySection />

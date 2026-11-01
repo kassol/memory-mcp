@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { api, enc } from "@/lib/api";
-import type { Finding, MemoryItem, MemoryRecord, Setting } from "@/lib/types";
+import type { AccessToken, Finding, MemoryItem, MemoryRecord, Setting } from "@/lib/types";
 
 export const keys = {
   findings: ["findings", "open"] as const,
@@ -9,6 +9,7 @@ export const keys = {
   records: ["records"] as const,
   search: (query: string, type: string) => ["search", query, type] as const,
   settings: ["settings"] as const,
+  tokens: ["tokens"] as const,
 };
 
 export const useFindings = () =>
@@ -29,6 +30,9 @@ export const searchMemories = (query: string, type: string, limit: number) => {
   if (type) q.set("entity_type", type);
   return api<{ results: MemoryItem[] }>(`/memories/search?${q}`).then((d) => d.results);
 };
+
+export const useTokens = () =>
+  useQuery({ queryKey: keys.tokens, queryFn: () => api<{ items: AccessToken[] }>("/tokens").then((d) => d.items) });
 
 export const useSettings = () =>
   useQuery({ queryKey: keys.settings, queryFn: () => api<{ items: Setting[] }>("/settings").then((d) => d.items) });

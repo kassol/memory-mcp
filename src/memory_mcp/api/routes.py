@@ -18,6 +18,10 @@ async def handle_remember(request: Request) -> JSONResponse:
         body = await request.json()
     except Exception:
         return err("Invalid JSON body")
+    if not isinstance(body, dict):
+        return err("Invalid JSON body")
+    token = getattr(request.state, "token", None)
+    body["origin_token"] = token.name if token else None
     try:
         result = await remember.remember_tool(body)
     except ValueError as e:
@@ -307,6 +311,49 @@ async def handle_revert_setting(request: Request) -> JSONResponse:
     return ok(result)
 
 
+# GET /api/v1/tokens  — every access token, without values
+async def handle_list_tokens(request: Request) -> JSONResponse:
+    from .. import access_tokens
+    return ok({"items": await access_tokens.list_tokens()})
+
+
+# POST /api/v1/tokens  body {name}  — the response carries the value, the only time it is shown
+async def handle_create_token(request: Request) -> JSONResponse:
+    from .. import access_tokens
+    try:
+        body = await _json_body(request)
+        result = await access_tokens.create_token(str(body.get("name") or ""))
+    except access_tokens.NameTaken as e:
+        return err(str(e), 409)
+    except ValueError as e:
+        return err(str(e))
+    return ok(result, 201)
+
+
+# DELETE /api/v1/tokens/{token_id}  — revoke; the initial token is disabled instead
+async def handle_revoke_token(request: Request) -> JSONResponse:
+    from .. import access_tokens
+    try:
+        result = await access_tokens.revoke_token(request.path_params["token_id"])
+    except LookupError as e:
+        return err(str(e), 404)
+    except ValueError as e:
+        return err(str(e))
+    return ok(result)
+
+
+# PUT /api/v1/tokens/initial  body {enabled}  — disable or enable the configuration-file token
+async def handle_set_initial_token(request: Request) -> JSONResponse:
+    from .. import access_tokens
+    try:
+        body = await _json_body(request)
+    except ValueError as e:
+        return err(str(e))
+    if not isinstance(body.get("enabled"), bool):
+        return err("Missing required field: enabled (boolean)")
+    return ok(await access_tokens.set_initial_enabled(body["enabled"]))
+
+
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
@@ -330,4 +377,8 @@ routes = [
     Route("/api/v1/settings", endpoint=handle_list_settings, methods=["GET"]),
     Route("/api/v1/settings/{key}", endpoint=handle_set_setting, methods=["PUT"]),
     Route("/api/v1/settings/{key}", endpoint=handle_revert_setting, methods=["DELETE"]),
+    Route("/api/v1/tokens", endpoint=handle_list_tokens, methods=["GET"]),
+    Route("/api/v1/tokens", endpoint=handle_create_token, methods=["POST"]),
+    Route("/api/v1/tokens/initial", endpoint=handle_set_initial_token, methods=["PUT"]),
+    Route("/api/v1/tokens/{token_id}", endpoint=handle_revoke_token, methods=["DELETE"]),
 ]

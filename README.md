@@ -125,7 +125,9 @@ data/
 
 - 面板用管理口令登录，与 agent 使用的访问令牌分开。首次部署时还没有口令：用配置文件里的访问令牌（`MEMORY_MCP_AUTH_TOKEN`）登录一次，随即设置管理口令；设置后访问令牌不能再登录面板
 - 登录状态保存在 HttpOnly、Secure、SameSite=Strict 的 cookie 里，7 天有效，使用时自动延长；「设置 → 安全」可以修改口令、退出所有设备。面板必须经 HTTPS 访问（Secure cookie）
-- 设置类接口只接受面板会话；记忆与发现接口同时接受访问令牌和面板会话；MCP 只接受访问令牌
+- 设置类接口（含访问令牌管理）只接受面板会话；记忆与发现接口同时接受访问令牌和面板会话；MCP 只接受访问令牌
+- 访问令牌：「设置 → 访问令牌」为每个客户端（agent 所在主机、CLI 等）创建具名令牌，令牌值只在创建时显示一次，库里只存哈希；可以逐个吊销，吊销后名称保留、不能复用。配置文件里的令牌列为初始令牌，可以停用、再启用。每个令牌显示最近使用时间（每分钟最多更新一次）。经令牌写入的记忆在 `origin_token` 记下令牌名称。宿主机的维护定时任务（`ops/run-maintenance.sh`）读 `.env` 里的初始令牌，停用初始令牌前先给它换成具名令牌
+- REST：`GET /api/v1/tokens`、`POST /api/v1/tokens`（`{name}`，响应含 `value`）、`DELETE /api/v1/tokens/{id}`（吊销）、`PUT /api/v1/tokens/initial`（`{enabled}`）
 - 忘记口令：在部署主机的 compose 目录执行 `docker compose exec memory-mcp python -m memory_mcp.reset_password`，删除口令并退出所有面板会话，然后用访问令牌重新走首次登录
 
 - 镜像构建时由 Dockerfile 的 Node 阶段编译面板，产物放进 Python 包的 `ui/` 目录；产物不入库，运行镜像里没有 Node
