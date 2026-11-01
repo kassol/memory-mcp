@@ -169,7 +169,7 @@ export function SettingsPage() {
       <PageHeader title="设置" />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <Tabs defaultValue="parameters" className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-6">
-          <TabsList>
+          <TabsList className="max-w-full overflow-x-auto">
             <TabsTrigger value="parameters">参数</TabsTrigger>
             <TabsTrigger value="providers">Provider</TabsTrigger>
             <TabsTrigger value="roles">模型用途</TabsTrigger>

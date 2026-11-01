@@ -251,7 +251,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
             {query ? "换个说法，或直接用型号、版本号检索。" : keyFilter || type ? "换一个过滤条件。" : undefined}
           </EmptyState>
         ) : (
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((group) => (
