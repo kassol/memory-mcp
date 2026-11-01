@@ -39,6 +39,10 @@ def test_env(tmp_path, monkeypatch):
 
     import memory_mcp.settings_registry as settings_registry
     importlib.reload(settings_registry)
+    import memory_mcp.providers as providers
+    importlib.reload(providers)
+    import memory_mcp.engine.model_client as model_client
+    importlib.reload(model_client)
     import memory_mcp.console_auth as console_auth
     importlib.reload(console_auth)
     import memory_mcp.access_tokens as access_tokens

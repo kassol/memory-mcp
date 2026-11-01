@@ -2,7 +2,7 @@
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 
-import type { AccessToken, Finding, MemoryItem, MemoryView, Setting } from "@/lib/types";
+import type { AccessToken, Finding, MemoryItem, MemoryView, Provider, Setting } from "@/lib/types";
 
 export const TOKEN = "good-token";
 export const PASSWORD = "admin-password";
@@ -16,10 +16,39 @@ interface Db {
   findings: Finding[];
   settings: Setting[];
   tokens: AccessToken[];
+  providers: Provider[];
   calls: { method: string; path: string; body: unknown }[];
 }
 
-export const db: Db = { password: PASSWORD, session: "full", memories: [], findings: [], settings: [], tokens: [], calls: [] };
+export const db: Db = {
+  password: PASSWORD,
+  session: "full",
+  memories: [],
+  findings: [],
+  settings: [],
+  tokens: [],
+  providers: [],
+  calls: [],
+};
+
+/** The configuration-file provider: editable as an override, never deletable. */
+export const fileProvider = (): Provider => ({
+  id: "file",
+  name: "openrouter",
+  protocol: "openai",
+  base_url: "https://openrouter.ai/api/v1",
+  source: "file",
+  has_key: true,
+  api_key_last4: "cret",
+  overridden: { base_url: false, api_key: false },
+  file_base_url: "https://openrouter.ai/api/v1",
+  file_api_key_last4: "cret",
+  last_call_at: "2026-11-01T09:00:00+00:00",
+  last_call_ok: true,
+  last_call_error: null,
+  created_at: "2026-10-31T08:00:00+00:00",
+  deletable: false,
+});
 
 export const initialToken = (): AccessToken => ({
   id: "initial",
@@ -72,6 +101,7 @@ export function reset() {
   db.findings = [];
   db.settings = [];
   db.tokens = [initialToken()];
+  db.providers = [fileProvider()];
   db.calls = [];
 }
 
@@ -229,6 +259,64 @@ export const handlers = [
     if (!t) return fail("Token not found", 404);
     t.revoked_at ??= "2026-11-01T10:05:00+00:00";
     return ok(t);
+  })),
+  http.get(`${BASE}/providers`, guard(() => ok({ items: db.providers }))),
+  http.post(`${BASE}/providers/test`, guard(async ({ request }) => {
+    const body = (await request.json()) as { base_url?: string; id?: string };
+    if ((body.base_url ?? "").includes("fail")) return ok({ ok: false, models: 0, sample: [], error: "HTTP 401：invalid api key" });
+    return ok({ ok: true, models: 2, sample: ["gpt-4o-mini", "gpt-4.1"] });
+  })),
+  http.post(`${BASE}/providers`, guard(async ({ request }) => {
+    const body = (await request.json()) as { name: string; protocol: string; base_url: string; api_key: string };
+    if (!body.name?.trim()) return fail("名称不能为空", 400);
+    if (db.providers.some((p) => p.name === body.name)) return fail(`名称已被使用：${body.name}`, 409);
+    const created: Provider = {
+      id: `p${db.providers.length}`,
+      name: body.name,
+      protocol: body.protocol as Provider["protocol"],
+      base_url: body.base_url,
+      source: "console",
+      has_key: true,
+      api_key_last4: body.api_key.slice(-4),
+      overridden: { base_url: false, api_key: false },
+      file_base_url: null,
+      file_api_key_last4: null,
+      last_call_at: null,
+      last_call_ok: null,
+      last_call_error: null,
+      created_at: "2026-11-01T10:00:00+00:00",
+      deletable: true,
+    };
+    db.providers.push(created);
+    return HttpResponse.json({ ok: true, data: created }, { status: 201 });
+  })),
+  http.put(`${BASE}/providers/:id`, guard(async ({ request, params }) => {
+    const p = db.providers.find((x) => x.id === params.id);
+    if (!p) return fail("Provider not found", 404);
+    const body = (await request.json()) as {
+      name?: string;
+      protocol?: string;
+      base_url?: string | null;
+      api_key?: string | null;
+    };
+    if (body.name !== undefined) p.name = body.name;
+    if (body.protocol !== undefined) p.protocol = body.protocol as Provider["protocol"];
+    if (body.base_url !== undefined) {
+      p.base_url = body.base_url ?? (p.file_base_url as string);
+      p.overridden.base_url = body.base_url !== null;
+    }
+    if (body.api_key !== undefined) {
+      p.api_key_last4 = body.api_key === null ? p.file_api_key_last4 : body.api_key.slice(-4);
+      p.overridden.api_key = body.api_key !== null;
+    }
+    return ok(p);
+  })),
+  http.delete(`${BASE}/providers/:id`, guard(({ params }) => {
+    const p = db.providers.find((x) => x.id === params.id);
+    if (!p) return fail("Provider not found", 404);
+    if (!p.deletable) return fail("配置文件 Provider 不能删除，可以恢复为配置文件值", 409);
+    db.providers = db.providers.filter((x) => x.id !== params.id);
+    return ok({ id: p.id, deleted: true });
   })),
 ];
 

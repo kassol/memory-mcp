@@ -21,7 +21,7 @@ from starlette.responses import JSONResponse
 from starlette.requests import Request
 from starlette.middleware import Middleware
 
-from . import access_tokens, settings_registry
+from . import access_tokens, providers, settings_registry
 from .api.console import routes as console_routes
 from .api.routes import routes as api_routes
 from .config import settings
@@ -176,6 +176,8 @@ async def lifespan(starlette_app):
     if settings.auto_migrate:
         run_migrations()
     access_tokens.store_initial_hash(settings.sqlite_path, settings.auth_token)
+    # Create the provider data key at startup, so the backup picks it up before any key is saved.
+    providers.data_key()
     async with streamable_http_app.lifespan(starlette_app):
         try:
             yield

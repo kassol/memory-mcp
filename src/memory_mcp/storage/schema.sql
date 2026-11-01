@@ -1,4 +1,4 @@
--- memory-mcp v2 schema reference at head 0007_access_tokens (authoritative version: alembic versions/)
+-- memory-mcp v2 schema reference at head 0008_providers (authoritative version: alembic versions/)
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -191,3 +191,24 @@ CREATE TABLE access_tokens (
 );
 INSERT INTO access_tokens (id, name, token_hash, source, created_at)
   VALUES ('initial', 'initial', NULL, 'file', CURRENT_TIMESTAMP);
+
+-- ---------------------------------------------------------------------------
+-- model providers (issue #12): API keys are stored as AES-GCM ciphertext only;
+-- id 'file' is the configuration-file provider, whose NULL address and key mean
+-- "use the configuration file"
+-- ---------------------------------------------------------------------------
+CREATE TABLE providers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  protocol TEXT NOT NULL,
+  base_url TEXT,
+  api_key_cipher TEXT,
+  source TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  last_call_at TIMESTAMP,
+  last_call_ok INTEGER,
+  last_call_error TEXT
+);
+INSERT INTO providers (id, name, protocol, base_url, api_key_cipher, source, created_at, updated_at)
+  VALUES ('file', 'openrouter', 'openai', NULL, NULL, 'file', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

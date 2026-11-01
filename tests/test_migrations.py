@@ -17,6 +17,7 @@ REQUIRED_TABLES = {
     "console_admin",
     "console_sessions",
     "access_tokens",
+    "providers",
     "alembic_version",
 }
 
@@ -150,7 +151,7 @@ def test_head_drops_working_memory_cache_and_downgrade_restores_it(test_env):
             return _names(rows)
 
         migrate_mod.run_migrations()
-        assert migrate_mod.current() == "0007_access_tokens"
+        assert migrate_mod.current() == "0008_providers"
         assert "working_memory_cache" not in await tables()
 
         migrate_mod.downgrade("0001_initial_v2")
@@ -229,7 +230,7 @@ def test_0003_drops_threads_and_keeps_memories_intact(test_env):
             assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
             names, columns = _schema(conn)
             maintenance = {"memory_findings", "memory_checks", "idx_memory_findings_status", "console_settings",
-                           "console_admin", "console_sessions", "access_tokens"}
+                           "console_admin", "console_sessions", "access_tokens", "providers"}
             assert REQUIRED_TABLES - maintenance <= names and REQUIRED_TRIGGERS <= names
             assert REQUIRED_INDEXES - maintenance <= names
             assert THREAD_OBJECTS <= names if expect_threads else not (THREAD_OBJECTS & names)
@@ -416,7 +417,7 @@ def test_0007_adds_access_tokens_and_origin_token_and_downgrade_removes_them(tes
         "INSERT INTO memories (id, entity_key, entity_type, content, mutation_type, created_at, valid_from) "
         "VALUES ('m1', 'fact:a', 'fact', 'kept', 'initial', '2026-10-31', '2026-10-31')"
     )
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0007_access_tokens")
     assert migrate_mod.current() == "0007_access_tokens"
     # The configuration-file token is seeded as the enabled initial token, without a hash.
     assert query("SELECT id, name, token_hash, source, revoked_at FROM access_tokens") == [
@@ -434,4 +435,47 @@ def test_0007_adds_access_tokens_and_origin_token_and_downgrade_removes_them(tes
     assert "origin_token" not in memory_columns()
     assert not query("SELECT name FROM sqlite_master WHERE name = 'access_tokens'")
     assert query("SELECT content FROM memories WHERE id = 'm1'") == [("kept",)]
+    assert query("PRAGMA integrity_check") == [("ok",)]
+
+
+def test_0008_adds_providers_and_downgrade_removes_them(test_env):
+    from alembic import command
+
+    import memory_mcp.storage.migrate as migrate_mod
+    importlib.reload(migrate_mod)
+    cfg = migrate_mod._make_config()
+    db_path = migrate_mod.settings.sqlite_path
+
+    def query(sql: str, args=()):
+        conn = sqlite3.connect(db_path)
+        try:
+            with conn:
+                return conn.execute(sql, args).fetchall()
+        finally:
+            conn.close()
+
+    def tables() -> set[str]:
+        return {r[0] for r in query("SELECT name FROM sqlite_master WHERE type = 'table'")}
+
+    command.downgrade(cfg, "0007_access_tokens")  # test_env already migrated to head
+    assert "providers" not in tables()
+
+    command.upgrade(cfg, "head")
+    assert migrate_mod.current() == "0008_providers"
+    # The configuration-file OpenRouter settings are seeded as the provider whose NULL address and
+    # key mean "use the configuration file".
+    assert query("SELECT id, name, protocol, base_url, api_key_cipher, source FROM providers") == [
+        ("file", "openrouter", "openai", None, None, "file"),
+    ]
+    try:
+        query(
+            "INSERT INTO providers (id, name, protocol, source, created_at, updated_at) "
+            "VALUES ('x', 'openrouter', 'openai', 'console', 'now', 'now')"
+        )
+        raise AssertionError("provider names are unique")
+    except sqlite3.IntegrityError:
+        pass
+
+    command.downgrade(cfg, "0007_access_tokens")
+    assert "providers" not in tables()
     assert query("PRAGMA integrity_check") == [("ok",)]

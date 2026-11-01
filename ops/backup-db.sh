@@ -31,6 +31,11 @@ if check != "ok":
 
 shutil.copytree(data / "vectors", dst / "vectors")
 
+# Provider API keys are encrypted with this data key; without it they cannot be read.
+key = data / "provider-keys.key"
+if key.exists():
+    shutil.copy2(key, dst / "provider-keys.key")
+
 # Prune only after a verified backup, so a failing run never removes good copies.
 for old in sorted(p for p in root.iterdir() if p.is_dir())[:-7]:
     shutil.rmtree(old)

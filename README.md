@@ -117,7 +117,7 @@ data/
 
 ## 备份
 
-部署主机上用 cron 每日执行 `ops/backup-db.sh`，在 `data/backups/` 下保留最近 7 份 SQLite 与向量库快照。恢复时停服务，用某个备份目录里的 `memory.sqlite3` 和 `vectors/` 覆盖 `data/` 下的同名文件，再启动。
+部署主机上用 cron 每日执行 `ops/backup-db.sh`，在 `data/backups/` 下保留最近 7 份快照：`memory.sqlite3`、`vectors/`，以及 Provider API key 的加密数据密钥 `provider-keys.key`。恢复时停服务，用某个备份目录里的这三样覆盖 `data/` 下的同名文件，再启动。缺少数据密钥时库里的 API key 无法解密，面板会显示原因，需要重新填写 key。
 
 ## 管理面板
 
@@ -138,6 +138,15 @@ data/
 ## 设置
 
 行为参数（语义合并门槛、维护单轮模型调用上限）和高级参数（混合检索与维护检查的数值，如 `fts_weight`、`rrf_k`、`cross_key_min_cosine`）可在面板「设置」页修改，保存后下一次调用即生效。生效值的优先级为：面板值 > 配置文件或环境变量（`MEMORY_MCP_<KEY>`，如 `MEMORY_MCP_FTS_WEIGHT`）> 默认值；面板显示每项的来源，可一键恢复为配置文件值。配置文件里超出范围的值会让服务启动失败并给出原因。REST（只接受面板会话）：`GET /api/v1/settings`、`PUT /api/v1/settings/{key}`（`{value}`）、`DELETE /api/v1/settings/{key}`（恢复）。
+
+## Provider
+
+模型服务入口。协议支持 OpenAI 兼容、Anthropic 与 Gemini（Anthropic 不提供 embedding）；每个 Provider 有自己的地址与 API key。
+
+- 配置文件里的 OpenRouter 设置是一个来源为「配置文件」的 Provider。可以在面板里覆盖它的地址或 key，也可以一键恢复为配置文件值；它不能删除，协议固定为 OpenAI 兼容（向量用途依赖它）
+- 面板新增的 Provider 可以编辑、替换 key、删除。API key 用 AES-GCM 加密存在 SQLite 里，数据密钥在 `data/provider-keys.key`（仅所有者可读，首次启动创建）；接口只返回末四位，换 key 时直接填新的，旧 key 不会回到浏览器
+- 「测试连接」列出该 Provider 的模型，不消耗 token；列表页显示每个 Provider 最近一次调用的结果与时间，失败时显示原因
+- REST（只接受面板会话）：`GET /api/v1/providers`、`POST /api/v1/providers`（`{name, protocol, base_url, api_key}`）、`PUT /api/v1/providers/{id}`（地址或 key 传 `null` 表示恢复配置文件值，仅配置文件 Provider 可这样做）、`DELETE /api/v1/providers/{id}`、`POST /api/v1/providers/test`（`{protocol, base_url, api_key?}` 或 `{id}`）、`GET /api/v1/providers/{id}/models`
 
 ## 后台维护
 

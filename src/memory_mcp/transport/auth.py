@@ -16,7 +16,7 @@ from .. import access_tokens, console_auth
 _PUBLIC = ("/health",)
 # Sign-in and session status work without credentials; their handlers check the session themselves.
 _CONSOLE = "/api/v1/console/"
-_ADMIN = ("/api/v1/settings", "/api/v1/tokens")
+_ADMIN = ("/api/v1/settings", "/api/v1/tokens", "/api/v1/providers")
 _SAFE = {"GET", "HEAD", "OPTIONS"}
 
 

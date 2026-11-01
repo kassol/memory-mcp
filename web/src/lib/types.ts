@@ -67,3 +67,32 @@ export interface Setting {
   source: SettingSource;
   file_value: number | null;
 }
+
+/** A model provider as listed; the API key appears only as its last four characters. */
+export interface Provider {
+  id: string;
+  name: string;
+  protocol: "openai" | "anthropic" | "gemini";
+  base_url: string;
+  /** "file": the configuration-file provider; "console": added here. */
+  source: "file" | "console";
+  has_key: boolean;
+  api_key_last4: string | null;
+  /** Which fields of the configuration-file provider hold a console override. */
+  overridden: { base_url: boolean; api_key: boolean };
+  file_base_url: string | null;
+  file_api_key_last4: string | null;
+  last_call_at: string | null;
+  last_call_ok: boolean | null;
+  last_call_error: string | null;
+  created_at: string;
+  deletable: boolean;
+}
+
+/** The result of testing a provider connection; a failed test is a result, not an error. */
+export interface ProviderTest {
+  ok: boolean;
+  models: number;
+  sample: string[];
+  error?: string;
+}

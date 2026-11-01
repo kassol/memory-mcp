@@ -20,6 +20,8 @@
 - `src/memory_mcp/ui/` - 面板构建产物（不入库，由 Dockerfile 的 Node 阶段生成，随包发布，挂在 `/ui/`）
 - `src/memory_mcp/settings_registry.py` - 设置注册表：可在面板修改的设置、元数据与生效值
 - `src/memory_mcp/access_tokens.py` - 具名访问令牌：鉴权、创建、吊销；初始令牌的哈希写入与重置
+- `src/memory_mcp/providers.py` - Provider 记录、API key 的 AES-GCM 加密与生效值解析（配置文件 Provider 的覆盖与恢复）
+- `src/memory_mcp/engine/model_client.py` - 三种协议的 chat / embedding / 模型列表，调用结果写回 Provider 的最近调用状态
 - `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 面板的产品与视觉记录（视觉为 shadcn/ui 默认外观；`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
@@ -57,6 +59,20 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-11-01 Provider 记录与三种协议（#12）
+- 动机：此前只有配置文件里的 OpenRouter 一个入口和一个模型，换 key 或加供应商要改宿主机 `.env` 再重新部署（#7）
+- 新增 `providers.py` 与 migration `0008_providers`：`providers`（id、名称唯一、protocol、base_url、`api_key_cipher`、来源 file / console、创建与更新时间、最近调用时间与结果）。API key 用 AES-GCM 加密，数据密钥在 `data/provider-keys.key`（0600，首次启动或首次加密时创建，AAD 绑定 Provider id）；接口只返回末四位，key 不会回到浏览器
+- 配置文件里的 OpenRouter 设置是 id 为 `file` 的 Provider：`base_url` 与 `api_key_cipher` 为 NULL 表示「用配置文件值」，面板改写这两列即覆盖，传 null 即恢复。该行不能删除，协议固定 OpenAI 兼容（向量用途依赖它）
+- 新增 `engine/model_client.py`：OpenAI 兼容、Anthropic、Gemini 的 chat / embed / list_models。每次调用把结果写回 Provider 行（最近调用时间、成功与否、原因）；错误统一成可读消息（超时、连接失败、HTTP 状态加响应片段、响应缺少字段）。Anthropic 没有 embedding 接口，调用前就报错、不记录最近调用
+- 推理按协议各自关闭：OpenAI 兼容 `reasoning.enabled=false`；Gemini 只在 2.5 / 3 系模型发 `thinkingConfig.thinkingBudget=0`（老模型拒绝该字段）。JSON 模式：OpenAI 兼容 `response_format`、Gemini `responseMimeType`、Anthropic 的 system 指令；`json_mode` 目前只有测试使用，写入路径行为不变
+- `engine/llm.py`、`engine/conflict.py`、`engine/embedding.py` 改走 `model_client` 与 `file` Provider，配置在调用时读取；`conflict.py` 不再自己拼 HTTP 请求，`NO_REASONING` 常量删除
+- REST（只接受面板会话，`_ADMIN` 增加 `/api/v1/providers`）：`GET /api/v1/providers`、`POST /api/v1/providers`、`PUT /api/v1/providers/{id}`、`DELETE /api/v1/providers/{id}`、`POST /api/v1/providers/test`（可以只给 id，用已存的 key，便于改地址后测试）、`GET /api/v1/providers/{id}/models`
+- 面板「设置 → Provider」：列表显示来源、协议、key 末四位、最近调用与失败原因；添加、编辑（key 留空即保留原值）、测试连接（列出模型，不消耗 token）、删除、恢复地址或 key
+- `ops/backup-db.sh` 一并复制 `provider-keys.key`；README 写明缺少数据密钥时库里的 key 无法解密
+- 依赖：`cryptography` 显式声明（`requirements.lock` 里已有）
+- 测试：`tests/test_providers.py` 用本地假 HTTP 服务覆盖三种协议的请求形状、推理关闭与 JSON 模式、embedding、模型列表、错误映射、最近调用状态、密文入库与末四位、REST 增删改与校验、配置文件 Provider 的覆盖与恢复、管理接口只接受面板会话、写入路径与 embedding 走 `file` Provider；`tests/test_migrations.py` 覆盖 0008 升降级；前端 `providers.test.tsx`
+- 未做：删除 Provider 时「有模型用途引用则拒绝」要等 #13 引入模型用途；`json_mode` 也在 #13 接入
+
 ### 2026-11-01 初始令牌改为普通令牌（#11 后续）
 - 动机：初始令牌原先是特例（不存哈希、与配置值比较、只能停用 / 启用），后端用 `id == initial`、前端用 `source === file` 各自判断。改为与其他令牌同一条路径
 - 服务启动时（migration 之后）`store_initial_hash` 把 `MEMORY_MCP_AUTH_TOKEN` 的哈希写入 `initial` 行，只在它为空时写一次。配置值只在首次使用；之后改 `.env` 不生效。哈希不在 migration 里写：migration 按约定不读取 Settings（`migrations/env.py`），故无新 migration

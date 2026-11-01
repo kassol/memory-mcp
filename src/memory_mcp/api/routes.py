@@ -337,6 +337,103 @@ async def handle_revoke_token(request: Request) -> JSONResponse:
     return ok(result)
 
 
+# GET /api/v1/providers  — every provider; keys appear only as their last four characters
+async def handle_list_providers(request: Request) -> JSONResponse:
+    from .. import providers
+    return ok({"items": await providers.list_providers()})
+
+
+# POST /api/v1/providers  body {name, protocol, base_url, api_key}
+async def handle_create_provider(request: Request) -> JSONResponse:
+    from .. import providers
+    try:
+        body = await _json_body(request)
+        result = await providers.create_provider(
+            body.get("name"), body.get("protocol"), body.get("base_url"), body.get("api_key")
+        )
+    except providers.NameTaken as e:
+        return err(str(e), 409)
+    except ValueError as e:
+        return err(str(e))
+    return ok(result, 201)
+
+
+# PUT /api/v1/providers/{provider_id}  — changing base_url or api_key to null reverts the file
+# provider to its configuration-file value; console providers require both.
+async def handle_update_provider(request: Request) -> JSONResponse:
+    from .. import providers
+    try:
+        body = await _json_body(request)
+    except ValueError as e:
+        return err(str(e))
+    fields = {key: body[key] for key in ("name", "protocol", "base_url", "api_key") if key in body}
+    try:
+        result = await providers.update_provider(request.path_params["provider_id"], **fields)
+    except LookupError as e:
+        return err(str(e), 404)
+    except providers.NameTaken as e:
+        return err(str(e), 409)
+    except ValueError as e:
+        return err(str(e))
+    return ok(result)
+
+
+# DELETE /api/v1/providers/{provider_id}
+async def handle_delete_provider(request: Request) -> JSONResponse:
+    from .. import providers
+    try:
+        result = await providers.delete_provider(request.path_params["provider_id"])
+    except LookupError as e:
+        return err(str(e), 404)
+    except providers.NotDeletable as e:
+        return err(str(e), 409)
+    return ok(result)
+
+
+# POST /api/v1/providers/test  body {protocol, base_url, api_key?, id?}  — test before saving.
+# Without an api_key the saved provider named by id supplies it. A failed test is a result, not a
+# request error: 200 with ok=false and the reason, as the console shows it next to the form.
+async def handle_test_provider(request: Request) -> JSONResponse:
+    from .. import providers
+    from ..engine import model_client
+    try:
+        body = await _json_body(request)
+        api_key = str(body.get("api_key") or "")
+        if api_key:
+            provider = providers.ad_hoc(body.get("protocol"), body.get("base_url"), api_key, str(body.get("id") or ""))
+        else:
+            # The saved provider supplies the key, so an edit can be tested without retyping it.
+            saved = await providers.resolve(str(body.get("id") or ""))
+            provider = providers.ad_hoc(
+                body.get("protocol") or saved.protocol,
+                body.get("base_url") or saved.base_url,
+                saved.api_key,
+                saved.id,
+            )
+    except LookupError as e:
+        return err(str(e), 404)
+    except ValueError as e:
+        return err(str(e))
+    try:
+        models = await model_client.list_models(provider)
+    except model_client.ProviderCallError as e:
+        return ok({"ok": False, "error": str(e), "models": 0, "sample": []})
+    return ok({"ok": True, "models": len(models), "sample": models[:5]})
+
+
+async def handle_provider_models(request: Request) -> JSONResponse:
+    from .. import providers
+    from ..engine import model_client
+    try:
+        provider = await providers.resolve(request.path_params["provider_id"])
+        models = await model_client.list_models(provider)
+    except LookupError as e:
+        return err(str(e), 404)
+    except model_client.ProviderCallError as e:
+        return err(str(e), 502)
+    return ok({"items": models})
+
+
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
@@ -363,4 +460,11 @@ routes = [
     Route("/api/v1/tokens", endpoint=handle_list_tokens, methods=["GET"]),
     Route("/api/v1/tokens", endpoint=handle_create_token, methods=["POST"]),
     Route("/api/v1/tokens/{token_id}", endpoint=handle_revoke_token, methods=["DELETE"]),
+    # /providers/test is registered before the {provider_id} routes so it cannot be read as an id.
+    Route("/api/v1/providers/test", endpoint=handle_test_provider, methods=["POST"]),
+    Route("/api/v1/providers", endpoint=handle_list_providers, methods=["GET"]),
+    Route("/api/v1/providers", endpoint=handle_create_provider, methods=["POST"]),
+    Route("/api/v1/providers/{provider_id}", endpoint=handle_update_provider, methods=["PUT"]),
+    Route("/api/v1/providers/{provider_id}", endpoint=handle_delete_provider, methods=["DELETE"]),
+    Route("/api/v1/providers/{provider_id}/models", endpoint=handle_provider_models, methods=["GET"]),
 ]

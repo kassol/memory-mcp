@@ -1,36 +1,23 @@
-import httpx
 from typing import List
+
+from .. import providers
 from ..config import settings
+from . import model_client
+
 
 class EmbeddingService:
-    def __init__(self):
-        self.api_key = settings.openrouter_api_key
-        self.base_url = settings.openrouter_base_url
-        self.model = settings.embedding_model
+    """Embeddings for stored vectors: always the configuration-file provider and model.
+
+    Stored vectors were computed with this model, so the console shows it read-only
+    (docs/adr/0002); the provider comes from the configuration file or its console override.
+    """
 
     async def get_embedding(self, text: str) -> List[float]:
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://memory-mcp.app", # Required by OpenRouter often
-            "X-Title": "Memory MCP"
-        }
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/embeddings",
-                headers=headers,
-                json={
-                    "model": self.model,
-                    "input": text
-                },
-                timeout=30.0
-            )
-            response.raise_for_status()
-            data = response.json()
-            embedding = data["data"][0]["embedding"]
-            if len(embedding) != settings.embedding_dim:
-                raise ValueError("Embedding dimension mismatch")
-            return embedding
+        provider = await providers.resolve(providers.FILE_PROVIDER)
+        embedding = await model_client.embed(provider, settings.embedding_model, text, timeout=30.0)
+        if len(embedding) != settings.embedding_dim:
+            raise ValueError("Embedding dimension mismatch")
+        return embedding
+
 
 embedding_service = EmbeddingService()
