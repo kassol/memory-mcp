@@ -18,12 +18,9 @@ async def handle_remember(request: Request) -> JSONResponse:
         body = await request.json()
     except Exception:
         return err("Invalid JSON body")
-    if not isinstance(body, dict):
-        return err("Invalid JSON body")
     token = getattr(request.state, "token", None)
-    body["origin_token"] = token.name if token else None
     try:
-        result = await remember.remember_tool(body)
+        result = await remember.remember_tool(body, origin_token=token.name if token else None)
     except ValueError as e:
         return err(str(e))
     except Exception as e:

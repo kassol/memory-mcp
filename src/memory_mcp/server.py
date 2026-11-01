@@ -132,7 +132,7 @@ async def call_tool(ctx: ServerRequestContext, params: CallToolRequestParams) ->
         if name == "remember":
             # The HTTP request was authenticated by AuthMiddleware; in-process clients have none.
             token = getattr(getattr(ctx.request, "state", None), "token", None)
-            result = await remember.remember_tool({**arguments, "origin_token": token.name if token else None})
+            result = await remember.remember_tool(arguments, origin_token=token.name if token else None)
         elif name == "recall":
             result = await recall.recall_tool(arguments)
         elif name == "trace":

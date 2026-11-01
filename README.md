@@ -128,7 +128,7 @@ data/
 - 设置类接口（含访问令牌管理）只接受面板会话；记忆与发现接口同时接受访问令牌和面板会话；MCP 只接受访问令牌
 - 访问令牌：「设置 → 访问令牌」为每个客户端（agent 所在主机、CLI 等）创建具名令牌，令牌值只在创建时显示一次，库里只存哈希；可以逐个吊销，吊销后名称保留、不能复用。配置文件里的令牌列为初始令牌，可以停用、再启用。每个令牌显示最近使用时间（每分钟最多更新一次）。经令牌写入的记忆在 `origin_token` 记下令牌名称。宿主机的维护定时任务（`ops/run-maintenance.sh`）读 `.env` 里的初始令牌，停用初始令牌前先给它换成具名令牌
 - REST：`GET /api/v1/tokens`、`POST /api/v1/tokens`（`{name}`，响应含 `value`）、`DELETE /api/v1/tokens/{id}`（吊销）、`PUT /api/v1/tokens/initial`（`{enabled}`）
-- 忘记口令：在部署主机的 compose 目录执行 `docker compose exec memory-mcp python -m memory_mcp.reset_password`，删除口令并退出所有面板会话，然后用访问令牌重新走首次登录
+- 忘记口令：在部署主机的 compose 目录执行 `docker compose exec memory-mcp python -m memory_mcp.reset_password`，删除口令并退出所有面板会话，然后用初始令牌重新走首次登录。初始令牌已停用时不能登录：先在 compose 目录执行 `docker compose exec memory-mcp python -c "import sqlite3; c=sqlite3.connect('data/memory.sqlite3'); c.execute(\"UPDATE access_tokens SET revoked_at=NULL WHERE id='initial'\"); c.commit()"` 启用它
 
 - 镜像构建时由 Dockerfile 的 Node 阶段编译面板，产物放进 Python 包的 `ui/` 目录；产物不入库，运行镜像里没有 Node
 - 档案页可按 key、类型、写入时间、生效时间排序，按 key 与类型过滤；对应 `GET /api/v1/memories?sort=&direction=&key=&entity_type=`（返回 `matched` 为过滤后总数）与 `GET /api/v1/memories/types`

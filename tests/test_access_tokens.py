@@ -133,6 +133,29 @@ def test_disabled_initial_token_is_rejected_and_can_be_enabled_again(app, consol
     assert c.get("/api/v1/memories", headers=INITIAL).status_code == 200
 
 
+def test_disabled_initial_token_cannot_open_a_bootstrap_session(app, console):
+    console.put("/api/v1/tokens/initial", json={"enabled": False}, headers={"Origin": ORIGIN})
+    from memory_mcp import reset_password
+
+    reset_password.main()  # no password again: only the initial token could sign in now
+    c = TestClient(app, base_url=ORIGIN)
+    res = c.post("/api/v1/console/login", json={"token": "test-token"}, headers={"Origin": ORIGIN})
+    assert res.status_code == 401
+
+
+def test_disabling_twice_keeps_the_first_time(app, console):
+    first = console.put("/api/v1/tokens/initial", json={"enabled": False}, headers={"Origin": ORIGIN}).json()
+    again = console.put("/api/v1/tokens/initial", json={"enabled": False}, headers={"Origin": ORIGIN}).json()
+    assert again["data"]["revoked_at"] == first["data"]["revoked_at"]
+
+
+def test_rest_body_cannot_set_the_origin_through_a_console_session(app, console):
+    res = console.post("/api/v1/memories", json={"content": "x", "entity_key": "fact:x", "entity_type": "fact",
+                                                 "origin_token": "forged"}, headers={"Origin": ORIGIN})
+    assert res.status_code == 200, res.text
+    assert origin_of(console, res.json()["data"]["memory_id"]) is None
+
+
 def test_token_value_is_shown_once_and_only_its_hash_is_stored(app, console):
     created = create(console, "cli")
     items = listed(console)

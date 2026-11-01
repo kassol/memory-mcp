@@ -1,4 +1,4 @@
--- memory-mcp v2 schema reference at head 0006_console_auth (authoritative version: alembic versions/)
+-- memory-mcp v2 schema reference at head 0007_access_tokens (authoritative version: alembic versions/)
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -189,3 +189,5 @@ CREATE TABLE access_tokens (
   last_used_at TIMESTAMP,
   revoked_at TIMESTAMP
 );
+INSERT INTO access_tokens (id, name, token_hash, source, created_at)
+  VALUES ('initial', 'initial', NULL, 'file', CURRENT_TIMESTAMP);

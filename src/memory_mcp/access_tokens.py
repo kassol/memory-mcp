@@ -42,13 +42,25 @@ class NameTaken(TokenError):
 
 @dataclass(frozen=True)
 class Identity:
-    id: str
     name: str
+
+
+def _is_config_value(value: str) -> bool:
+    return hmac.compare_digest(value.encode(), settings.auth_token.encode())
+
+
+async def is_enabled_initial(value: str) -> bool:
+    """Whether `value` is the configuration-file token and it is not disabled (console bootstrap)."""
+    if not _is_config_value(value):
+        return False
+    async with get_db() as db:
+        row = await db.fetchone("SELECT revoked_at FROM access_tokens WHERE id = ?", (INITIAL,))
+    return row is not None and row["revoked_at"] is None
 
 
 async def authenticate(value: str) -> Optional[Identity]:
     """The live token for a Bearer value, or None if unknown, revoked or disabled."""
-    if hmac.compare_digest(value.encode(), settings.auth_token.encode()):
+    if _is_config_value(value):
         where, arg = "id = ?", INITIAL
     else:
         where, arg = "token_hash = ?", _hash(value)
@@ -60,7 +72,7 @@ async def authenticate(value: str) -> Optional[Identity]:
         last = row["last_used_at"]
         if last is None or now - datetime.fromisoformat(last) >= _LAST_USE_INTERVAL:
             await db.execute("UPDATE access_tokens SET last_used_at = ? WHERE id = ?", (now.isoformat(), row["id"]))
-    return Identity(id=row["id"], name=row["name"])
+    return Identity(name=row["name"])
 
 
 async def list_tokens() -> list[dict]:
@@ -110,9 +122,13 @@ async def revoke_token(token_id: str) -> dict:
 
 
 async def set_initial_enabled(enabled: bool) -> dict:
+    """Disable or enable the initial token; disabling it again keeps the first time."""
     async with get_db() as db:
-        await db.execute(
-            "UPDATE access_tokens SET revoked_at = ? WHERE id = ?",
-            (None if enabled else _now().isoformat(), INITIAL),
-        )
+        if enabled:
+            await db.execute("UPDATE access_tokens SET revoked_at = NULL WHERE id = ?", (INITIAL,))
+        else:
+            await db.execute(
+                "UPDATE access_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
+                (_now().isoformat(), INITIAL),
+            )
     return await _get(INITIAL)

@@ -37,8 +37,12 @@ async def _merge_with(old_content: str, content: str, embedding: list[float]) ->
     return merged, conflict, embedding
 
 
-async def remember_tool(arguments: dict) -> dict:
-    """Without entity_key/entity_type the server assigns them via `assign_entity_key`."""
+async def remember_tool(arguments: dict, *, origin_token: str | None = None) -> dict:
+    """Without entity_key/entity_type the server assigns them via `assign_entity_key`.
+
+    `origin_token` is the name of the authenticated access token; the transport passes it, so a
+    client cannot set it through `arguments`.
+    """
     content = arguments.get("content")
     entity_key = arguments.get("entity_key")
     entity_type = arguments.get("entity_type")
@@ -46,8 +50,6 @@ async def remember_tool(arguments: dict) -> dict:
     skip_semantic_merge = arguments.get("skip_semantic_merge", False)
     origin_client = arguments.get("origin_client")
     origin_session_id = arguments.get("origin_session_id")
-    # Set by the transport from the authenticated access token, never taken from the client.
-    origin_token = arguments.get("origin_token")
     title = arguments.get("title")
 
     if not content:

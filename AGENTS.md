@@ -58,12 +58,13 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 
 ## 变更日志
 ### 2026-11-01 具名访问令牌（#11）
-- 新增 `access_tokens.py` 与 migration `0007_access_tokens`：`access_tokens`（id、名称唯一、SHA-256 哈希、来源 file / console、创建、最近使用、revoked_at）；`memories` 新增列 `origin_token`。配置文件令牌是 id 为 `initial` 的行，不存哈希，仍与配置值做常数时间比较；它的 `revoked_at` 表示停用，可以再启用。其他令牌只能吊销，名称在吊销后仍占用，保证记忆里的令牌名只指向一个令牌
+- 新增 `access_tokens.py` 与 migration `0007_access_tokens`：`access_tokens`（id、名称唯一、SHA-256 哈希、来源 file / console、创建、最近使用、revoked_at）；`memories` 新增列 `origin_token`。配置文件令牌是 id 为 `initial` 的行，不存哈希，仍与配置值做常数时间比较；它的 `revoked_at` 表示停用，可以再启用；停用期间它也不能开面板 bootstrap 会话（重置口令后需先在库里启用，见 README），泄露后停用的令牌不能抢先设置口令。其他令牌只能吊销，名称在吊销后仍占用，保证记忆里的令牌名只指向一个令牌
 - 最近使用时间在鉴权时写入，每个令牌每分钟最多一次
 - `AuthMiddleware` 改为经 `access_tokens.authenticate` 鉴权，把令牌放在 `request.state.token`；REST `POST /api/v1/memories` 与 MCP `remember`（从 `ctx.request` 取）把令牌名写入 `origin_token`，客户端传入的同名字段被覆盖；面板会话写入时为空。人工改正保留原来的 `origin_token`。`GET /api/v1/memories/{id}` 返回项新增 `origin_token`
 - REST（只接受面板会话，归入 `_ADMIN`）：`GET /api/v1/tokens`；`POST /api/v1/tokens`（`{name}`，201，响应含 `value`，空名 400，重名 409）；`DELETE /api/v1/tokens/{id}`（吊销，初始令牌 400，不存在 404）；`PUT /api/v1/tokens/initial`（`{enabled}`）。列表与响应都不含哈希
 - 面板：「设置 → 访问令牌」列出名称、来源、创建、最近使用与状态；创建后在对话框里显示一次令牌值并可复制；吊销与停用前确认。新增 shadcn `alert-dialog`
-- 测试：`tests/test_access_tokens.py`（REST 与 MCP 经新令牌读写、吊销与停用后被拒、初始令牌可再启用、令牌值只返回一次且只存哈希、名称唯一、最近使用每分钟一写、管理接口拒绝访问令牌、来源记录令牌名）；`tests/test_migrations.py` 覆盖 0007 升降级；前端 `tokens.test.tsx`
+- `remember_tool` 新增关键字参数 `origin_token`，不从 `arguments` 读，客户端无法伪造来源
+- 测试：`tests/test_access_tokens.py`（REST 与 MCP 经新令牌读写、停用的初始令牌不能开 bootstrap 会话、重复停用保留首次时间、吊销与停用后被拒、初始令牌可再启用、令牌值只返回一次且只存哈希、名称唯一、最近使用每分钟一写、管理接口拒绝访问令牌、来源记录令牌名）；`tests/test_migrations.py` 覆盖 0007 升降级；前端 `tokens.test.tsx`
 
 ### 2026-10-31 管理口令与面板会话（#10）
 - 面板改用管理口令登录（docs/adr/0001）。新增 `console_auth.py` 与 migration `0006_console_auth`（`console_admin` 存 scrypt 口令哈希；`console_sessions` 只存会话令牌的 SHA-256、7 天滑动过期、bootstrap 标记）

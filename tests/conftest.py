@@ -43,6 +43,8 @@ def test_env(tmp_path, monkeypatch):
     importlib.reload(console_auth)
     import memory_mcp.access_tokens as access_tokens
     importlib.reload(access_tokens)
+    import memory_mcp.reset_password as reset_password
+    importlib.reload(reset_password)
 
     import memory_mcp.storage.vector as vector
     importlib.reload(vector)
