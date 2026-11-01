@@ -26,6 +26,7 @@
 - `src/memory_mcp/recall_log.py` - 检索记录（30 天、可关闭、可清空）与日统计（90 天，写入 / 召回数、召回耗时中位数）
 - `src/memory_mcp/startup.py` - 启动设置：草稿、校验、应用与回退记录
 - `src/memory_mcp/lifecycle.py` - 应用启动设置后的优雅退出：停止接受请求、等一轮维护、排出退出码
+- `src/memory_mcp/overview.py` - 概览快照与维护轮次历史
 - `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 面板的产品与视觉记录（视觉为 shadcn/ui 默认外观；`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
@@ -63,6 +64,17 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-11-01 概览与维护页（#16）
+- 动机：面板只有待审、档案与设置，服务整体状态（发现分布、记忆变化、Provider 健康、最近一轮维护、召回趋势）没有一处能看到（#7）
+- 新增 `overview.py`：`snapshot()` 一次读出待审发现按类型计数、当前记忆总数与 7 / 30 天新增与演化数、最近一轮维护、Provider 最近调用、最久未更新的 5 条记忆、令牌最近使用、近 30 天日统计；`rounds(limit)` 读 `jobs` 里 `job_type = 'maintenance'` 的轮次并算出耗时
+- 维护计划在宿主机 cron 上，服务不知道：接口返回固定说明文字，面板只展示
+- REST（只接受面板会话，`_ADMIN` 增加 `/api/v1/overview`）：`GET /api/v1/overview`、`GET /api/v1/overview/rounds?limit=`。注意刻意不放在 `/api/v1/maintenance` 下：那个前缀下的 `POST /maintenance/run` 仍接受访问令牌（宿主机 cron 用它）
+- 面板：概览页（三张卡：待审分布可跳转、记忆变化、维护状态；三张 30 天图：写入、召回、召回耗时中位数，新增 shadcn `chart` 与 recharts；再往下是 Provider 最近调用、最久未更新的记忆可打开详情、令牌最近使用）；维护页（立即运行一轮、刷新、最近 20 轮历史含耗时 / 调用次数 / 发现数 / 错误、计划显示）
+- 删除 `pages/placeholder.tsx`：两个占位路由已换成真页面
+- ESLint：生成组件的原始 HTML 禁令放行 `<style>` 上的 `dangerouslySetInnerHTML`（图表组件注入静态 CSS 变量），其他情况仍然报错
+- 测试：`tests/test_overview.py`（快照各字段、轮次顺序与 limit 校验、只接受面板会话）；前端 `overview.test.tsx`（发现分布与跳转、记忆变化、图渲染数量、Provider / 最久未更新 / 令牌）、`maintenance.test.tsx`（计划文字、运行一轮后出现运行中、历史含耗时与错误）
+- 文档：DESIGN.md 补概览与维护页、状态徽章、开关与图表的取色
+
 ### 2026-11-01 启动设置：校验、应用与回退（#14）
 - 动机：端口、数据目录、向量后端这些只在启动时读取的设置只能改宿主机 `.env` 再重新部署；改错没有校验，服务起不来时也看不出原因（#7、docs/adr/0002）
 - 启动设置在 settings 对象之前读取：`config.recover_startup` 在新的 `Settings` 之前读 `data/startup-settings.json` 并按需回退。可覆盖的键 `port`、`data_dir`、`vector_backend`、`embedding_model`、`embedding_dim`、`debug`

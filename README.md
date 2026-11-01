@@ -121,7 +121,7 @@ data/
 
 ## 管理面板
 
-服务在 `/ui/` 提供管理面板（React 单页应用，源码在 `web/`）：待审的发现、档案与版本历史、设置。
+服务在 `/ui/` 提供管理面板（React 单页应用，源码在 `web/`）：概览、待审的发现、档案与版本历史（含检索记录）、维护轮次、设置。
 
 - 面板用管理口令登录，与 agent 使用的访问令牌分开。首次部署时还没有口令：用配置文件里的访问令牌（`MEMORY_MCP_AUTH_TOKEN`）登录一次，随即设置管理口令；设置后访问令牌不能再登录面板
 - 登录状态保存在 HttpOnly、Secure、SameSite=Strict 的 cookie 里，7 天有效，使用时自动延长；「设置 → 安全」可以修改口令、退出所有设备。面板必须经 HTTPS 访问（Secure cookie）
@@ -131,6 +131,8 @@ data/
 - 忘记口令：在部署主机的 compose 目录执行 `docker compose exec memory-mcp python -m memory_mcp.reset_password`，删除口令并退出所有面板会话，并把初始令牌按配置文件里的当前值重新写入、恢复生效（即使它已被吊销；对 agent 也生效），然后用它重新走首次登录。不再需要它时，设置口令后在面板里再吊销一次
 
 - 镜像构建时由 Dockerfile 的 Node 阶段编译面板，产物放进 Python 包的 `ui/` 目录；产物不入库，运行镜像里没有 Node
+- 概览页一屏看完：待审发现按类型计数（可跳转）、当前记忆与 7 / 30 天新增演化、最近一轮维护、Provider 最近调用、最久未更新的记忆、令牌最近使用，以及 30 天的写入 / 召回 / 召回耗时中位数图。对应 `GET /api/v1/overview`（只接受面板会话）
+- 维护页可以立即跑一轮并刷新历史：开始时间、状态、耗时、模型调用次数、发现数与错误。对应 `GET /api/v1/overview/rounds?limit=`；计划本身在宿主机 cron 上，面板只展示
 - 档案页可按 key、类型、写入时间、生效时间排序，按 key 与类型过滤；对应 `GET /api/v1/memories?sort=&direction=&key=&entity_type=`（返回 `matched` 为过滤后总数）与 `GET /api/v1/memories/types`
 - 本地开发：`cd web && pnpm install && pnpm dev`（Vite 开发服务把 `/api` 代理到 `127.0.0.1:8765`）；`pnpm build` 把产物写进 `src/memory_mcp/ui/`
 - 前端检查：`pnpm typecheck`、`pnpm lint`、`pnpm test`

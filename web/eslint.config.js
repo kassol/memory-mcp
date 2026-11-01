@@ -17,6 +17,20 @@ const noRawHtml = {
 // only the raw-HTML ban applies to them.
 const generated = ["src/components/ui/**", "src/hooks/**"];
 
+// The generated chart component writes its own CSS variables into a <style> tag. That markup is
+// static, so the ban keeps its point (memory text is never turned into HTML) with that exception.
+const generatedNoRawHtml = {
+  "no-restricted-syntax": [
+    "error",
+    {
+      selector:
+        "JSXAttribute[name.name='dangerouslySetInnerHTML']:not(JSXOpeningElement[name.name='style'] > JSXAttribute[name.name='dangerouslySetInnerHTML'])",
+      message: "Render memory text as text only.",
+    },
+    { selector: "MemberExpression[property.name='innerHTML']", message: "Render memory text as text only." },
+  ],
+};
+
 export default tseslint.config(
   { ignores: ["node_modules"] },
   {
@@ -34,6 +48,6 @@ export default tseslint.config(
   {
     files: generated.map((g) => g.replace("/**", "/**/*.{ts,tsx}")),
     languageOptions: { parser: tseslint.parser, globals: globals.browser },
-    rules: noRawHtml,
+    rules: generatedNoRawHtml,
   },
 );

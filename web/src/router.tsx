@@ -9,7 +9,8 @@ import {
 } from "@tanstack/react-router";
 
 import { DocketPage } from "@/pages/docket";
-import { PlaceholderPage } from "@/pages/placeholder";
+import { MaintenancePage } from "@/pages/maintenance";
+import { OverviewPage } from "@/pages/overview";
 import { RecordsPage } from "@/pages/records";
 import { SettingsPage } from "@/pages/settings";
 import { Shell } from "@/shell";
@@ -30,18 +31,10 @@ const recordsRoute = createRoute({
 
 const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/", beforeLoad: () => { throw redirect({ to: "/docket" }); } }),
-  createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/overview",
-    component: () => <PlaceholderPage title="概览">概览页随后续版本提供。现在可以从「待审」开始处理发现。</PlaceholderPage>,
-  }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/overview", component: OverviewPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/docket", component: DocketPage }),
   recordsRoute,
-  createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/maintenance",
-    component: () => <PlaceholderPage title="维护">维护页随后续版本提供。维护检查仍按计划每天运行。</PlaceholderPage>,
-  }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/maintenance", component: MaintenancePage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/settings", component: SettingsPage }),
 ];
 

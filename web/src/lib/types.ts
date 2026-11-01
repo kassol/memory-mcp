@@ -162,3 +162,33 @@ export interface StartupSettings {
     requested?: Record<string, unknown>;
   } | null;
 }
+
+/** One maintenance round from the jobs table (issue #16). */
+export interface MaintenanceRound {
+  id: string;
+  status: "running" | "done" | "failed" | string;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_ms: number | null;
+  stats: Record<string, unknown>;
+  error: string | null;
+}
+
+/** The overview snapshot (issue #16): everything the first screen shows, in one read. */
+export interface Overview {
+  findings: { kind: string; count: number }[];
+  memories: { total: number; new_7d: number; evolved_7d: number; new_30d: number; evolved_30d: number };
+  last_round: MaintenanceRound | null;
+  schedule: string;
+  providers: {
+    id: string;
+    name: string;
+    source: string;
+    last_call_at: string | null;
+    last_call_ok: boolean | null;
+    last_call_error: string | null;
+  }[];
+  stalest: { memory_id: string; entity_key: string; content: string; valid_from: string }[];
+  tokens: { name: string; last_used_at: string | null; revoked_at: string | null }[];
+  daily: DailyStat[];
+}

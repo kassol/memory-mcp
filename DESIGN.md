@@ -25,7 +25,9 @@ Source of truth: `web/components.json`, `web/src/index.css` (theme variables for
 - Records: search input with an icon, key filter, type `Select` (with counts), then a bordered `Table` (TanStack Table, server-side sorting and paging; sortable headers are ghost buttons with an arrow icon), then "第 n / m 页" with 上一页 / 下一页. Phones hide the two time columns. A row opens a right `Sheet` with the record card and its version history.
 - Settings: a short intro, then one `Card` per group (行为参数, 高级参数). Each setting is a row: label, key, source badge, description, recommended value and evaluation note on the left; input with 保存, range or `FieldError`, an `Alert` when a tuning value differs from its recommendation, and outline restore buttons on the right.
 - Sign-in: centered `Card` on `bg-muted` with the product mark above it; three views keyed separately: 登录 (admin password), 首次登录 (configuration-file access token, only while no password exists), 设置管理口令 (password twice).
-- Settings has two tabs: 参数 (the setting cards) and 安全 (change password; sign out every device, destructive).
+- Settings has five tabs: 参数 (the setting cards), Provider (a table of providers with protocol, key tail and last call; a dialog to add or edit with 测试连接), 模型用途 (写入 and 维护 each with a provider `Select`, a model input with a `datalist` of the provider's models and a timeout; 向量 read-only), 访问令牌, 启动设置 (draft versus effective, 校验 results as a list, 应用并重启 with health polling, the last apply's outcome), and 安全 (change password; sign out every device, destructive).
+- Overview: three `Card`s across the top (待审发现 with counts per kind linking to the docket, 记忆 totals with 7 / 30-day movement, 维护 with the last round and the cron schedule), then three charts (每日写入 and 每日召回 as `BarChart`, 召回耗时中位数 as `LineChart`, all through `ChartContainer` over the last 30 days), then Provider last calls, the five stalest memories (linking into records) and token last use.
+- Maintenance: one `Card` with "立即运行一轮" and the schedule as text, then a `Table` of the last 20 rounds (start, status badge, duration, model calls, findings, error).
 
 ## Components
 
@@ -37,7 +39,7 @@ Source of truth: `web/components.json`, `web/src/index.css` (theme variables for
 
 ## Rules
 
-- Memory text is untrusted: render it as text only. ESLint rejects `dangerouslySetInnerHTML` and `innerHTML` everywhere, including generated components.
+- Memory text is untrusted: render it as text only. ESLint rejects `dangerouslySetInnerHTML` and `innerHTML` everywhere, including generated components. One exception: the generated chart component writes its own static CSS variables into a `<style>` tag, and the rule allows exactly that. API keys are shown as their last four characters only, never in an input.
 - Show the full memory text in cards and history; only list rows and table cells clamp to two lines.
 - One primary (`default`) button per decision point.
 - Interface language is Chinese; strings inside generated components that users can see or hear (screen-reader labels such as 关闭, 切换侧栏) are translated in place.

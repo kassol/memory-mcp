@@ -563,6 +563,24 @@ async def handle_apply_startup_settings(request: Request) -> JSONResponse:
     return ok({"applying": True, **result}, 202)
 
 
+# GET /api/v1/overview  — one snapshot for the console's overview page
+async def handle_overview(request: Request) -> JSONResponse:
+    from .. import overview
+    return ok(await overview.snapshot())
+
+
+# GET /api/v1/overview/rounds?limit=  — past maintenance rounds, newest first
+async def handle_rounds(request: Request) -> JSONResponse:
+    from .. import overview
+    try:
+        limit = int(request.query_params.get("limit", 20))
+    except ValueError:
+        return err("limit must be an integer")
+    if not 1 <= limit <= 100:
+        return err("limit must be between 1 and 100")
+    return ok({"items": await overview.rounds(limit)})
+
+
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
@@ -608,4 +626,6 @@ routes = [
     Route("/api/v1/startup-settings", endpoint=handle_clear_startup_settings, methods=["DELETE"]),
     Route("/api/v1/startup-settings/check", endpoint=handle_check_startup_settings, methods=["POST"]),
     Route("/api/v1/startup-settings/apply", endpoint=handle_apply_startup_settings, methods=["POST"]),
+    Route("/api/v1/overview/rounds", endpoint=handle_rounds, methods=["GET"]),
+    Route("/api/v1/overview", endpoint=handle_overview, methods=["GET"]),
 ]

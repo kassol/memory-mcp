@@ -11,6 +11,8 @@ import type {
   ModelRole,
   Provider,
   RecallLogEntry,
+  MaintenanceRound,
+  Overview,
   Setting,
   StartupSettings,
 } from "@/lib/types";
@@ -32,6 +34,7 @@ interface Db {
   recallLog: RecallLogEntry[];
   dailyStats: DailyStat[];
   startup: StartupSettings;
+  rounds: MaintenanceRound[];
   calls: { method: string; path: string; body: unknown }[];
 }
 
@@ -47,6 +50,7 @@ export const db: Db = {
   recallLog: [],
   dailyStats: [],
   startup: defaultStartup(),
+  rounds: [],
   calls: [],
 };
 
@@ -125,6 +129,7 @@ export function reset() {
   db.recallLog = [];
   db.dailyStats = [];
   db.startup = defaultStartup();
+  db.rounds = [];
   db.calls = [];
 }
 
@@ -145,6 +150,47 @@ const item = (m: MemoryView): MemoryItem => ({
   created_at: m.created_at,
   valid_from: m.valid_from,
 });
+
+/** The overview snapshot, built from the same in-memory state the mock serves elsewhere. */
+export function overview(): Overview {
+  const byDay = new Map<string, { day: string; token: string; writes: number; recalls: number; median_latency_ms: number | null }>();
+  for (const stat of db.dailyStats) {
+    const entry = byDay.get(stat.day) ?? { day: stat.day, token: "", writes: 0, recalls: 0, median_latency_ms: null };
+    entry.writes += stat.writes;
+    entry.recalls += stat.recalls;
+    if (stat.median_latency_ms !== null) entry.median_latency_ms = stat.median_latency_ms;
+    byDay.set(stat.day, entry);
+  }
+  const last = db.rounds[0] ?? null;
+  return {
+    findings: [...db.findings.filter((f) => f.status === "open").reduce((acc, f) => acc.set(f.kind, (acc.get(f.kind) ?? 0) + 1), new Map<string, number>())]
+      .map(([kind, count]) => ({ kind, count })),
+    memories: {
+      total: db.memories.filter((m) => m.is_current).length,
+      new_7d: db.memories.filter((m) => m.is_current && m.mutation_type === "initial").length,
+      evolved_7d: db.memories.filter((m) => m.is_current && m.mutation_type !== "initial").length,
+      new_30d: 0,
+      evolved_30d: 0,
+    },
+    last_round: last,
+    schedule: "每天 04:17（宿主机 cron，Asia/Shanghai）",
+    providers: db.providers.map((p) => ({
+      id: p.id,
+      name: p.name,
+      source: p.source,
+      last_call_at: p.last_call_at,
+      last_call_ok: p.last_call_ok,
+      last_call_error: p.last_call_error,
+    })),
+    stalest: [...db.memories]
+      .filter((m) => m.is_current)
+      .sort((a, b) => a.valid_from.localeCompare(b.valid_from))
+      .slice(0, 5)
+      .map((m) => ({ memory_id: m.memory_id, entity_key: m.entity_key, content: m.content, valid_from: m.valid_from })),
+    tokens: db.tokens.map((t) => ({ name: t.name, last_used_at: t.last_used_at, revoked_at: t.revoked_at })),
+    daily: [...byDay.values()],
+  };
+}
 
 /** Startup settings before anything is applied: what the configuration file and defaults give. */
 export function defaultStartup(): StartupSettings {
@@ -386,6 +432,21 @@ export const handlers = [
     return ok({ items: ["gpt-4o-mini", "gpt-4.1"] });
   })),
   http.get("http://localhost:3000/health", () => HttpResponse.json({ status: "ok" })),
+  http.get(`${BASE}/overview`, guard(() => ok(overview()))),
+  http.get(`${BASE}/overview/rounds`, guard(() => ok({ items: db.rounds }))),
+  http.post(`${BASE}/maintenance/run`, guard(() => {
+    const round: MaintenanceRound = {
+      id: `job-${db.rounds.length + 1}`,
+      status: "running",
+      started_at: "2026-11-01T10:00:00+00:00",
+      finished_at: null,
+      duration_ms: null,
+      stats: { llm_calls: 0 },
+      error: null,
+    };
+    db.rounds.unshift(round);
+    return HttpResponse.json({ ok: true, data: { job_id: round.id } }, { status: 202 });
+  })),
   http.get(`${BASE}/startup-settings`, guard(() => ok(db.startup))),
   http.put(`${BASE}/startup-settings`, guard(async ({ request }) => {
     const body = (await request.json()) as Record<string, string | number | boolean>;
