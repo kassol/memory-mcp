@@ -222,7 +222,6 @@ export function TokensSection() {
                 <TableHead className="hidden md:table-cell">来源</TableHead>
                 <TableHead className="hidden md:table-cell">创建</TableHead>
                 <TableHead>最近使用</TableHead>
-                <TableHead>状态</TableHead>
                 <TableHead>
                   <span className="sr-only">操作</span>
                 </TableHead>
@@ -231,13 +230,15 @@ export function TokensSection() {
             <TableBody>
               {tokens.data.map((t) => (
                 <TableRow key={t.id}>
-                  <TableCell className="font-medium">{t.name}</TableCell>
+                  <TableCell className="whitespace-normal break-all">
+                    <div className="font-medium">{t.name}</div>
+                    <div className="mt-1">
+                      <State t={t} />
+                    </div>
+                  </TableCell>
                   <TableCell className="hidden text-muted-foreground md:table-cell">{isInitial(t) ? "配置文件" : "面板"}</TableCell>
                   <TableCell className="hidden text-xs text-muted-foreground tabular-nums md:table-cell">{when(t.created_at)}</TableCell>
-                  <TableCell className="text-xs whitespace-normal text-muted-foreground tabular-nums">{t.last_used_at ? when(t.last_used_at) : "从未使用"}</TableCell>
-                  <TableCell>
-                    <State t={t} />
-                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground tabular-nums">{t.last_used_at ? when(t.last_used_at) : "从未使用"}</TableCell>
                   <TableCell className="text-right">
                     <Actions t={t} />
                   </TableCell>

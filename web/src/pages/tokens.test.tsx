@@ -18,11 +18,13 @@ async function openTokens() {
   return view;
 }
 
-const row = (name: string) => screen.getByRole("cell", { name }).closest("tr") as HTMLElement;
+// The name cell also carries the state badge, so find the row by the name text.
+const row = (name: string) => screen.getByText(name, { selector: "td div" }).closest("tr") as HTMLElement;
+const findName = (name: string) => screen.findByText(name, { selector: "td div" });
 
 test("tokens are listed with source, last use and state", async () => {
   await openTokens();
-  expect(await screen.findByRole("cell", { name: "laptop" })).toBeInTheDocument();
+  expect(await findName("laptop")).toBeInTheDocument();
   expect(within(row("initial")).getByText("配置文件")).toBeInTheDocument();
   expect(within(row("initial")).getByText("2026-11-01 09:30")).toBeInTheDocument();
   expect(within(row("laptop")).getByText("从未使用")).toBeInTheDocument();
@@ -41,7 +43,7 @@ test("a new token's value is shown once, then only its name remains", async () =
 
   await user.click(within(dialog).getByRole("button", { name: "我已保存" }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(await screen.findByRole("cell", { name: "ci-runner" })).toBeInTheDocument();
+  expect(await findName("ci-runner")).toBeInTheDocument();
   expect(screen.queryByDisplayValue("value-of-ci-runner")).not.toBeInTheDocument();
 });
 
@@ -55,7 +57,7 @@ test("a duplicate name shows the reason and creates nothing", async () => {
 
 test("revoking a token asks first, then marks it revoked", async () => {
   const { user } = await openTokens();
-  await screen.findByRole("cell", { name: "laptop" });
+  await findName("laptop");
   await user.click(within(row("laptop")).getByRole("button", { name: "吊销" }));
   const dialog = await screen.findByRole("alertdialog");
   expect(within(dialog).getByText(/laptop/)).toBeInTheDocument();
@@ -66,7 +68,7 @@ test("revoking a token asks first, then marks it revoked", async () => {
 
 test("the initial token is disabled and enabled again, never revoked", async () => {
   const { user } = await openTokens();
-  await screen.findByRole("cell", { name: "initial" });
+  await findName("initial");
   expect(within(row("initial")).queryByRole("button", { name: "吊销" })).not.toBeInTheDocument();
   await user.click(within(row("initial")).getByRole("button", { name: "停用" }));
   await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "停用" }));
