@@ -24,6 +24,8 @@
 - `src/memory_mcp/engine/model_client.py` - 三种协议的 chat / embedding / 模型列表，调用结果写回 Provider 的最近调用状态
 - `src/memory_mcp/model_roles.py` - 模型用途：写入与维护各自的 Provider、模型与超时；向量用途只读
 - `src/memory_mcp/recall_log.py` - 检索记录（30 天、可关闭、可清空）与日统计（90 天，写入 / 召回数、召回耗时中位数）
+- `src/memory_mcp/startup.py` - 启动设置：草稿、校验、应用与回退记录
+- `src/memory_mcp/lifecycle.py` - 应用启动设置后的优雅退出：停止接受请求、等一轮维护、排出退出码
 - `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 面板的产品与视觉记录（视觉为 shadcn/ui 默认外观；`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
@@ -61,6 +63,21 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-11-01 启动设置：校验、应用与回退（#14）
+- 动机：端口、数据目录、向量后端这些只在启动时读取的设置只能改宿主机 `.env` 再重新部署；改错没有校验，服务起不来时也看不出原因（#7、docs/adr/0002）
+- 启动设置在 settings 对象之前读取：`config.recover_startup` 在新的 `Settings` 之前读 `data/startup-settings.json` 并按需回退。可覆盖的键 `port`、`data_dir`、`vector_backend`、`embedding_model`、`embedding_dim`、`debug`
+- 三个文件：`startup-settings.json`（生效）、`startup-settings.pending.json`（草稿）、`startup-apply.json`（应用标记与结果）。全部原子写入
+- 流程：面板改草稿 → `check` 逐条给出原因 → `apply` 再校验同一份值、写标记与新文件、删草稿、请求重启。重启先等一轮维护（≤30 秒）再停止接受请求，最后由 uvicorn 排空并让进程以 `lifecycle.EXIT_CODE`（88）退出；`docker-compose.yml` 的 `restart: unless-stopped` 拉起它
+- 回退：apply 写标记时 `attempts = 0`；下一次启动把它置为 1，走到 lifespan 结束即记「已生效」。若那一次启动没走到（端口占用、数据目录坏了等），再下一次启动把上一份 override 写回、把标记记为 failed 并写下原因，面板显示
+- 校验项：取值范围、数据目录存在且可写、换目录时里面要有现成的 `memory.sqlite3`、向量后端能加载、已存向量维度与设置一致、容器外端口可绑定（当前端口跳过，它是本进程自己占的）
+- 容器里 `port` 与 `data_dir` 只读并给出原因：由编排决定；`embedding_model` / `embedding_dim` 任何情况下都不在面板里改（存量向量依赖它们）
+- `__main__.py` 改为自己创建 uvicorn `Server` 并 `lifecycle.bind`，退出码取自 lifecycle；不再用 `reload`（uvicorn 的 reload 会拉起监督进程，吞掉退出码），`debug` 只提高日志级别
+- 修复：关闭时 `await get_store().close()`。aiosqlite 的工作线程不是守护线程，不关闭连接则进程无法退出，应用启动设置会挂在退出这一步（此前只在测试收尾时踩到）
+- REST（只接受面板会话，`_ADMIN` 增加 `/api/v1/startup-settings`）：`GET /api/v1/startup-settings`（生效值、草稿、可编辑项、只读原因、上次应用）、`PUT`（保存草稿）、`DELETE`（丢弃草稿）、`POST /api/v1/startup-settings/check`、`POST /api/v1/startup-settings/apply`（202）
+- 面板「设置 → 启动设置」：容器 / 手工运行的提示、端口与数据目录（容器内只读并给出原因）、向量后端、调试日志、待生效摘要、校验结果、应用并重启（应用后轮询 `/health` 直到服务回来）、上次应用结果
+- 测试：`tests/test_startup_settings.py`（描述与草稿校验、容器内只读、坏草稿被 check 拦下且 apply 不写文件、apply 写文件与标记并记为已生效、丢弃草稿、只接受面板会话；两个子进程测试：apply 后进程以 88 退出、再次启动生效值来自文件且标记为已生效；起不来的应用会回退 override 并在面板显示原因）；前端 `startup.test.tsx`
+- 未做：`data_dir` 换到别处时把数据库一起搬过去（当前要求先手工放好 `memory.sqlite3`）
+
 ### 2026-11-01 检索记录与日统计（#15）
 - 动机：调优只能看现象，召回没有可对照的查询、令牌、耗时与结果；写入量也只有总量（#7）
 - migration `0010_recall_log`：`recall_log`（时间、令牌、查询、耗时、结果数、前三条记忆 id）与 `daily_events`（日、令牌、kind = recall / write、耗时）。`daily_events` 每行一次事件，召回耗时中位数因此由真实值算出，不用近似

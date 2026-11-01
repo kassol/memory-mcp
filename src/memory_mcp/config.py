@@ -1,9 +1,19 @@
+import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
+
+# Startup settings are read before this module's settings object exists, so they live in a JSON file
+# under the data directory instead of SQLite (docs/adr/0002). A console change writes a draft, checks
+# it, then applies it as this file; see startup.py.
+STARTUP_KEYS = ("port", "data_dir", "vector_backend", "embedding_model", "embedding_dim", "debug")
+OVERRIDE_FILE = "startup-settings.json"
+PENDING_FILE = "startup-settings.pending.json"
+APPLY_FILE = "startup-apply.json"
 
 
 class Settings(BaseSettings):
@@ -82,4 +92,63 @@ class Settings(BaseSettings):
         return f"sqlite:///{abs_path}"
 
 
-settings = Settings()
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def read_json(path: Path) -> dict:
+    """A JSON object, or an empty dict; a broken or missing file must not stop the service."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def write_json(path: Path, data: dict) -> None:
+    """Write atomically, so a crash mid-write cannot leave a half-read file behind."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    tmp.replace(path)
+
+
+def _startup_values(data: object) -> dict:
+    if not isinstance(data, dict):
+        return {}
+    return {key: data[key] for key in STARTUP_KEYS if key in data}
+
+
+def recover_startup(data_dir: str) -> dict:
+    """The override file's values, after recovering from an apply that never became healthy.
+
+    Apply writes the marker with `attempts = 0` and exits. The next start increments it and, if it
+    does reach a healthy service, marks the apply done. A start that never gets there leaves
+    `attempts = 1`, so the start after that restores the previous override file and records why.
+    """
+    root = Path(data_dir)
+    overrides = _startup_values(read_json(root / OVERRIDE_FILE))
+    state = read_json(root / APPLY_FILE)
+    if state.get("status") != "pending":
+        return overrides
+    if int(state.get("attempts") or 0) >= 1:
+        previous = _startup_values(state.get("previous"))
+        write_json(root / OVERRIDE_FILE, previous)
+        state.update(
+            {
+                "status": "failed",
+                "reason": "新设置未能启动，已恢复上一份启动设置",
+                "finished_at": _now(),
+            }
+        )
+        write_json(root / APPLY_FILE, state)
+        return previous
+    state["attempts"] = 1
+    write_json(root / APPLY_FILE, state)
+    return overrides
+
+
+_base = Settings()
+# Where the startup files live: the configured data directory, not one an override may point at.
+base_data_dir = _base.data_dir
+settings = Settings(**recover_startup(base_data_dir))

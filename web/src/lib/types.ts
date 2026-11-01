@@ -142,3 +142,23 @@ export interface RoleTest {
   reply: string | null;
   error: string | null;
 }
+
+/** Startup settings (issue #14): read before the service starts, so they apply by restart. */
+export interface StartupSettings {
+  effective: Record<string, string | number | boolean>;
+  /** Values that currently come from the override file. */
+  overrides: Record<string, string | number | boolean>;
+  draft: Record<string, string | number | boolean>;
+  /** Keys this console may change; port and data directory are absent inside a container. */
+  editable: string[];
+  read_only: Record<string, string>;
+  container: boolean;
+  defaults: Record<string, unknown>;
+  last_apply: {
+    status: "pending" | "applied" | "failed";
+    at?: string;
+    finished_at?: string;
+    reason?: string;
+    requested?: Record<string, unknown>;
+  } | null;
+}

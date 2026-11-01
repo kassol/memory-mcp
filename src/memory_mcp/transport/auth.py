@@ -22,6 +22,7 @@ _ADMIN = (
     "/api/v1/providers",
     "/api/v1/model-roles",
     "/api/v1/recall-log",
+    "/api/v1/startup-settings",
 )
 _SAFE = {"GET", "HEAD", "OPTIONS"}
 

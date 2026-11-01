@@ -11,6 +11,7 @@ import type {
   Provider,
   RecallLogEntry,
   Setting,
+  StartupSettings,
 } from "@/lib/types";
 
 export const keys = {
@@ -20,6 +21,7 @@ export const keys = {
   providers: ["providers"] as const,
   recallLog: (limit: number) => ["recall-log", limit] as const,
   roles: ["model-roles"] as const,
+  startup: ["startup-settings"] as const,
   records: ["records"] as const,
   search: (query: string, type: string) => ["search", query, type] as const,
   settings: ["settings"] as const,
@@ -81,6 +83,9 @@ export const useDailyStats = (days = 30) =>
     queryKey: ["daily-stats", days],
     queryFn: () => api<{ items: DailyStat[] }>(`/recall-log/daily?days=${days}`).then((d) => d.items),
   });
+
+export const useStartupSettings = () =>
+  useQuery({ queryKey: keys.startup, queryFn: () => api<StartupSettings>("/startup-settings"), retry: false });
 
 export const useSettings = () =>
   useQuery({ queryKey: keys.settings, queryFn: () => api<{ items: Setting[] }>("/settings").then((d) => d.items) });

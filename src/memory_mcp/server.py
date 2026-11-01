@@ -21,11 +21,12 @@ from starlette.responses import JSONResponse
 from starlette.requests import Request
 from starlette.middleware import Middleware
 
-from . import access_tokens, providers, settings_registry
+from . import access_tokens, providers, settings_registry, startup
 from .api.console import routes as console_routes
 from .api.routes import routes as api_routes
 from .config import settings
 from .storage.migrate import current as alembic_current, run_migrations
+from .storage.sqlite import get_store
 from .storage.vector import vector_store
 from .engine import maintenance
 from .tools import remember, recall, trace, forget
@@ -179,11 +180,16 @@ async def lifespan(starlette_app):
     access_tokens.store_initial_hash(settings.sqlite_path, settings.auth_token)
     # Create the provider data key at startup, so the backup picks it up before any key is saved.
     providers.data_key()
+    # Reaching this point with the new startup settings means the apply worked.
+    startup.mark_healthy()
     async with streamable_http_app.lifespan(starlette_app):
         try:
             yield
         finally:
             await maintenance.stop()
+            # aiosqlite's worker thread is not a daemon thread: without closing the store the
+            # process could never exit, and an applied restart would hang here.
+            await get_store().close()
 
 
 # The console build (web/) lands next to this module, so it resolves inside a non-editable install

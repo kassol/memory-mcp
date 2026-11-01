@@ -522,6 +522,47 @@ async def handle_clear_recall_log(request: Request) -> JSONResponse:
     return ok(await recall_log.clear())
 
 
+# GET /api/v1/startup-settings  — effective values, the draft, what is editable here, last apply
+async def handle_startup_settings(request: Request) -> JSONResponse:
+    from .. import startup
+    return ok(startup.describe())
+
+
+# PUT /api/v1/startup-settings  body {key: value, ...}  — save a draft; nothing changes until apply
+async def handle_set_startup_settings(request: Request) -> JSONResponse:
+    from .. import startup
+    try:
+        body = await _json_body(request)
+        result = startup.set_draft(body)
+    except ValueError as e:
+        return err(str(e))
+    return ok(result)
+
+
+# DELETE /api/v1/startup-settings  — drop the draft
+async def handle_clear_startup_settings(request: Request) -> JSONResponse:
+    from .. import startup
+    return ok(startup.clear_draft())
+
+
+# POST /api/v1/startup-settings/check  — every problem with the draft, with its reason
+async def handle_check_startup_settings(request: Request) -> JSONResponse:
+    from .. import startup
+    problems = startup.check()
+    return ok({"ok": not problems, "problems": problems})
+
+
+# POST /api/v1/startup-settings/apply  — apply the checked draft: the process restarts with it
+async def handle_apply_startup_settings(request: Request) -> JSONResponse:
+    from .. import lifecycle, startup
+    try:
+        result = startup.apply()
+    except ValueError as e:
+        return err(str(e))
+    lifecycle.request_restart()
+    return ok({"applying": True, **result}, 202)
+
+
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
@@ -562,4 +603,9 @@ routes = [
     Route("/api/v1/recall-log/daily", endpoint=handle_daily_stats, methods=["GET"]),
     Route("/api/v1/recall-log", endpoint=handle_recall_log, methods=["GET"]),
     Route("/api/v1/recall-log", endpoint=handle_clear_recall_log, methods=["DELETE"]),
+    Route("/api/v1/startup-settings", endpoint=handle_startup_settings, methods=["GET"]),
+    Route("/api/v1/startup-settings", endpoint=handle_set_startup_settings, methods=["PUT"]),
+    Route("/api/v1/startup-settings", endpoint=handle_clear_startup_settings, methods=["DELETE"]),
+    Route("/api/v1/startup-settings/check", endpoint=handle_check_startup_settings, methods=["POST"]),
+    Route("/api/v1/startup-settings/apply", endpoint=handle_apply_startup_settings, methods=["POST"]),
 ]

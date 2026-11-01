@@ -12,6 +12,7 @@ import type {
   Provider,
   RecallLogEntry,
   Setting,
+  StartupSettings,
 } from "@/lib/types";
 
 export const TOKEN = "good-token";
@@ -30,6 +31,7 @@ interface Db {
   roles: ModelRole[];
   recallLog: RecallLogEntry[];
   dailyStats: DailyStat[];
+  startup: StartupSettings;
   calls: { method: string; path: string; body: unknown }[];
 }
 
@@ -44,6 +46,7 @@ export const db: Db = {
   roles: [],
   recallLog: [],
   dailyStats: [],
+  startup: defaultStartup(),
   calls: [],
 };
 
@@ -121,6 +124,7 @@ export function reset() {
   db.roles = defaultRoles();
   db.recallLog = [];
   db.dailyStats = [];
+  db.startup = defaultStartup();
   db.calls = [];
 }
 
@@ -141,6 +145,27 @@ const item = (m: MemoryView): MemoryItem => ({
   created_at: m.created_at,
   valid_from: m.valid_from,
 });
+
+/** Startup settings before anything is applied: what the configuration file and defaults give. */
+export function defaultStartup(): StartupSettings {
+  return {
+  effective: {
+    port: 8765,
+    data_dir: "/app/data",
+    vector_backend: "lancedb",
+    embedding_model: "openai/text-embedding-3-small",
+    embedding_dim: 1536,
+    debug: false,
+  },
+  overrides: {},
+  draft: {},
+  editable: ["port", "data_dir", "vector_backend", "debug"],
+  read_only: {},
+  container: false,
+    defaults: {},
+    last_apply: null,
+  };
+}
 
 /** The roles as they are before anything is saved: configuration-file provider and llm_model. */
 export const defaultRoles = (): ModelRole[] => {
@@ -359,6 +384,30 @@ export const handlers = [
     if (!p) return fail("Provider not found", 404);
     if (p.base_url.includes("fail")) return fail("HTTP 401：invalid api key", 502);
     return ok({ items: ["gpt-4o-mini", "gpt-4.1"] });
+  })),
+  http.get("http://localhost:3000/health", () => HttpResponse.json({ status: "ok" })),
+  http.get(`${BASE}/startup-settings`, guard(() => ok(db.startup))),
+  http.put(`${BASE}/startup-settings`, guard(async ({ request }) => {
+    const body = (await request.json()) as Record<string, string | number | boolean>;
+    db.startup.draft = { ...db.startup.draft, ...body };
+    return ok(db.startup);
+  })),
+  http.delete(`${BASE}/startup-settings`, guard(() => {
+    db.startup.draft = {};
+    return ok(db.startup);
+  })),
+  http.post(`${BASE}/startup-settings/check`, guard(() => {
+    const directory = String(db.startup.draft.data_dir ?? "");
+    if (directory.includes("bad")) return ok({ ok: false, problems: [`数据目录不存在：${directory}`] });
+    return ok({ ok: true, problems: [] });
+  })),
+  http.post(`${BASE}/startup-settings/apply`, guard(() => {
+    if (!Object.keys(db.startup.draft).length) return fail("没有待生效的启动设置", 400);
+    db.startup.effective = { ...db.startup.effective, ...db.startup.draft };
+    db.startup.overrides = { ...db.startup.overrides, ...db.startup.draft };
+    db.startup.last_apply = { status: "applied", at: "2026-11-01T10:00:00+00:00", finished_at: "2026-11-01T10:00:05+00:00" };
+    db.startup.draft = {};
+    return HttpResponse.json({ ok: true, data: { applying: true } }, { status: 202 });
   })),
   http.get(`${BASE}/recall-log`, guard(({ request }) => {
     const limit = Number(new URL(request.url).searchParams.get("limit") ?? 50);

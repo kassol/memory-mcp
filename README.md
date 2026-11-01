@@ -148,6 +148,17 @@ data/
 - 「测试连接」列出该 Provider 的模型，不消耗 token；列表页显示每个 Provider 最近一次调用的结果与时间，失败时显示原因
 - REST（只接受面板会话）：`GET /api/v1/providers`、`POST /api/v1/providers`（`{name, protocol, base_url, api_key}`）、`PUT /api/v1/providers/{id}`（地址或 key 传 `null` 表示恢复配置文件值，仅配置文件 Provider 可这样做）、`DELETE /api/v1/providers/{id}`、`POST /api/v1/providers/test`（`{protocol, base_url, api_key?}` 或 `{id}`）、`GET /api/v1/providers/{id}/models`
 
+## 启动设置
+
+端口、数据目录、向量后端与调试日志只在启动时读取，改动要先校验再应用（面板「设置 → 启动设置」）：
+
+- 改动先存成草稿，`校验` 逐条列出问题与原因：取值范围、数据目录存在且可写（换目录时里面要有现成的 `memory.sqlite3`）、向量后端能加载、已存向量维度与设置一致、容器外端口可绑定
+- `应用并重启` 会再校验一次，然后停止接受请求、等一轮维护（最多 30 秒），进程以退出码 88 退出，由容器重启策略拉起（`docker-compose.yml` 里的 `restart: unless-stopped`）。手工运行且没有进程守护时，需要自己再启动一次
+- 新设置起不来时（例如端口被占、数据目录不可用），下一次启动会回退到上一份可用的启动设置，并在面板显示回退原因
+- 容器里端口与数据目录只读（由编排决定）；向量模型与维度只在配置文件里改：已存的向量是用它们算出来的
+- 文件都在数据目录下：`startup-settings.json`（生效）、`startup-settings.pending.json`（草稿）、`startup-apply.json`（上次应用的结果）
+- REST（只接受面板会话）：`GET /api/v1/startup-settings`、`PUT`（保存草稿）、`DELETE`（丢弃草稿）、`POST /api/v1/startup-settings/check`、`POST /api/v1/startup-settings/apply`
+
 ## 检索记录与统计
 
 - 每次 recall 记一条检索记录：时间、访问令牌、查询文本、耗时、结果条数，以及前三条结果的 id；在面板「档案 → 检索记录」查看，可直接打开返回的记忆。保留 30 天，可一键清空

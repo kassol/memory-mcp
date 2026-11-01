@@ -122,6 +122,17 @@ async def stop() -> None:
                 raise
 
 
+async def wait_idle(timeout: float) -> None:
+    """Wait for the round in progress, up to timeout; a running round is left to finish."""
+    task = _task
+    if task is None or task.done():
+        return
+    try:
+        await asyncio.wait_for(asyncio.shield(task), timeout)
+    except asyncio.TimeoutError:
+        logger.warning("maintenance round still running after %.0f s; leaving it to finish", timeout)
+
+
 async def run_once() -> str:
     """Run one maintenance round to completion; returns the job id."""
     job_id = await start()

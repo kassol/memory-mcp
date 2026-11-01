@@ -23,6 +23,7 @@ import { SOURCE } from "@/lib/terms";
 import { ProvidersSection } from "@/pages/providers";
 import { RolesSection } from "@/pages/roles";
 import { SecuritySection } from "@/pages/security";
+import { StartupSection } from "@/pages/startup";
 import { TokensSection } from "@/pages/tokens";
 import type { Setting } from "@/lib/types";
 
@@ -173,6 +174,7 @@ export function SettingsPage() {
             <TabsTrigger value="providers">Provider</TabsTrigger>
             <TabsTrigger value="roles">模型用途</TabsTrigger>
             <TabsTrigger value="tokens">访问令牌</TabsTrigger>
+            <TabsTrigger value="startup">启动设置</TabsTrigger>
             <TabsTrigger value="security">安全</TabsTrigger>
           </TabsList>
           <TabsContent value="parameters" className="flex flex-col gap-6">
@@ -200,6 +202,9 @@ export function SettingsPage() {
           </TabsContent>
           <TabsContent value="tokens" className="flex flex-col gap-6">
             <TokensSection />
+          </TabsContent>
+          <TabsContent value="startup" className="flex flex-col gap-6">
+            <StartupSection />
           </TabsContent>
           <TabsContent value="security" className="flex flex-col gap-6">
             <SecuritySection />

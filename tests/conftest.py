@@ -48,6 +48,10 @@ def test_env(tmp_path, monkeypatch):
     import memory_mcp.recall_log as recall_log
     importlib.reload(recall_log)
     recall_log.reset_prune_for_tests()
+    import memory_mcp.lifecycle as lifecycle
+    importlib.reload(lifecycle)
+    import memory_mcp.startup as startup
+    importlib.reload(startup)
     import memory_mcp.console_auth as console_auth
     importlib.reload(console_auth)
     import memory_mcp.access_tokens as access_tokens
