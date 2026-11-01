@@ -287,6 +287,8 @@ def test_create_validation_and_unique_names(app, console):
 
 def test_update_replaces_the_key_without_reading_the_old_one(app, console):
     created = _create(console, "prod", "openai", "https://a/v1", "sk-old-1111")
+    # Only the configuration-file provider has anything to revert; a console provider owns both.
+    assert created["overridden"] == {"base_url": False, "api_key": False}
     res = console.put(f"/api/v1/providers/{created['id']}", json={"api_key": "sk-new-2222"}, headers=AUTH)
     assert res.status_code == 200, res.text
     data = res.json()["data"]
@@ -337,7 +339,15 @@ def test_test_endpoint_returns_a_result_instead_of_failing_the_request(app, cons
         headers=AUTH,
     )
     assert res.status_code == 200, res.text
-    assert res.json()["data"] == {"ok": True, "models": 2, "sample": ["gpt-4o-mini", "gpt-4.1"]}
+    # The probe lists the models and then makes one short call, so a wrong key cannot hide behind a
+    # public model list.
+    assert res.json()["data"] | {} == {
+        "ok": True,
+        "models": 2,
+        "sample": ["gpt-4o-mini", "gpt-4.1"],
+        "checked": "gpt-4o-mini",
+        "reply": "pong",
+    }
 
     res = console.post(
         "/api/v1/providers/test",
@@ -347,6 +357,18 @@ def test_test_endpoint_returns_a_result_instead_of_failing_the_request(app, cons
     assert res.status_code == 200
     body = res.json()["data"]
     assert body["ok"] is False and "HTTP 401" in body["error"] and body["models"] == 0
+
+
+def test_a_public_model_list_does_not_hide_a_bad_key(app, console, fake):
+    res = console.post(
+        "/api/v1/providers/test",
+        json={"protocol": "openai", "base_url": f"{fake.url}/publiclist/v1", "api_key": "sk-wrong"},
+        headers=AUTH,
+    )
+    assert res.status_code == 200
+    body = res.json()["data"]
+    assert body["ok"] is False and "API key 被拒绝" in body["error"]
+    assert body["models"] == 1 and body["checked"] == "gpt-4o-mini"
 
     # Without an api_key the saved provider supplies it, so editing does not need the old key.
     created = _create(console, "saved", "openai", f"{fake.url}/openai/v1", "sk-saved")

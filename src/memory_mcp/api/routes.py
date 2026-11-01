@@ -418,10 +418,9 @@ async def handle_test_provider(request: Request) -> JSONResponse:
     except ValueError as e:
         return err(str(e))
     try:
-        models = await model_client.list_models(provider)
+        return ok(await model_client.probe(provider))
     except model_client.ProviderCallError as e:
-        return ok({"ok": False, "error": str(e), "models": 0, "sample": []})
-    return ok({"ok": True, "models": len(models), "sample": models[:5]})
+        return ok({"ok": False, "error": str(e), "models": 0, "sample": [], "checked": None, "reply": None})
 
 
 async def handle_provider_models(request: Request) -> JSONResponse:

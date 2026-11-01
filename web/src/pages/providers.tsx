@@ -242,7 +242,9 @@ function ProviderDialog({ provider, onClose }: { provider: Provider | "new"; onC
           {error ? <FieldError>{error}</FieldError> : null}
           {test ? (
             <p className={test.ok ? "text-sm" : "text-sm text-destructive"}>
-              {test.ok ? `连接成功，可列出 ${test.models} 个模型：${test.sample.join("、")}` : test.error}
+              {test.ok
+                ? `连接成功${test.checked ? `（用 ${test.checked} 试调用）` : ""}，可列出 ${test.models} 个模型：${test.sample.join("、")}`
+                : test.error}
             </p>
           ) : null}
           <DialogFooter className="gap-2 sm:justify-between">
@@ -258,7 +260,9 @@ function ProviderDialog({ provider, onClose }: { provider: Provider | "new"; onC
                       body: { id: editing?.id, protocol, base_url: baseUrl, api_key: apiKey || undefined },
                     })
                       .then(setTest)
-                      .catch((e) => setTest({ ok: false, models: 0, sample: [], error: e instanceof Error ? e.message : String(e) }))
+                      .catch((e) =>
+                        setTest({ ok: false, models: 0, sample: [], checked: null, reply: null, error: e instanceof Error ? e.message : String(e) }),
+                      )
                   }
                 >
                   测试连接

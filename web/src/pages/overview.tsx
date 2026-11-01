@@ -213,7 +213,7 @@ export function OverviewPage() {
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="day" tick={false} tickLine={false} axisLine={false} />
                         <ChartTooltip content={<ChartTooltipContent labelKey="day" />} />
-                        <Line dataKey="latency" stroke="var(--color-latency)" strokeWidth={2} dot={false} connectNulls />
+                        <Line dataKey="latency" stroke="var(--color-latency)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
                       </LineChart>
                     </ChartContainer>
                   </CardContent>

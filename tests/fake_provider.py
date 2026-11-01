@@ -74,6 +74,11 @@ class FakeProvider:
     def _respond(self, path: str) -> tuple[int, dict]:
         if "/fail/" in path:
             return 401, {"error": {"message": "invalid api key"}}
+        if "/publiclist/" in path:
+            # Like OpenRouter: the model list needs no key, every other route does.
+            if path.endswith("/models"):
+                return 200, {"data": [{"id": "gpt-4o-mini"}]}
+            return 401, {"error": {"message": "No auth credentials found"}}
         if "/badjson/" in path:
             return 200, {"unexpected": True}
         protocol = path.split("/")[1]

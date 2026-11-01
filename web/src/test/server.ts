@@ -369,8 +369,8 @@ export const handlers = [
   http.get(`${BASE}/providers`, guard(() => ok({ items: db.providers }))),
   http.post(`${BASE}/providers/test`, guard(async ({ request }) => {
     const body = (await request.json()) as { base_url?: string; id?: string };
-    if ((body.base_url ?? "").includes("fail")) return ok({ ok: false, models: 0, sample: [], error: "HTTP 401：invalid api key" });
-    return ok({ ok: true, models: 2, sample: ["gpt-4o-mini", "gpt-4.1"] });
+    if ((body.base_url ?? "").includes("fail")) return ok({ ok: false, models: 0, sample: [], checked: null, reply: null, error: "HTTP 401：invalid api key" });
+    return ok({ ok: true, models: 2, sample: ["gpt-4o-mini", "gpt-4.1"], checked: "gpt-4o-mini", reply: "OK" });
   })),
   http.post(`${BASE}/providers`, guard(async ({ request }) => {
     const body = (await request.json()) as { name: string; protocol: string; base_url: string; api_key: string };

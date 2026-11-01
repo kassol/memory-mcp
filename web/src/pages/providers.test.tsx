@@ -74,7 +74,7 @@ test("tests the connection before saving and shows the result", async () => {
   await user.type(within(dialog).getByLabelText("地址"), "https://api.example.com/v1");
   await user.type(within(dialog).getByLabelText("API key"), "sk-test-9999");
   await user.click(within(dialog).getByRole("button", { name: "测试连接" }));
-  expect(await within(dialog).findByText(/连接成功，可列出 2 个模型/)).toBeInTheDocument();
+  expect(await within(dialog).findByText(/连接成功（用 gpt-4o-mini 试调用），可列出 2 个模型/)).toBeInTheDocument();
   expect(db.calls.find((c) => c.path === "/api/v1/providers/test")).toMatchObject({
     body: { base_url: "https://api.example.com/v1", api_key: "sk-test-9999" },
   });

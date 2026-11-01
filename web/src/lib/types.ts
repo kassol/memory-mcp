@@ -116,6 +116,9 @@ export interface ProviderTest {
   ok: boolean;
   models: number;
   sample: string[];
+  /** The model used for the short test call, when one was made. */
+  checked: string | null;
+  reply: string | null;
   error?: string;
 }
 

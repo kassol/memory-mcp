@@ -174,7 +174,10 @@ def _public(row) -> dict:
         "source": row["source"],
         "has_key": key_last4 is not None,
         "api_key_last4": key_last4,
-        "overridden": {"base_url": row["base_url"] is not None, "api_key": cipher is not None},
+        "overridden": {
+            "base_url": from_file and row["base_url"] is not None,
+            "api_key": from_file and cipher is not None,
+        },
         "file_base_url": settings.openrouter_base_url if from_file else None,
         "file_api_key_last4": ((settings.openrouter_api_key or "")[-4:] or None) if from_file else None,
         "last_call_at": row["last_call_at"],

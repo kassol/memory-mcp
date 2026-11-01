@@ -231,3 +231,41 @@ async def list_models(provider: Provider, *, timeout: float = 15.0) -> list[str]
     if adapter is None:
         raise ProviderCallError(f"未知协议：{provider.protocol}")
     return await _record(provider, "模型列表", adapter(provider, timeout))
+
+
+async def probe(provider: Provider) -> dict:
+    """Test a connection: list the models, then make one short call.
+
+    Listing models is not proof: several providers serve their model list without a key, so a wrong
+    key would pass. The short call goes to the first few models that are not embeddings, and an
+    authentication failure is reported as such.
+    """
+    models = await list_models(provider)
+    candidates = [m for m in models if "embed" not in m.lower()][:3]
+    if not candidates:
+        return {"ok": True, "models": len(models), "sample": models[:5], "checked": None, "reply": None}
+    last_error = ""
+    for model in candidates:
+        try:
+            reply = await chat(provider, model, "只回复 OK", timeout=20.0)
+        except ProviderCallError as exc:
+            last_error = str(exc)
+            if exc.status in (401, 403):
+                return {
+                    "ok": False,
+                    "error": f"API key 被拒绝（{exc}）",
+                    "models": len(models),
+                    "sample": models[:5],
+                    "checked": model,
+                    "reply": None,
+                }
+            continue
+        return {"ok": True, "models": len(models), "sample": models[:5], "checked": model, "reply": reply[:40]}
+    return {
+        "ok": False,
+        "error": f"模型列表可用，但试调用失败：{last_error}",
+        "models": len(models),
+        "sample": models[:5],
+        "checked": candidates[-1],
+        "reply": None,
+    }
