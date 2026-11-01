@@ -62,7 +62,8 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 - 最近使用时间在鉴权时写入，每个令牌每分钟最多一次
 - `AuthMiddleware` 改为经 `access_tokens.authenticate` 鉴权，把令牌放在 `request.state.token`；REST `POST /api/v1/memories` 与 MCP `remember`（从 `ctx.request` 取）把令牌名写入 `origin_token`，客户端传入的同名字段被覆盖；面板会话写入时为空。人工改正保留原来的 `origin_token`。`GET /api/v1/memories/{id}` 返回项新增 `origin_token`
 - REST（只接受面板会话，归入 `_ADMIN`）：`GET /api/v1/tokens`；`POST /api/v1/tokens`（`{name}`，201，响应含 `value`，空名 400，重名 409）；`DELETE /api/v1/tokens/{id}`（吊销，初始令牌 400，不存在 404）；`PUT /api/v1/tokens/initial`（`{enabled}`）。列表与响应都不含哈希
-- 面板：「设置 → 访问令牌」列出名称、来源、创建、最近使用与状态；创建后在对话框里显示一次令牌值并可复制；吊销与停用前确认。新增 shadcn `alert-dialog`
+- 面板：「设置 → 访问令牌」列出名称、来源、创建、最近使用与状态；创建后在对话框里显示一次令牌值并可复制；吊销与停用前确认。状态显示在名称下方，手机隐藏来源与创建列，360 px 宽不横向滚动。新增 shadcn `alert-dialog`
+- 线上验收：生产库副本演练 0007 升级、降级、再升级，记忆行数、rowid 与 id、全文检索命中、发现、外键与完整性不变；上线后在面板创建验收令牌，经 MCP 写入一条记录（`origin_token` 为该令牌名）、经 REST 检索到它、设置与令牌接口 403，归档该记录后在面板吊销，REST 与 MCP 均 403；初始令牌未停用，现有 agent 照常工作
 - `remember_tool` 新增关键字参数 `origin_token`，不从 `arguments` 读，客户端无法伪造来源
 - 测试：`tests/test_access_tokens.py`（REST 与 MCP 经新令牌读写、停用的初始令牌不能开 bootstrap 会话、重复停用保留首次时间、吊销与停用后被拒、初始令牌可再启用、令牌值只返回一次且只存哈希、名称唯一、最近使用每分钟一写、管理接口拒绝访问令牌、来源记录令牌名）；`tests/test_migrations.py` 覆盖 0007 升降级；前端 `tokens.test.tsx`
 
