@@ -18,6 +18,7 @@ REQUIRED_TABLES = {
     "console_sessions",
     "access_tokens",
     "providers",
+    "model_roles",
     "alembic_version",
 }
 
@@ -151,7 +152,7 @@ def test_head_drops_working_memory_cache_and_downgrade_restores_it(test_env):
             return _names(rows)
 
         migrate_mod.run_migrations()
-        assert migrate_mod.current() == "0008_providers"
+        assert migrate_mod.current() == "0009_model_roles"
         assert "working_memory_cache" not in await tables()
 
         migrate_mod.downgrade("0001_initial_v2")
@@ -230,7 +231,7 @@ def test_0003_drops_threads_and_keeps_memories_intact(test_env):
             assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
             names, columns = _schema(conn)
             maintenance = {"memory_findings", "memory_checks", "idx_memory_findings_status", "console_settings",
-                           "console_admin", "console_sessions", "access_tokens", "providers"}
+                           "console_admin", "console_sessions", "access_tokens", "providers", "model_roles"}
             assert REQUIRED_TABLES - maintenance <= names and REQUIRED_TRIGGERS <= names
             assert REQUIRED_INDEXES - maintenance <= names
             assert THREAD_OBJECTS <= names if expect_threads else not (THREAD_OBJECTS & names)
@@ -460,7 +461,7 @@ def test_0008_adds_providers_and_downgrade_removes_them(test_env):
     command.downgrade(cfg, "0007_access_tokens")  # test_env already migrated to head
     assert "providers" not in tables()
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0008_providers")
     assert migrate_mod.current() == "0008_providers"
     # The configuration-file OpenRouter settings are seeded as the provider whose NULL address and
     # key mean "use the configuration file".
@@ -478,4 +479,45 @@ def test_0008_adds_providers_and_downgrade_removes_them(test_env):
 
     command.downgrade(cfg, "0007_access_tokens")
     assert "providers" not in tables()
+    assert query("PRAGMA integrity_check") == [("ok",)]
+
+
+def test_0009_adds_model_roles_and_downgrade_removes_them(test_env):
+    from alembic import command
+
+    import memory_mcp.storage.migrate as migrate_mod
+    importlib.reload(migrate_mod)
+    cfg = migrate_mod._make_config()
+    db_path = migrate_mod.settings.sqlite_path
+
+    def query(sql: str, args=()):
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA foreign_keys = ON")  # off by default on a plain connection
+        try:
+            with conn:
+                return conn.execute(sql, args).fetchall()
+        finally:
+            conn.close()
+
+    def tables() -> set[str]:
+        return {r[0] for r in query("SELECT name FROM sqlite_master WHERE type = 'table'")}
+
+    command.downgrade(cfg, "0008_providers")  # test_env already migrated to head
+    assert "model_roles" not in tables()
+
+    command.upgrade(cfg, "head")
+    assert migrate_mod.current() == "0009_model_roles"
+    assert query("SELECT count(*) FROM model_roles") == [(0,)]
+    # A role names a provider, so an unknown provider is rejected by the foreign key.
+    try:
+        query(
+            "INSERT INTO model_roles (role, provider_id, model, timeout, updated_at) "
+            "VALUES ('write', 'nope', 'm', 30, 'now')"
+        )
+        raise AssertionError("provider_id must reference a provider")
+    except sqlite3.IntegrityError:
+        pass
+
+    command.downgrade(cfg, "0008_providers")
+    assert "model_roles" not in tables()
     assert query("PRAGMA integrity_check") == [("ok",)]

@@ -43,6 +43,8 @@ def test_env(tmp_path, monkeypatch):
     importlib.reload(providers)
     import memory_mcp.engine.model_client as model_client
     importlib.reload(model_client)
+    import memory_mcp.model_roles as model_roles
+    importlib.reload(model_roles)
     import memory_mcp.console_auth as console_auth
     importlib.reload(console_auth)
     import memory_mcp.access_tokens as access_tokens

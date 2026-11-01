@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { api, enc } from "@/lib/api";
-import type { AccessToken, Finding, MemoryItem, MemoryRecord, Provider, Setting } from "@/lib/types";
+import type { AccessToken, Finding, MemoryItem, MemoryRecord, ModelRole, Provider, Setting } from "@/lib/types";
 
 export const keys = {
   findings: ["findings", "open"] as const,
   memory: (id: string) => ["memory", id] as const,
+  models: (providerId: string) => ["models", providerId] as const,
   providers: ["providers"] as const,
+  roles: ["model-roles"] as const,
   records: ["records"] as const,
   search: (query: string, type: string) => ["search", query, type] as const,
   settings: ["settings"] as const,
@@ -39,6 +41,22 @@ export const useProviders = () =>
   useQuery({
     queryKey: keys.providers,
     queryFn: () => api<{ items: Provider[] }>("/providers").then((d) => d.items),
+  });
+
+export const useModelRoles = () =>
+  useQuery({
+    queryKey: keys.roles,
+    queryFn: () => api<{ items: ModelRole[] }>("/model-roles").then((d) => d.items),
+  });
+
+/** The model list of one provider, for the role pickers. A provider can be unreachable, so no retries. */
+export const useModels = (providerId: string) =>
+  useQuery({
+    queryKey: keys.models(providerId),
+    queryFn: () => api<{ items: string[] }>(`/providers/${enc(providerId)}/models`).then((d) => d.items),
+    enabled: !!providerId,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 
 export const useSettings = () =>

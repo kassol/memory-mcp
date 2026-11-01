@@ -1,4 +1,4 @@
--- memory-mcp v2 schema reference at head 0008_providers (authoritative version: alembic versions/)
+-- memory-mcp v2 schema reference at head 0009_model_roles (authoritative version: alembic versions/)
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -212,3 +212,15 @@ CREATE TABLE providers (
 );
 INSERT INTO providers (id, name, protocol, base_url, api_key_cipher, source, created_at, updated_at)
   VALUES ('file', 'openrouter', 'openai', NULL, NULL, 'file', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+-- ---------------------------------------------------------------------------
+-- model roles (issue #13): which provider, model and timeout each role uses;
+-- a missing row means the configuration-file provider and llm_model
+-- ---------------------------------------------------------------------------
+CREATE TABLE model_roles (
+  role TEXT PRIMARY KEY,
+  provider_id TEXT NOT NULL REFERENCES providers(id),
+  model TEXT NOT NULL,
+  timeout REAL NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+);

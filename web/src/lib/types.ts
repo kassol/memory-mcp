@@ -96,3 +96,27 @@ export interface ProviderTest {
   sample: string[];
   error?: string;
 }
+
+/** One kind of model call and the provider, model and timeout it uses (issue #13). */
+export interface ModelRole {
+  role: "write" | "maintenance" | "embedding";
+  label: string;
+  provider_id: string;
+  provider_name: string;
+  model: string;
+  /** Only for the embedding role: the vector length stored memories use. */
+  dimension: number | null;
+  timeout: number;
+  /** False while the role uses the defaults (configuration-file provider, llm_model, 30 s). */
+  custom: boolean;
+  /** The embedding role follows the configuration file and cannot be edited here. */
+  read_only: boolean;
+  defaults: { provider_id: string; provider_name: string; model: string; timeout: number } | null;
+}
+
+/** The result of a role's test call; a failed call is a result, not a request error. */
+export interface RoleTest {
+  ok: boolean;
+  reply: string | null;
+  error: string | null;
+}

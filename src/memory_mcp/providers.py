@@ -50,6 +50,10 @@ class NotDeletable(ProviderError):
     pass
 
 
+class ProviderInUse(ProviderError):
+    pass
+
+
 @dataclass(frozen=True)
 class Provider:
     """A provider with its effective address and key; what a client call needs."""
@@ -286,9 +290,16 @@ async def update_provider(
 
 
 async def delete_provider(provider_id: str) -> dict:
+    from . import model_roles  # imported here: model_roles imports this module
+
     row = await _row(provider_id)
     if row["source"] == "file":
         raise NotDeletable("配置文件 Provider 不能删除，可以恢复为配置文件值")
+    async with get_db() as db:
+        using = await db.fetchone("SELECT role FROM model_roles WHERE provider_id = ?", (provider_id,))
+    if using is not None:
+        label = model_roles.LABELS.get(using["role"], using["role"])
+        raise ProviderInUse(f"Provider 正被模型用途「{label}」使用，先改用途再删除")
     async with get_db() as db:
         await db.execute("DELETE FROM providers WHERE id = ?", (provider_id,))
     return {"id": provider_id, "deleted": True}

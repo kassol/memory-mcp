@@ -148,6 +148,16 @@ data/
 - 「测试连接」列出该 Provider 的模型，不消耗 token；列表页显示每个 Provider 最近一次调用的结果与时间，失败时显示原因
 - REST（只接受面板会话）：`GET /api/v1/providers`、`POST /api/v1/providers`（`{name, protocol, base_url, api_key}`）、`PUT /api/v1/providers/{id}`（地址或 key 传 `null` 表示恢复配置文件值，仅配置文件 Provider 可这样做）、`DELETE /api/v1/providers/{id}`、`POST /api/v1/providers/test`（`{protocol, base_url, api_key?}` 或 `{id}`）、`GET /api/v1/providers/{id}/models`
 
+## 模型用途
+
+三类模型调用各自选择 Provider、模型与超时（面板「设置 → 模型用途」，保存后下一次调用即生效）：
+
+- 写入：`remember` 时的 key 分配、合并与冲突判定，默认用配置文件 Provider 与 `MEMORY_MCP_LLM_MODEL`
+- 维护：后台检查（内部矛盾、跨 key 重复）的判定，默认同上
+- 向量：生成 embedding，只读。已存的向量是用它算出来的，改模型就无法与存量比较，所以只能在配置文件里改并重建全部向量；面板只显示 Provider、模型与维度
+
+没有单独设置时用默认值（配置文件 Provider、`MEMORY_MCP_LLM_MODEL`、30 秒）；「恢复默认」删掉该用途的设置。删除 Provider 时若它正被某个用途使用，会被拒绝并指出用途。REST（只接受面板会话）：`GET /api/v1/model-roles`、`PUT /api/v1/model-roles/{role}`（`{provider_id, model, timeout}`）、`DELETE /api/v1/model-roles/{role}`、`POST /api/v1/model-roles/{role}/test`。
+
 ## 后台维护
 
 维护检查找出需要人处理的记忆，结果称为「发现」（术语见 `GLOSSARY.md`）：跨 key 重复、内部矛盾、同 key 多条当前版本。检查只产生发现，不自动归档或合并。

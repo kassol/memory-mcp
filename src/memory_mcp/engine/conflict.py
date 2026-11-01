@@ -1,8 +1,6 @@
 import re
 
-from .. import providers
-from ..config import settings
-from . import model_client
+from .llm import chat
 
 # PRD mentions using "LLM Judgment" for conflict.
 # We'll mock the interface or implement a simple call similar to EmbeddingService if credentials provided.
@@ -29,10 +27,9 @@ class ConflictDetector:
         
         If they contradict, output "YES". If they are just different aspects or updates, output "NO".
         """
-        # The provider comes from the configuration file (or its console override), read per call.
+        # The write role's provider and model (issue #13), read per call.
         try:
-            provider = await providers.resolve(providers.FILE_PROVIDER)
-            answer = await model_client.chat(provider, settings.llm_model, prompt, timeout=10.0)
+            answer = await chat(prompt)
         except Exception as exc:
             raise ConflictCheckError(f"Conflict check request failed: {exc}") from exc
         result = answer.strip().upper()

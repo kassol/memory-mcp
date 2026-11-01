@@ -387,6 +387,8 @@ async def handle_delete_provider(request: Request) -> JSONResponse:
         return err(str(e), 404)
     except providers.NotDeletable as e:
         return err(str(e), 409)
+    except providers.ProviderInUse as e:
+        return err(str(e), 409)
     return ok(result)
 
 
@@ -434,6 +436,60 @@ async def handle_provider_models(request: Request) -> JSONResponse:
     return ok({"items": models})
 
 
+# GET /api/v1/model-roles  — each role's provider, model and timeout, with the defaults
+async def handle_list_roles(request: Request) -> JSONResponse:
+    from .. import model_roles
+    return ok({"items": await model_roles.describe_all()})
+
+
+# PUT /api/v1/model-roles/{role}  body {provider_id, model, timeout}  — the vector role is read-only
+async def handle_set_role(request: Request) -> JSONResponse:
+    from .. import model_roles
+    try:
+        body = await _json_body(request)
+        result = await model_roles.set_role(
+            request.path_params["role"],
+            body.get("provider_id"),
+            body.get("model"),
+            body.get("timeout", model_roles.DEFAULT_TIMEOUT),
+        )
+    except LookupError as e:
+        return err(str(e), 404)
+    except ValueError as e:
+        return err(str(e))
+    return ok(result)
+
+
+# DELETE /api/v1/model-roles/{role}  — back to the defaults
+async def handle_clear_role(request: Request) -> JSONResponse:
+    from .. import model_roles
+    try:
+        result = await model_roles.clear_role(request.path_params["role"])
+    except LookupError as e:
+        return err(str(e), 404)
+    except ValueError as e:
+        return err(str(e))
+    return ok(result)
+
+
+# POST /api/v1/model-roles/{role}/test  — one short call with the role's provider and model.
+# A failed test is a result, not a request error: the console shows the reason next to the role.
+async def handle_test_role(request: Request) -> JSONResponse:
+    from .. import model_roles
+    from ..engine import model_client
+    try:
+        chosen = await model_roles.resolve(request.path_params["role"])
+    except LookupError as e:
+        return err(str(e), 404)
+    except ValueError as e:
+        return err(str(e))
+    try:
+        reply = await model_client.chat(chosen.provider, chosen.model, "只回复 OK", timeout=chosen.timeout)
+    except model_client.ProviderCallError as e:
+        return ok({"ok": False, "reply": None, "error": str(e)})
+    return ok({"ok": True, "reply": reply[:200], "error": None})
+
+
 # Route ordering: search before the bare /memories path, trace/forget path params last
 routes = [
     Route("/api/v1/memories/search", endpoint=handle_recall, methods=["GET"]),
@@ -467,4 +523,8 @@ routes = [
     Route("/api/v1/providers/{provider_id}", endpoint=handle_update_provider, methods=["PUT"]),
     Route("/api/v1/providers/{provider_id}", endpoint=handle_delete_provider, methods=["DELETE"]),
     Route("/api/v1/providers/{provider_id}/models", endpoint=handle_provider_models, methods=["GET"]),
+    Route("/api/v1/model-roles", endpoint=handle_list_roles, methods=["GET"]),
+    Route("/api/v1/model-roles/{role}/test", endpoint=handle_test_role, methods=["POST"]),
+    Route("/api/v1/model-roles/{role}", endpoint=handle_set_role, methods=["PUT"]),
+    Route("/api/v1/model-roles/{role}", endpoint=handle_clear_role, methods=["DELETE"]),
 ]

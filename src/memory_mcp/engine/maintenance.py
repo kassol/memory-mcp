@@ -22,7 +22,7 @@ from uuid import uuid4
 from .. import settings_registry
 from ..storage.sqlite import get_db
 from ..storage.vector import vector_store
-from .llm import chat
+from .llm import maintenance_chat as chat
 
 logger = logging.getLogger(__name__)
 

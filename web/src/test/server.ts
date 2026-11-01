@@ -2,7 +2,7 @@
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 
-import type { AccessToken, Finding, MemoryItem, MemoryView, Provider, Setting } from "@/lib/types";
+import type { AccessToken, Finding, MemoryItem, MemoryView, ModelRole, Provider, Setting } from "@/lib/types";
 
 export const TOKEN = "good-token";
 export const PASSWORD = "admin-password";
@@ -17,6 +17,7 @@ interface Db {
   settings: Setting[];
   tokens: AccessToken[];
   providers: Provider[];
+  roles: ModelRole[];
   calls: { method: string; path: string; body: unknown }[];
 }
 
@@ -28,6 +29,7 @@ export const db: Db = {
   settings: [],
   tokens: [],
   providers: [],
+  roles: [],
   calls: [],
 };
 
@@ -102,6 +104,7 @@ export function reset() {
   db.settings = [];
   db.tokens = [initialToken()];
   db.providers = [fileProvider()];
+  db.roles = defaultRoles();
   db.calls = [];
 }
 
@@ -122,6 +125,16 @@ const item = (m: MemoryView): MemoryItem => ({
   created_at: m.created_at,
   valid_from: m.valid_from,
 });
+
+/** The roles as they are before anything is saved: configuration-file provider and llm_model. */
+export const defaultRoles = (): ModelRole[] => {
+  const defaults = { provider_id: "file", provider_name: "openrouter", model: "deepseek/deepseek-v4.1-flash-1017", timeout: 30 };
+  return [
+    { role: "write", label: "写入", provider_id: "file", provider_name: "openrouter", model: defaults.model, dimension: null, timeout: 30, custom: false, read_only: false, defaults },
+    { role: "maintenance", label: "维护", provider_id: "file", provider_name: "openrouter", model: defaults.model, dimension: null, timeout: 30, custom: false, read_only: false, defaults },
+    { role: "embedding", label: "向量", provider_id: "file", provider_name: "openrouter", model: "openai/text-embedding-3-small", dimension: 1536, timeout: 30, custom: false, read_only: true, defaults: null },
+  ];
+};
 
 async function log(request: Request, path: string) {
   const text = await request.clone().text();
@@ -315,8 +328,41 @@ export const handlers = [
     const p = db.providers.find((x) => x.id === params.id);
     if (!p) return fail("Provider not found", 404);
     if (!p.deletable) return fail("配置文件 Provider 不能删除，可以恢复为配置文件值", 409);
+    if (db.roles.some((r) => r.provider_id === p.id)) return fail("Provider 正被模型用途使用，先改用途再删除", 409);
     db.providers = db.providers.filter((x) => x.id !== params.id);
     return ok({ id: p.id, deleted: true });
+  })),
+  http.get(`${BASE}/providers/:id/models`, guard(({ params }) => {
+    const p = db.providers.find((x) => x.id === params.id);
+    if (!p) return fail("Provider not found", 404);
+    if (p.base_url.includes("fail")) return fail("HTTP 401：invalid api key", 502);
+    return ok({ items: ["gpt-4o-mini", "gpt-4.1"] });
+  })),
+  http.get(`${BASE}/model-roles`, guard(() => ok({ items: db.roles }))),
+  http.post(`${BASE}/model-roles/:role/test`, guard(({ params }) => {
+    const role = db.roles.find((r) => r.role === params.role);
+    if (!role) return fail("Unknown model role", 404);
+    const provider = db.providers.find((p) => p.id === role.provider_id);
+    if (provider?.base_url.includes("fail")) return ok({ ok: false, reply: null, error: "HTTP 401：invalid api key" });
+    return ok({ ok: true, reply: "OK", error: null });
+  })),
+  http.put(`${BASE}/model-roles/:role`, guard(async ({ request, params }) => {
+    const role = db.roles.find((r) => r.role === params.role);
+    if (!role) return fail("Unknown model role", 404);
+    if (role.read_only) return fail("向量用途只读：已存的向量是用这个模型算出来的，改了就无法与存量比较", 400);
+    const body = (await request.json()) as { provider_id: string; model: string; timeout: number };
+    if (!body.model?.trim()) return fail("模型不能为空", 400);
+    const provider = db.providers.find((p) => p.id === body.provider_id);
+    if (!provider) return fail("Provider not found", 404);
+    Object.assign(role, { provider_id: provider.id, provider_name: provider.name, model: body.model, timeout: body.timeout, custom: true });
+    return ok(role);
+  })),
+  http.delete(`${BASE}/model-roles/:role`, guard(({ params }) => {
+    const role = db.roles.find((r) => r.role === params.role);
+    if (!role) return fail("Unknown model role", 404);
+    if (role.read_only) return fail("向量用途只读：已存的向量是用这个模型算出来的，改了就无法与存量比较", 400);
+    Object.assign(role, { provider_id: "file", provider_name: "openrouter", model: role.defaults?.model, timeout: 30, custom: false });
+    return ok(role);
   })),
 ];
 

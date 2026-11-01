@@ -20,6 +20,7 @@ import { keys, useSettings } from "@/lib/queries";
 import { invalidReason } from "@/lib/settings";
 import { SOURCE } from "@/lib/terms";
 import { ProvidersSection } from "@/pages/providers";
+import { RolesSection } from "@/pages/roles";
 import { SecuritySection } from "@/pages/security";
 import { TokensSection } from "@/pages/tokens";
 import type { Setting } from "@/lib/types";
@@ -155,6 +156,7 @@ export function SettingsPage() {
           <TabsList>
             <TabsTrigger value="parameters">参数</TabsTrigger>
             <TabsTrigger value="providers">Provider</TabsTrigger>
+            <TabsTrigger value="roles">模型用途</TabsTrigger>
             <TabsTrigger value="tokens">访问令牌</TabsTrigger>
             <TabsTrigger value="security">安全</TabsTrigger>
           </TabsList>
@@ -177,6 +179,9 @@ export function SettingsPage() {
           </TabsContent>
           <TabsContent value="providers" className="flex flex-col gap-6">
             <ProvidersSection />
+          </TabsContent>
+          <TabsContent value="roles" className="flex flex-col gap-6">
+            <RolesSection />
           </TabsContent>
           <TabsContent value="tokens" className="flex flex-col gap-6">
             <TokensSection />

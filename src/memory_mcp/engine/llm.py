@@ -1,14 +1,19 @@
-"""The write path's model call: the configuration-file provider and the configured model.
+"""Model calls by role (issues #12, #13): the provider, model and timeout come from `model_roles`.
 
-Issue #13 gives each model role its own provider and model; until then key assignment, merge and
-the conflict judgment all use this one.
+The write role serves key assignment, merge and the conflict judgment inside `remember`; the
+maintenance role serves the background checks. Both are read at call time, so a console save
+applies to the next call.
 """
-from .. import providers
-from ..config import settings
-from . import model_client
+from typing import Optional
+
+from .. import model_roles
 
 
-async def chat(prompt: str, timeout: float = 30.0) -> str:
-    """Single-turn completion; raises on HTTP/transport errors."""
-    provider = await providers.resolve(providers.FILE_PROVIDER)
-    return await model_client.chat(provider, settings.llm_model, prompt, timeout=timeout)
+async def chat(prompt: str, timeout: Optional[float] = None) -> str:
+    """Write role: one-turn completion; raises on HTTP/transport errors."""
+    return await model_roles.chat(model_roles.WRITE, prompt, timeout=timeout)
+
+
+async def maintenance_chat(prompt: str, timeout: Optional[float] = None) -> str:
+    """Maintenance role: one-turn completion; raises on HTTP/transport errors."""
+    return await model_roles.chat(model_roles.MAINTENANCE, prompt, timeout=timeout)

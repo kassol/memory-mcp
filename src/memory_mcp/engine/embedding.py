@@ -1,8 +1,6 @@
 from typing import List
 
-from .. import providers
-from ..config import settings
-from . import model_client
+from .. import model_roles
 
 
 class EmbeddingService:
@@ -13,11 +11,7 @@ class EmbeddingService:
     """
 
     async def get_embedding(self, text: str) -> List[float]:
-        provider = await providers.resolve(providers.FILE_PROVIDER)
-        embedding = await model_client.embed(provider, settings.embedding_model, text, timeout=30.0)
-        if len(embedding) != settings.embedding_dim:
-            raise ValueError("Embedding dimension mismatch")
-        return embedding
+        return await model_roles.embed(text)
 
 
 embedding_service = EmbeddingService()

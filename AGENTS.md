@@ -22,6 +22,7 @@
 - `src/memory_mcp/access_tokens.py` - 具名访问令牌：鉴权、创建、吊销；初始令牌的哈希写入与重置
 - `src/memory_mcp/providers.py` - Provider 记录、API key 的 AES-GCM 加密与生效值解析（配置文件 Provider 的覆盖与恢复）
 - `src/memory_mcp/engine/model_client.py` - 三种协议的 chat / embedding / 模型列表，调用结果写回 Provider 的最近调用状态
+- `src/memory_mcp/model_roles.py` - 模型用途：写入与维护各自的 Provider、模型与超时；向量用途只读
 - `PRODUCT.md` / `DESIGN.md` / `.impeccable/` - 面板的产品与视觉记录（视觉为 shadcn/ui 默认外观；`.impeccable/review/` 等工作文件不入库）
 - `ops/` - 部署主机上运行的运维脚本（`backup-db.sh`：SQLite + 向量库每日备份，保留 7 份；`run-maintenance.sh`：触发一轮后台维护）
 - `data/` - 运行时数据
@@ -59,6 +60,18 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-11-01 模型用途：写入与维护（#13）
+- 动机：所有模型调用共用一个 Provider 与模型，remember 需要的快路径与维护需要的强模型不能分开（#7）
+- 新增 `model_roles.py` 与 migration `0009_model_roles`：`model_roles`（role 主键、provider_id 外键、model、timeout）。写入用途服务 key 分配、合并与冲突判定；维护用途服务后台检查的判定。没有行时用此前的行为：配置文件 Provider、`llm_model`、30 秒
+- 调用点改经用途解析：`engine/llm.py` 的 `chat` 走写入用途、`maintenance_chat` 走维护用途；`conflict.py` 与 `key_assignment.py`、`merge.py` 用写入用途；`maintenance.py` 用维护用途。`engine/embedding.py` 走只读的向量用途（配置文件 Provider + `embedding_model`）
+- 超时随用途走：冲突判定此前固定 10 秒，现在与写入用途的其他调用共用用途超时（默认 30 秒），用户可在面板调整
+- 向量用途只读：`PUT` / `DELETE` 返回 400 并说明存量向量依赖它；面板只展示 Provider、模型与向量维度
+- 删除 Provider 时若被某个用途引用，返回 409 并指出用途（`providers.delete_provider` 直接查 `model_roles`，避免与 `model_roles` 循环导入）
+- REST（只接受面板会话，`_ADMIN` 增加 `/api/v1/model-roles`）：`GET /api/v1/model-roles`（含默认值与 `custom`）、`PUT /api/v1/model-roles/{role}`（`{provider_id, model, timeout}`）、`DELETE /api/v1/model-roles/{role}`（恢复默认）、`POST /api/v1/model-roles/{role}/test`（用该用途的 Provider 与模型发一句短请求，失败也返回 200 + `ok: false`）
+- 面板「设置 → 模型用途」：写入与维护各一行 Provider 选择、模型输入（带该 Provider 的模型列表 datalist）、超时；保存、测试调用、恢复默认；向量一行只读
+- 测试：`tests/test_model_roles.py` 覆盖默认值、写入与维护用途各自到达哪个 Provider 与模型（本地假 HTTP 服务上核对请求体里的模型名）、改用途后下一次调用生效、超时随用途、恢复默认、向量用途只读、校验（模型空 / 超时越界 / 未知 Provider / 未知用途）、被引用的 Provider 不能删除、测试调用成功与失败、管理接口只接受面板会话；`tests/test_migrations.py` 覆盖 0009 升降级与外键；`tests/fake_provider.py` 抽出假 Provider 供两个测试文件共用
+- 前端：`roles.test.tsx` 覆盖默认展示、保存、测试调用、恢复默认、向量只读与失败原因
+
 ### 2026-11-01 Provider 记录与三种协议（#12）
 - 动机：此前只有配置文件里的 OpenRouter 一个入口和一个模型，换 key 或加供应商要改宿主机 `.env` 再重新部署（#7）
 - 新增 `providers.py` 与 migration `0008_providers`：`providers`（id、名称唯一、protocol、base_url、`api_key_cipher`、来源 file / console、创建与更新时间、最近调用时间与结果）。API key 用 AES-GCM 加密，数据密钥在 `data/provider-keys.key`（0600，首次启动或首次加密时创建，AAD 绑定 Provider id）；接口只返回末四位，key 不会回到浏览器
