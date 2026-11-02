@@ -75,18 +75,21 @@ function ChartBlock({
   children,
   first,
   last,
+  legend,
 }: {
   title: string;
   value: string;
   children: React.ReactNode;
   first: string;
   last: string;
+  legend?: React.ReactNode;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-3 px-5 py-4 md:border-r md:border-border/70 md:last:border-r-0">
       <div className="flex items-baseline justify-between gap-2">
         <div>
           <h3 className="text-[13px] font-medium">{title}</h3>
+          {legend}
         </div>
         <span className="text-[13px] font-medium tabular-nums">{value}</span>
       </div>
@@ -218,6 +221,12 @@ export function OverviewPage() {
                   value={`写入 ${points.reduce((sum, p) => sum + p.writes, 0)} · 召回 ${points.reduce((sum, p) => sum + p.recalls, 0)}`}
                   first={points[0]?.day ?? ""}
                   last={points[points.length - 1]?.day ?? ""}
+                  legend={
+                    <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1"><span className="size-1.5 rounded-[2px] bg-[var(--chart-1)]" />写入</span>
+                      <span className="flex items-center gap-1"><span className="size-1.5 rounded-[2px] bg-[var(--chart-2)]" />召回</span>
+                    </div>
+                  }
                 >
                   <ChartContainer config={CHART} className="h-28 w-full">
                     <BarChart data={points} barGap={2}>

@@ -2,7 +2,7 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { LogOut, Monitor, Moon, Search, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { CommandPalette } from "@/components/command-palette";
 import { Kbd } from "@/components/ui/kbd";
@@ -102,15 +102,21 @@ function AppSidebar({ onPalette }: { onPalette: () => void }) {
         </SidebarGroup>
         <SidebarGroup className="p-0 pt-5">
           <SidebarGroupLabel className="px-2 text-[10px] font-medium tracking-[0.12em] text-muted-foreground">
-            工作台
+            审阅
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <nav aria-label="页面">
               <SidebarMenu className="gap-0.5">
-                {NAV.map((n) => {
+                {NAV.map((n, index) => {
                   const active = pathname === n.to;
                   return (
-                    <SidebarMenuItem key={n.to}>
+                    <Fragment key={n.to}>
+                      {index === 3 ? (
+                        <li className="px-2 pt-4 pb-1 text-[10px] font-medium tracking-[0.12em] text-muted-foreground group-data-[collapsible=icon]:hidden">
+                          系统
+                        </li>
+                      ) : null}
+                    <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
                         isActive={active}
@@ -135,6 +141,7 @@ function AppSidebar({ onPalette }: { onPalette: () => void }) {
                         </SidebarMenuBadge>
                       ) : null}
                     </SidebarMenuItem>
+                    </Fragment>
                   );
                 })}
               </SidebarMenu>
@@ -170,8 +177,15 @@ export function Shell() {
 
   return (
     <SidebarProvider className="h-full">
+      <button
+        type="button"
+        onClick={() => document.getElementById("main-content")?.focus()}
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:shadow"
+      >
+        跳到主要内容
+      </button>
       <AppSidebar onPalette={() => setPalette(true)} />
-      <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+      <SidebarInset id="main-content" tabIndex={-1} className="min-h-0 min-w-0 overflow-hidden focus:outline-none">
         <Outlet />
       </SidebarInset>
       <CommandPalette open={palette} onOpenChange={setPalette} />

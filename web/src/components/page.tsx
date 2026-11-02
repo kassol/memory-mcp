@@ -36,7 +36,7 @@ export function PageHeader({
 export function PageBody({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={cn("min-h-0 flex-1 overflow-y-auto", className)}>
-      <div className="mx-auto w-full max-w-[1180px] px-4 py-6 md:px-8 md:py-8">{children}</div>
+      <div className="page-enter mx-auto w-full max-w-[1180px] px-4 py-6 md:px-8 md:py-8">{children}</div>
     </div>
   );
 }

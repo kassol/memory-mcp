@@ -1,5 +1,6 @@
 // Docket: open findings, one case at a time, ruled by correct / archive / dismiss.
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Inbox } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -370,13 +371,21 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
       {findings.error && <div className="p-4 md:p-8"><ErrorState error={findings.error} onRetry={() => void findings.refetch()} /></div>}
       {findings.data && !all.length && (
         <div className="p-4 md:p-8">
-          <EmptyState icon={Inbox} title="没有待审的发现">
-            维护检查每天运行一次，新的发现会出现在这里。可以到「档案」里按最久未更新排序，检查陈旧记忆。
+          <EmptyState
+            icon={Inbox}
+            title="没有待审的发现"
+            action={
+              <Button asChild variant="outline" size="sm">
+                <Link to="/records">去档案看看</Link>
+              </Button>
+            }
+          >
+            维护检查每天运行一次，新的发现会出现在这里。
           </EmptyState>
         </div>
       )}
       {!!all.length && (
-        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[18rem_1fr]">
+        <div className="page-enter grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[18rem_1fr]">
           <div className={cn("min-h-0 min-w-0 overflow-y-auto border-r border-border/70", reading && "hidden")}>
             <div className="sticky top-0 z-10 flex min-w-0 flex-col gap-2 border-b border-border/70 bg-background/95 px-3 py-3">
               <div className="flex items-baseline justify-between">

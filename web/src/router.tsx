@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 
 import { RouteLoading } from "@/components/page";
+import { NotFound, RouteError } from "@/components/route-states";
 import { Shell } from "@/shell";
 
 const OverviewPage = lazyRouteComponent(() => import("@/pages/overview"), "OverviewPage");
@@ -58,9 +59,11 @@ export function makeRouter(history: RouterHistory = createHashHistory()) {
   return createRouter({
     routeTree,
     history,
-    defaultPreload: false,
+    defaultPreload: "intent",
     defaultPendingComponent: RouteLoading,
     defaultPendingMs: 150,
+    defaultErrorComponent: RouteError,
+    defaultNotFoundComponent: NotFound,
   });
 }
 
