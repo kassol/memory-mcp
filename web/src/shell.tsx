@@ -195,6 +195,7 @@ function SessionUnavailable({ error, retry }: { error: Error | null; retry: () =
 
 export function Shell() {
   const { status, error, retry } = useSession();
+  const findings = useFindings();
   const [palette, setPalette] = useState(false);
   const [waited, setWaited] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -213,8 +214,11 @@ export function Shell() {
       return;
     }
     const page = NAV.find((n) => pathname === n.to);
-    document.title = `${page?.label ?? "页面不存在"} · 记忆登记簿`;
-  }, [pathname, signedIn, status]);
+    // Away from the queue, the tab itself carries the number waiting, so a pinned console still tells.
+    const pending = findings.data?.total ?? 0;
+    const prefix = pending > 0 && pathname !== "/docket" ? `(${pending}) ` : "";
+    document.title = `${prefix}${page?.label ?? "页面不存在"} · 记忆登记簿`;
+  }, [pathname, signedIn, status, findings.data?.total]);
 
   if (!status) return waited ? error ? <SessionUnavailable error={error} retry={retry} /> : <Splash /> : null;
   if (!signedIn) return <SignInPage />;

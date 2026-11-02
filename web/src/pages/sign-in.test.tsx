@@ -96,3 +96,14 @@ test("security settings: change the password and sign out everywhere", async () 
   expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
   expect(db.calls.some((c) => c.method === "DELETE" && c.path === "/api/v1/console/sessions")).toBe(true);
 });
+
+test("the password can be shown while typing", async () => {
+  db.session = "none";
+  const { user } = await renderAt("/docket");
+  const input = await screen.findByLabelText("管理口令");
+  expect(input).toHaveAttribute("type", "password");
+  await user.click(screen.getByRole("button", { name: "显示口令" }));
+  expect(input).toHaveAttribute("type", "text");
+  await user.click(screen.getByRole("button", { name: "隐藏口令" }));
+  expect(input).toHaveAttribute("type", "password");
+});

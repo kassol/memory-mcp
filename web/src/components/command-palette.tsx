@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { FileText, Search } from "lucide-react";
 import { useDeferredValue, useEffect, useState } from "react";
 
+import { Highlight } from "@/components/highlight";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Kbd } from "@/components/ui/kbd";
 import { searchMemories } from "@/lib/queries";
@@ -73,8 +74,12 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
               >
                 <FileText aria-hidden />
                 <span className="grid min-w-0">
-                  <span className="truncate font-mono text-xs text-muted-foreground">{m.entity_key}</span>
-                  <span className="truncate">{m.content}</span>
+                  <span className="truncate font-mono text-xs text-muted-foreground">
+                    <Highlight text={m.entity_key} query={query} />
+                  </span>
+                  <span className="truncate">
+                    <Highlight text={m.content} query={query} />
+                  </span>
                 </span>
               </CommandItem>
             ))}

@@ -167,7 +167,7 @@ test("the tab names the page", async () => {
   await screen.findByRole("heading", { name: "卷宗 01" });
   await waitFor(() => expect(document.title).toBe("待审 · 记忆登记簿"));
   await user.click(screen.getByRole("link", { name: "档案" }));
-  await waitFor(() => expect(document.title).toBe("档案 · 记忆登记簿"));
+  await waitFor(() => expect(document.title).toBe("(2) 档案 · 记忆登记簿"));
 });
 
 test("an empty docket says so", async () => {

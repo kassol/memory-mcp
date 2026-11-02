@@ -9,12 +9,14 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, Archive, ChevronsLeft, ChevronsRight, Search, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Highlight } from "@/components/highlight";
 import { EmptyState, ErrorState, PageBody, PageHeader } from "@/components/page";
 import { History, RecordCard, type EditMode } from "@/components/record-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,14 +54,15 @@ function SortHeader({ label, sorted, onClick }: { label: string; sorted: false |
   );
 }
 
-const columns: ColumnDef<MemoryItem>[] = [
+function makeColumns(query: string): ColumnDef<MemoryItem>[] {
+  return [
   {
     accessorKey: "entity_key",
     header: "Key",
     // Keys run long (60+ characters); cap the column so content and times stay on screen.
     cell: ({ row }) => (
       <span className="block max-w-40 truncate font-mono text-[11px] text-muted-foreground md:max-w-64" title={row.original.entity_key}>
-        {row.original.entity_key}
+        <Highlight text={row.original.entity_key} query={query} />
       </span>
     ),
   },
@@ -67,7 +70,11 @@ const columns: ColumnDef<MemoryItem>[] = [
     accessorKey: "content",
     header: "内容",
     enableSorting: false,
-    cell: ({ row }) => <span className="line-clamp-2 min-w-48 text-[13px] leading-6 whitespace-normal">{row.original.content}</span>,
+    cell: ({ row }) => (
+      <span className="line-clamp-2 min-w-48 text-[13px] leading-6 whitespace-normal">
+        <Highlight text={row.original.content} query={query} />
+      </span>
+    ),
   },
   {
     accessorKey: "created_at",
@@ -79,7 +86,8 @@ const columns: ColumnDef<MemoryItem>[] = [
     header: "生效时间",
     cell: ({ row }) => <span className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">{shortWhen(row.original.valid_from)}</span>,
   },
-];
+  ];
+}
 
 function Detail({ id, onChanged }: { id: string; onChanged: (next: MemoryView | null) => void }) {
   const memory = useMemory(id);
@@ -94,7 +102,7 @@ function Detail({ id, onChanged }: { id: string; onChanged: (next: MemoryView | 
   );
 }
 
-function MobileRow({ m, onOpen }: { m: MemoryItem; onOpen: () => void }) {
+function MobileRow({ m, query, onOpen }: { m: MemoryItem; query: string; onOpen: () => void }) {
   return (
     <button
       type="button"
@@ -102,13 +110,17 @@ function MobileRow({ m, onOpen }: { m: MemoryItem; onOpen: () => void }) {
       className="flex w-full flex-col gap-1.5 rounded-xl border border-border/80 bg-card p-3.5 text-left transition-colors active:bg-muted/50"
     >
       <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">{m.entity_key}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
+          <Highlight text={m.entity_key} query={query} />
+        </span>
         <span className="flex shrink-0 items-center gap-1.5 pl-2 text-[10px] text-muted-foreground">
           <span className="size-1 rounded-full bg-muted-foreground/35" />
           {m.entity_type}
         </span>
       </div>
-      <span className="line-clamp-2 text-[13px] leading-6">{m.content}</span>
+      <span className="line-clamp-2 text-[13px] leading-6">
+        <Highlight text={m.content} query={query} />
+      </span>
       <span className="text-[10px] text-muted-foreground tabular-nums">{shortWhen(m.created_at)}</span>
     </button>
   );
@@ -133,10 +145,27 @@ export function RecordsPage({
   const sorting: SortingState = [{ id: sortValue.split(":")[0], desc: sortValue.endsWith(":desc") }];
   const [keyDraft, setKeyDraft] = useState(keyFilter);
   const [draft, setDraft] = useState(query);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // The address is the source of truth; a back step or a link can change it under the drafts.
   useEffect(() => setDraft(query), [query]);
   useEffect(() => setKeyDraft(keyFilter), [keyFilter]);
+
+  // `/` focuses the search field from anywhere on the page, as in other keyboard-first consoles.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")) return;
+      if (document.querySelector("[role=dialog], [role=alertdialog]")) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const columns = useMemo(() => makeColumns(query), [query]);
 
   const types = useQuery({
     queryKey: ["memory-types"],
@@ -246,10 +275,11 @@ export function RecordsPage({
                 <div className="relative md:w-96">
                   <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    ref={searchRef}
                     type="search"
                     aria-label="检索"
                     placeholder="检索内容或型号，回车执行"
-                    className="h-9 bg-card pl-8"
+                    className="h-9 bg-card pr-9 pl-8"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -257,6 +287,9 @@ export function RecordsPage({
                       if (e.key === "Escape" && draft) clearSearch();
                     }}
                   />
+                  {!draft ? (
+                    <Kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 text-[10px] text-muted-foreground md:block">/</Kbd>
+                  ) : null}
                 </div>
                 {!query && (
                   <Input
@@ -348,7 +381,7 @@ export function RecordsPage({
               ) : isMobile ? (
                 <div className="flex flex-col gap-2">
                   {rows.map((row) => (
-                    <MobileRow key={row.memory_id} m={row} onOpen={() => openRecord(row.memory_id)} />
+                    <MobileRow key={row.memory_id} m={row} query={query} onOpen={() => openRecord(row.memory_id)} />
                   ))}
                 </div>
               ) : (

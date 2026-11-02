@@ -160,3 +160,20 @@ test("a stale page link offers the way back", async () => {
   expect(await screen.findByText("第 1 / 2 页")).toBeInTheDocument();
   expect(bodyRows()).toHaveLength(50);
 });
+
+test("search results highlight the matched terms", async () => {
+  db.memories.push(memory({ entity_key: "fact:gpu", content: "RTX 3090 runs Qwen3.6-35B" }));
+  const { user } = await renderAt("/records");
+  await screen.findByText("共 1 条");
+  await user.type(screen.getByRole("searchbox", { name: "检索" }), "Qwen3.6{Enter}");
+  const row = await screen.findByRole("row", { name: /Qwen3.6/ });
+  await waitFor(() => expect(row.querySelectorAll("mark").length).toBeGreaterThan(0));
+});
+
+test("slash focuses the search field", async () => {
+  seed(2);
+  const { user } = await renderAt("/records");
+  await screen.findByText("共 2 条");
+  await user.keyboard("/");
+  expect(screen.getByRole("searchbox", { name: "检索" })).toHaveFocus();
+});

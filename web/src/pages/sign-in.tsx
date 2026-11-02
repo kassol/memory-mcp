@@ -1,6 +1,7 @@
 // Signed-out views: sign in with the admin password; on a fresh deployment, sign in once with the
 // configuration-file access token, then set the admin password (docs/adr/0001).
 import { useForm } from "@tanstack/react-form";
+import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BrandMark } from "@/components/brand";
@@ -85,7 +86,9 @@ function SecretForm({ id, label, hint, submit, autoComplete, onSubmit, confirm }
   confirm?: boolean;
 }) {
   const [error, setError] = useState("");
+  const [show, setShow] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const secret = autoComplete === "off" ? "内容" : "口令";
   useEffect(() => input.current?.focus(), []);
   const form = useForm({
     defaultValues: { value: "", again: "" },
@@ -117,18 +120,31 @@ function SecretForm({ id, label, hint, submit, autoComplete, onSubmit, confirm }
           {(field) => (
             <Field data-invalid={!!error || undefined}>
               <FieldLabel htmlFor={id}>{label}</FieldLabel>
-              <Input
-                ref={input}
-                id={id}
-                type="password"
-                autoComplete={autoComplete}
-                spellCheck={false}
-                required
-                aria-invalid={!!error}
-                className="h-10"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  ref={input}
+                  id={id}
+                  type={show ? "text" : "password"}
+                  autoComplete={autoComplete}
+                  spellCheck={false}
+                  required
+                  aria-invalid={!!error}
+                  className="h-10 pr-11"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+                  aria-label={`${show ? "隐藏" : "显示"}${secret}`}
+                  aria-pressed={show}
+                  onClick={() => setShow((value) => !value)}
+                >
+                  {show ? <EyeOff /> : <Eye />}
+                </Button>
+              </div>
               {!confirm && (error ? <FieldError>{error}</FieldError> : <FieldDescription>{hint}</FieldDescription>)}
             </Field>
           )}

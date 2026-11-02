@@ -517,6 +517,11 @@ export function DocketPage({
           )}
         </div>
       )}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {items[index]
+          ? `卷宗 ${caseNo(globalIndex >= 0 ? globalIndex : index)}，${KIND[items[index].kind] ?? items[index].kind}，队列 ${index + 1} / ${items.length}`
+          : ""}
+      </p>
     </>
   );
 }

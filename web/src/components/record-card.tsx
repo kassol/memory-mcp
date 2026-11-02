@@ -1,6 +1,6 @@
 // One memory as a quiet panel: full text, status badges, and inline correct / archive editors.
 import { useForm } from "@tanstack/react-form";
-import { Copy } from "lucide-react";
+import { ClipboardCopy, Copy } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -175,6 +175,12 @@ export function RecordCard({
   label?: string;
 }) {
   const mark = label?.startsWith("左侧") ? "甲" : label?.startsWith("右侧") ? "乙" : null;
+  const copy = (value: string, message: string) => {
+    void navigator.clipboard.writeText(value).then(
+      () => toast.success(message),
+      () => toast.error("复制失败，请手动选中"),
+    );
+  };
   return (
     <Card role="region" aria-label={label ?? r.entity_key} className="min-w-0 flex-1 h-full gap-4 self-stretch rounded-xl border border-border/80 shadow-none ring-0">
       <CardHeader className="gap-2">
@@ -190,12 +196,7 @@ export function RecordCard({
             size="icon-xs"
             className="shrink-0 text-muted-foreground"
             aria-label="复制 key"
-            onClick={() => {
-              void navigator.clipboard.writeText(r.entity_key).then(
-                () => toast.success("已复制 key"),
-                () => toast.error("复制失败，请手动选中"),
-              );
-            }}
+            onClick={() => copy(r.entity_key, "已复制 key")}
           >
             <Copy />
           </Button>
@@ -203,7 +204,17 @@ export function RecordCard({
         <CardDescription className="text-[11px] tabular-nums">
           写入 {when(r.created_at)} · 生效 {when(r.valid_from)} · 版本 {r.versions.length}
         </CardDescription>
-        <CardAction className="flex flex-wrap justify-end gap-1">
+        <CardAction className="flex flex-wrap items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground"
+            aria-label="复制全文"
+            title="复制全文"
+            onClick={() => copy(r.content, "已复制全文")}
+          >
+            <ClipboardCopy />
+          </Button>
           <StatusBadges r={r} />
         </CardAction>
       </CardHeader>
