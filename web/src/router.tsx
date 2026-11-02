@@ -4,16 +4,19 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   redirect,
   type RouterHistory,
 } from "@tanstack/react-router";
 
-import { DocketPage } from "@/pages/docket";
-import { MaintenancePage } from "@/pages/maintenance";
-import { OverviewPage } from "@/pages/overview";
-import { RecordsPage } from "@/pages/records";
-import { SettingsPage } from "@/pages/settings";
+import { RouteLoading } from "@/components/page";
 import { Shell } from "@/shell";
+
+const OverviewPage = lazyRouteComponent(() => import("@/pages/overview"), "OverviewPage");
+const DocketPage = lazyRouteComponent(() => import("@/pages/docket"), "DocketPage");
+const RecordsPage = lazyRouteComponent(() => import("@/pages/records"), "RecordsPage");
+const MaintenancePage = lazyRouteComponent(() => import("@/pages/maintenance"), "MaintenancePage");
+const SettingsPage = lazyRouteComponent(() => import("@/pages/settings"), "SettingsPage");
 
 const rootRoute = createRootRoute({ component: Shell });
 
@@ -41,7 +44,13 @@ const routes = [
 const routeTree = rootRoute.addChildren([...routes]);
 
 export function makeRouter(history: RouterHistory = createHashHistory()) {
-  return createRouter({ routeTree, history, defaultPreload: false });
+  return createRouter({
+    routeTree,
+    history,
+    defaultPreload: false,
+    defaultPendingComponent: RouteLoading,
+    defaultPendingMs: 150,
+  });
 }
 
 declare module "@tanstack/react-router" {

@@ -49,6 +49,21 @@ export function Loading({ rows = 3 }: { rows?: number }) {
   );
 }
 
+/** The route-level fallback while a page chunk downloads. */
+export function RouteLoading() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-16 items-center gap-3 border-b border-border/70 px-4 md:min-h-[68px] md:px-8">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="ml-auto h-7 w-20" />
+      </div>
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-6 md:px-8 md:py-8">
+        <Loading rows={3} />
+      </div>
+    </div>
+  );
+}
+
 export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) {
   return (
     <Alert variant="destructive" className="border-destructive/25 bg-destructive/5">
