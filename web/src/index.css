@@ -196,3 +196,11 @@
     @apply outline-none focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 }
+
+/* A sticky records header needs the generated table viewport to stop clipping at desktop.
+   Unlayered on purpose: it must beat the generated utility's cascade layer. */
+@media (min-width: 64rem) {
+  .records-table [data-slot="table-container"] {
+    overflow: visible;
+  }
+}

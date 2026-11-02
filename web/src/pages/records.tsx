@@ -330,7 +330,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                   ))}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-border/80 bg-card lg:overflow-visible">
+                <div className="records-table overflow-x-auto rounded-xl border border-border/80 bg-card lg:overflow-visible">
                   <Table>
                     <TableHeader className="sticky top-0 z-10 bg-card">
                       {table.getHeaderGroups().map((group) => (
