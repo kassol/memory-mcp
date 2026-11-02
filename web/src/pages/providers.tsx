@@ -106,6 +106,7 @@ function ProviderDialog({ provider, onClose }: { provider: Provider | "new"; onC
   const editing = provider === "new" ? null : provider;
   const [error, setError] = useState("");
   const [test, setTest] = useState<ProviderTest | null>(null);
+  const [testing, setTesting] = useState(false);
 
   const store = (next: Provider) =>
     queryClient.setQueryData<Provider[]>(keys.providers, (old) =>
@@ -257,19 +258,23 @@ function ProviderDialog({ provider, onClose }: { provider: Provider | "new"; onC
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={busy || !baseUrl.trim()}
-                  onClick={() =>
-                    void api<ProviderTest>("/providers/test", {
-                      method: "POST",
-                      body: { id: editing?.id, protocol, base_url: baseUrl, api_key: apiKey || undefined },
-                    })
-                      .then(setTest)
-                      .catch((e) =>
-                        setTest({ ok: false, models: 0, sample: [], checked: null, reply: null, error: e instanceof Error ? e.message : String(e) }),
-                      )
-                  }
+                  disabled={busy || testing || !baseUrl.trim()}
+                  onClick={async () => {
+                    setTesting(true);
+                    setTest(null);
+                    try {
+                      setTest(await api<ProviderTest>("/providers/test", {
+                        method: "POST",
+                        body: { id: editing?.id, protocol, base_url: baseUrl, api_key: apiKey || undefined },
+                      }));
+                    } catch (e) {
+                      setTest({ ok: false, models: 0, sample: [], checked: null, reply: null, error: e instanceof Error ? e.message : String(e) });
+                    } finally {
+                      setTesting(false);
+                    }
+                  }}
                 >
-                  测试连接
+                  {testing ? "测试中…" : "测试连接"}
                 </Button>
               )}
             </form.Subscribe>

@@ -22,6 +22,7 @@ function RoleRow({ role, providers }: { role: ModelRole; providers: Provider[] }
   const [model, setModel] = useState(role.model);
   const [timeout, setTimeout] = useState(String(role.timeout));
   const [test, setTest] = useState<RoleTest | null>(null);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState("");
   const models = useModels(providerId);
   const dirty = providerId !== role.provider_id || model !== role.model || Number(timeout) !== role.timeout;
@@ -58,11 +59,14 @@ function RoleRow({ role, providers }: { role: ModelRole; providers: Provider[] }
   };
 
   const runTest = async () => {
+    setTesting(true);
     setTest(null);
     try {
       setTest(await api<RoleTest>(`/model-roles/${enc(role.role)}/test`, { method: "POST" }));
     } catch (e) {
       setTest({ ok: false, reply: null, error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -132,8 +136,8 @@ function RoleRow({ role, providers }: { role: ModelRole; providers: Provider[] }
         <Button size="sm" onClick={() => void save()} disabled={!model.trim() || !timeout.trim()}>
           保存
         </Button>
-        <Button size="sm" variant="outline" onClick={() => void runTest()}>
-          测试调用
+        <Button size="sm" variant="outline" disabled={testing} onClick={() => void runTest()}>
+          {testing ? "测试中…" : "测试调用"}
         </Button>
         {role.custom ? (
           <Button size="sm" variant="outline" onClick={() => void clear()}>

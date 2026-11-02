@@ -2,7 +2,7 @@
 // schedule belongs to the host cron; the page shows it, it cannot change it.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Wrench } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState, Loading, PageBody, PageHeader } from "@/components/page";
@@ -45,6 +45,7 @@ export function MaintenancePage() {
   });
   const overview = useQuery({ queryKey: keys.overview, queryFn: () => api<Overview>("/overview") });
   const [running, setRunning] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: keys.rounds });
@@ -65,7 +66,19 @@ export function MaintenancePage() {
   };
 
   const last = overview.data?.last_round;
-  const isRunning = rounds.data?.some((r) => r.status === "running") ?? false;
+  const runningRound = rounds.data?.find((r) => r.status === "running") ?? null;
+  const isRunning = runningRound !== null;
+
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [isRunning]);
+
+  const elapsed = runningRound?.started_at
+    ? Math.max(0, Math.floor((now - new Date(runningRound.started_at).getTime()) / 1000))
+    : null;
+  const elapsedLabel = elapsed === null ? null : elapsed < 60 ? `${elapsed} 秒` : `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`;
 
   return (
     <>
@@ -91,7 +104,8 @@ export function MaintenancePage() {
                     <span className={`size-1.5 rounded-full ${STATUS[last.status]?.dot ?? "bg-muted-foreground/40"}`} />
                     上一轮 {STATUS[last.status]?.label ?? last.status}
                   </span>
-                  <span className="tabular-nums">{when(last.finished_at ?? last.started_at)}</span>
+                  {elapsedLabel ? <span className="tabular-nums">已运行 {elapsedLabel}</span> : null}
+                  {!elapsedLabel ? <span className="tabular-nums">{when(last.finished_at ?? last.started_at)}</span> : null}
                 </span>
               ) : null}
             </CardContent>

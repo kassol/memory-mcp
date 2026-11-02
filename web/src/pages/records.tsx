@@ -8,7 +8,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, Archive, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Archive, ChevronsLeft, ChevronsRight, Search, X } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState, ErrorState, PageBody, PageHeader } from "@/components/page";
@@ -376,15 +376,21 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                 </div>
               )}
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>{query ? (search.data ? `最相关的 ${rows.length} 条` : "") : list.data ? `第 ${page + 1} / ${pages} 页` : ""}</span>
                 {!query && (
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon-sm" aria-label="首页" disabled={page === 0 || list.isFetching} onClick={() => setPage(0)}>
+                      <ChevronsLeft />
+                    </Button>
                     <Button variant="outline" size="sm" disabled={page === 0 || list.isFetching} onClick={() => setPage((p) => p - 1)}>
                       上一页
                     </Button>
                     <Button variant="outline" size="sm" disabled={page + 1 >= pages || list.isFetching} onClick={() => setPage((p) => p + 1)}>
                       下一页
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" aria-label="末页" disabled={page + 1 >= pages || list.isFetching} onClick={() => setPage(pages - 1)}>
+                      <ChevronsRight />
                     </Button>
                   </div>
                 )}

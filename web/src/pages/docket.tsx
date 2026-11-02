@@ -2,7 +2,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Inbox } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState, Loading, PageHeader } from "@/components/page";
@@ -292,11 +292,16 @@ function Case({ finding, index, onDismissed, onBack, onMove, position, total, ha
 }
 
 function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; selectedId: string | null; onOpen: (id: string) => void; indexOf: (f: Finding) => number }) {
+  const selected = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    selected.current?.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
   return (
     <ul role="listbox" aria-label="待审的发现" className="flex min-w-0 flex-col gap-1 p-2">
       {items.map((f) => (
         <li key={f.id} role="option" aria-selected={f.id === selectedId}>
           <button
+            ref={f.id === selectedId ? selected : undefined}
             type="button"
             onClick={() => onOpen(f.id)}
             onKeyDown={(e) => {
