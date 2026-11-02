@@ -3,7 +3,7 @@
 import { useForm } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 
 import { ErrorState, Loading, PageBody, PageHeader } from "@/components/page";
@@ -185,16 +185,18 @@ function Section({ title, items }: { title: string; items: Setting[] }) {
   );
 }
 
-export function SettingsPage() {
+export function SettingsPage({ tab = "parameters", onTabChange }: { tab?: string; onTabChange?: (tab: string) => void }) {
   const settings = useSettings();
   const isMobile = useIsMobile();
+  const [active, setActive] = useState(tab);
 
   return (
     <>
       <PageHeader title="设置" />
       <PageBody>
         <Tabs
-          defaultValue="parameters"
+          value={active}
+          onValueChange={(next) => { setActive(next); onTabChange?.(next); }}
           orientation={isMobile ? "horizontal" : "vertical"}
           className="flex flex-col gap-6 md:flex-row md:items-start"
         >

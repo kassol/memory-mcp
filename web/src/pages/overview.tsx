@@ -76,6 +76,7 @@ function ChartBlock({
   first,
   last,
   legend,
+  summary,
 }: {
   title: string;
   value: string;
@@ -83,9 +84,11 @@ function ChartBlock({
   first: string;
   last: string;
   legend?: React.ReactNode;
+  summary?: string;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-3 px-5 py-4 md:border-r md:border-border/70 md:last:border-r-0">
+      {summary ? <p className="sr-only">{summary}</p> : null}
       <div className="flex items-baseline justify-between gap-2">
         <div>
           <h3 className="text-[13px] font-medium">{title}</h3>
@@ -221,6 +224,7 @@ export function OverviewPage() {
                   value={`写入 ${points.reduce((sum, p) => sum + p.writes, 0)} · 召回 ${points.reduce((sum, p) => sum + p.recalls, 0)}`}
                   first={points[0]?.day ?? ""}
                   last={points[points.length - 1]?.day ?? ""}
+                  summary={`近 30 天写入 ${points.reduce((sum, p) => sum + p.writes, 0)} 次，召回 ${points.reduce((sum, p) => sum + p.recalls, 0)} 次。`}
                   legend={
                     <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
                       <span className="flex items-center gap-1"><span className="size-1.5 rounded-[2px] bg-[var(--chart-1)]" />写入</span>
@@ -246,6 +250,10 @@ export function OverviewPage() {
                   })()}
                   first={points[0]?.day ?? ""}
                   last={points[points.length - 1]?.day ?? ""}
+                  summary={`最近一次召回耗时中位数 ${(() => {
+                    const latest = [...points].reverse().find((p) => p.latency !== null);
+                    return latest?.latency == null ? "暂无数据" : `${latest.latency} 毫秒`;
+                  })()}。`}
                 >
                   <ChartContainer config={LATENCY} className="h-28 w-full">
                     <LineChart data={points}>
@@ -292,6 +300,9 @@ export function OverviewPage() {
                       ) : null}
                     </div>
                   ))}
+                  <Button asChild variant="ghost" size="sm" className="-ml-2 self-start text-muted-foreground">
+                    <Link to="/settings" search={{ tab: "providers" }}>管理 Provider</Link>
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -343,6 +354,9 @@ export function OverviewPage() {
                       </span>
                     </div>
                   ))}
+                  <Button asChild variant="ghost" size="sm" className="-ml-2 self-start text-muted-foreground">
+                    <Link to="/settings" search={{ tab: "tokens" }}>管理令牌</Link>
+                  </Button>
                 </CardContent>
               </Card>
             </div>

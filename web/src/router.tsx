@@ -33,6 +33,21 @@ const recordsRoute = createRoute({
   },
 });
 
+const SETTINGS_TABS = ["parameters", "providers", "roles", "tokens", "startup", "security"];
+
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  validateSearch: (search: Record<string, unknown>): { tab?: string } =>
+    typeof search.tab === "string" && search.tab ? { tab: search.tab } : {},
+  component: function Settings() {
+    const { tab } = settingsRoute.useSearch();
+    const navigate = settingsRoute.useNavigate();
+    const value = tab && SETTINGS_TABS.includes(tab) ? tab : "parameters";
+    return <SettingsPage key={value} tab={value} onTabChange={(next) => void navigate({ search: { tab: next } })} />;
+  },
+});
+
 const docketRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/docket",
@@ -50,7 +65,7 @@ const routes = [
   docketRoute,
   recordsRoute,
   createRoute({ getParentRoute: () => rootRoute, path: "/maintenance", component: MaintenancePage }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/settings", component: SettingsPage }),
+  settingsRoute,
 ];
 
 const routeTree = rootRoute.addChildren([...routes]);

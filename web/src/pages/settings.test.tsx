@@ -18,6 +18,12 @@ beforeEach(() => {
 // One setting row: the label, its description and its form.
 const row = (label: string) => screen.getByLabelText(label).closest("form")!.parentElement as HTMLElement;
 
+
+test("a settings tab opens from the URL", async () => {
+  await renderAt("/settings?tab=providers");
+  expect(await screen.findByText("添加 Provider")).toBeInTheDocument();
+});
+
 test("settings are grouped with their source, range and evaluation note", async () => {
   await renderAt("/settings");
   expect(await screen.findByText("行为参数")).toBeInTheDocument();
