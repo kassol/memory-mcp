@@ -203,8 +203,10 @@ export function RecordCard({
             <Copy />
           </Button>
         </div>
-        <CardDescription className="text-[11px] tabular-nums">
-          写入 {when(r.created_at)} · 生效 {when(r.valid_from)} · 版本 {r.versions.length}
+        <CardDescription className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] tabular-nums">
+          <span className="whitespace-nowrap">写入 {when(r.created_at)}</span>
+          <span className="whitespace-nowrap">生效 {when(r.valid_from)}</span>
+          <span className="whitespace-nowrap">版本 {r.versions.length}</span>
         </CardDescription>
         <CardAction className="flex flex-wrap items-center justify-end gap-1">
           <Button
@@ -250,8 +252,8 @@ function ChangeList({ label, items, tone }: { label: string; items: string[]; to
       <p className={cn("mb-1 font-medium", tone)}>{label}</p>
       {items.length ? (
         <ul className="list-disc space-y-1 pl-4">
-          {items.map((sentence) => (
-            <li key={sentence}>{sentence}</li>
+          {items.map((sentence, index) => (
+            <li key={`${index}-${sentence}`}>{sentence}</li>
           ))}
         </ul>
       ) : (

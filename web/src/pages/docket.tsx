@@ -73,7 +73,7 @@ function PairSummary({ left, right }: { left: string; right: string }) {
 
   const list = (items: string[]) => (
     <ul className="list-disc space-y-1 pl-4">
-      {items.slice(0, 3).map((s) => <li key={s}>{s}</li>)}
+      {items.slice(0, 3).map((s, index) => <li key={`${index}-${s}`}>{s}</li>)}
       {items.length > 3 ? <li className="text-muted-foreground">还有 {items.length - 3} 句</li> : null}
     </ul>
   );

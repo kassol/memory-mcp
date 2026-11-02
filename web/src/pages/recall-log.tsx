@@ -56,15 +56,13 @@ function LogSwitch() {
         checked={Boolean(setting.value)}
         onCheckedChange={(checked) => void save(checked)}
       />
-      <span className="text-sm">
-        记录检索（{setting.value ? "开启" : "关闭"}）
-        <span className="ml-2 text-[11px] text-muted-foreground">保留 30 天。日统计不受影响。</span>
-      </span>
+      <span className="text-sm">记录检索（{setting.value ? "开启" : "关闭"}）</span>
       {setting.source === "console" ? (
         <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => void save(null)}>
           恢复默认
         </Button>
       ) : null}
+      <span className="text-[11px] text-muted-foreground">保留 30 天。日统计不受影响。</span>
     </div>
   );
 }
@@ -158,7 +156,10 @@ export function RecallLogPanel({ onMemory }: { onMemory: (id: string) => void })
                     <span>
                       {entry.latency_ms} ms · {entry.results} 条结果
                     </span>
-                    <Results entry={entry} onMemory={onMemory} />
+                    <span className="flex items-center gap-1">
+                      <span className="text-[10px]">打开</span>
+                      <Results entry={entry} onMemory={onMemory} />
+                    </span>
                   </div>
                 </div>
               ))}

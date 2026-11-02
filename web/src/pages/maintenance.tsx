@@ -192,7 +192,7 @@ export function MaintenancePage() {
                             <TableCell className="px-3 py-2.5 text-right text-[11px] text-muted-foreground tabular-nums">
                               {String(round.stats.llm_calls ?? 0)}
                             </TableCell>
-                            <TableCell className="px-3 py-2.5 text-right text-[11px] text-muted-foreground">
+                            <TableCell className="px-3 py-2.5 text-right text-[11px] text-muted-foreground tabular-nums">
                               <Findings round={round} />
                             </TableCell>
                             <TableCell className="max-w-64 px-3 py-2.5 text-[11px] break-all text-destructive" style={{ whiteSpace: "normal" }}>

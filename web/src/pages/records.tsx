@@ -466,7 +466,7 @@ export function RecordsPage({
       </PageBody>
 
       <Sheet open={!!search.memory} onOpenChange={(open) => !open && openRecord(null)}>
-        <SheetContent className="w-full gap-0 overflow-y-auto border-l-border/80 sm:max-w-2xl">
+        <SheetContent className="w-full gap-0 overflow-y-auto border-l-border/80 sm:max-w-2xl" style={{ maxWidth: "42rem" }}>
           <SheetHeader className="sticky top-0 z-10 border-b border-border/70 bg-background px-5 py-4">
             <SheetTitle className="text-base">记忆详情</SheetTitle>
             <SheetDescription className="text-xs">全文与版本历史，必要时改正或归档。</SheetDescription>
