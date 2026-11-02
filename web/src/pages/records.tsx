@@ -40,9 +40,14 @@ function SortHeader({ label, sorted, onClick }: { label: string; sorted: false |
   if (!onClick) return <span>{label}</span>;
   const Icon = sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;
   return (
-    <Button variant="ghost" size="sm" className="-ml-2.5 h-7 text-[11px] font-medium text-muted-foreground hover:text-foreground" onClick={onClick}>
+    <Button variant="ghost" size="sm" className="group -ml-2.5 h-7 text-[11px] font-medium text-muted-foreground hover:text-foreground" onClick={onClick}>
       {label}
-      <Icon className={cn("size-3", sorted ? "text-foreground" : "text-muted-foreground/60")} />
+      <Icon
+        className={cn(
+          "size-3 transition-opacity",
+          sorted ? "text-foreground" : "text-muted-foreground/50 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+        )}
+      />
     </Button>
   );
 }

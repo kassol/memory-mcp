@@ -229,7 +229,7 @@
 
 /* Phone controls need a comfortable target; the desktop density stays as is. */
 @media (max-width: 767px) {
-  button:not(.sr-only) {
+  button:not(.sr-only):not([data-slot="switch"]) {
     min-height: 2.5rem;
   }
   [data-slot="button"][data-size^="icon"],
