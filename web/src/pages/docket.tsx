@@ -303,7 +303,13 @@ function Case({ finding, index, onDismissed, onBack, onMove, position, total, ha
               <ChevronRight />
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>
+          <span aria-hidden className="mx-0.5 hidden h-5 w-px bg-border sm:block" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => setConfirming(true)}
+          >
             判为误报
           </Button>
         </div>
