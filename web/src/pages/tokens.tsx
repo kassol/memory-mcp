@@ -7,6 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { ErrorState, Loading } from "@/components/page";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -170,6 +171,7 @@ function CreateToken() {
 
 export function TokensSection() {
   const tokens = useTokens();
+  const isMobile = useIsMobile();
   return (
     <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/70 px-5 py-4">
@@ -179,7 +181,22 @@ export function TokensSection() {
         <CreateToken />
         {tokens.error && <ErrorState error={tokens.error} onRetry={() => void tokens.refetch()} />}
         {tokens.isPending && <Loading rows={2} />}
-        {tokens.data && (
+        {tokens.data && isMobile ? (
+          <div className="flex flex-col gap-2">
+            {tokens.data.map((t) => (
+              <div key={t.id} className="rounded-xl border border-border/80 bg-card p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="min-w-0 text-[13px] font-medium break-all">{t.name}</span>
+                  <State t={t} />
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
+                  最近使用 {t.last_used_at ? when(t.last_used_at) : "从未"}
+                </p>
+                <div className="mt-2"><Revoke t={t} /></div>
+              </div>
+            ))}
+          </div>
+        ) : tokens.data ? (
           <Table>
             <TableHeader>
               <TableRow className="border-border/70 hover:bg-transparent">
@@ -211,7 +228,7 @@ export function TokensSection() {
               ))}
             </TableBody>
           </Table>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

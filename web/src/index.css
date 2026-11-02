@@ -229,10 +229,10 @@
 
 /* Phone controls need a comfortable target; the desktop density stays as is. */
 @media (max-width: 767px) {
-  [data-slot="button"] {
+  button:not(.sr-only) {
     min-height: 2.5rem;
   }
-  [data-slot="button"][data-size^="icon"] {
+  [data-slot="sidebar-trigger"] {
     min-width: 2.5rem;
   }
   [data-slot="input"],

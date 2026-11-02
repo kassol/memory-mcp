@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState, Loading, PageBody, PageHeader } from "@/components/page";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -36,6 +37,7 @@ function errorSummary(error: string): string {
 
 export function MaintenancePage() {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const rounds = useQuery({
     queryKey: keys.rounds,
     queryFn: () => api<{ items: MaintenanceRound[] }>("/overview/rounds").then((d) => d.items),
@@ -108,6 +110,35 @@ export function MaintenancePage() {
                 </EmptyState>
               ) : null}
               {rounds.data && rounds.data.length ? (
+                isMobile ? (
+                  <div className="flex flex-col gap-2">
+                    {rounds.data.map((round) => {
+                      const status = STATUS[round.status] ?? { label: round.status, dot: "bg-muted-foreground/40" };
+                      return (
+                        <div key={round.id} className="rounded-xl border border-border/80 bg-card p-3.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-muted-foreground tabular-nums">{when(round.started_at)}</span>
+                            <span className="flex items-center gap-1.5 text-[11px]">
+                              <span className={`size-1.5 rounded-full ${status.dot}`} />
+                              {status.label}
+                            </span>
+                          </div>
+                          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+                            <span>耗时 <b className="font-medium text-foreground tabular-nums">{round.duration_ms === null ? "—" : `${(round.duration_ms / 1000).toFixed(1)} s`}</b></span>
+                            <span>调用 <b className="font-medium text-foreground tabular-nums">{String(round.stats.llm_calls ?? 0)}</b></span>
+                            <span>发现 <b className="font-medium text-foreground tabular-nums"><Findings round={round} /></b></span>
+                          </div>
+                          {round.error ? (
+                            <details className="mt-2 border-t border-border/60 pt-2 text-[11px]">
+                              <summary className="cursor-pointer text-destructive">{errorSummary(round.error)}</summary>
+                              <p className="mt-1 whitespace-pre-wrap break-all text-muted-foreground">{round.error}</p>
+                            </details>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -162,6 +193,7 @@ export function MaintenancePage() {
                     </TableBody>
                   </Table>
                 </div>
+                )
               ) : null}
             </CardContent>
           </Card>

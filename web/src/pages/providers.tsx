@@ -7,6 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { ErrorState, Loading } from "@/components/page";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -308,6 +309,7 @@ function Revert({ p, field }: { p: Provider; field: "base_url" | "api_key" }) {
 
 export function ProvidersSection() {
   const providers = useProviders();
+  const isMobile = useIsMobile();
   const [editing, setEditing] = useState<Provider | "new" | null>(null);
   return (
     <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
@@ -320,7 +322,33 @@ export function ProvidersSection() {
         </div>
         {providers.error && <ErrorState error={providers.error} onRetry={() => void providers.refetch()} />}
         {providers.isPending && <Loading rows={2} />}
-        {providers.data && (
+        {providers.data && isMobile ? (
+          <div className="flex flex-col gap-2">
+            {providers.data.map((p) => (
+              <div key={p.id} className="rounded-xl border border-border/80 bg-card p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium break-all">{p.name}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <Badge variant={p.source === "console" ? "default" : "secondary"}>
+                        {p.source === "console" ? "面板" : "配置文件"}
+                      </Badge>
+                      <Badge variant="outline">{PROTOCOL_LABEL[p.protocol]}</Badge>
+                    </div>
+                  </div>
+                  <LastCall p={p} />
+                </div>
+                {p.base_url ? <p className="mt-2 truncate font-mono text-[10px] text-muted-foreground">{p.base_url}</p> : null}
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setEditing(p)}>编辑</Button>
+                  <Revert p={p} field="base_url" />
+                  <Revert p={p} field="api_key" />
+                  <Delete p={p} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : providers.data ? (
           <Table>
             <TableHeader>
               <TableRow className="border-border/70 hover:bg-transparent">
@@ -366,7 +394,7 @@ export function ProvidersSection() {
               ))}
             </TableBody>
           </Table>
-        )}
+        ) : null}
         {editing !== null && (
           <ProviderDialog
             key={editing === "new" ? "new" : editing.id}
