@@ -102,7 +102,7 @@ def test_list_reports_choices_and_defaults(console):
 
 # ---- the roles drive the call sites -----------------------------------------
 def test_write_and_maintenance_roles_send_their_own_provider_and_model(console, providers, fake):
-    from memory_mcp.engine import conflict, key_assignment, llm, maintenance
+    from memory_mcp.engine import conflict, key_assignment, maintenance
 
     set_role(console, "write", providers["write-provider"]["id"], "write-model")
     set_role(console, "maintenance", providers["maintenance-provider"]["id"], "maintenance-model")

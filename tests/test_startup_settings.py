@@ -94,8 +94,6 @@ def test_draft_validation(console):
 
 
 def test_a_bad_draft_is_reported_by_check_and_refused_by_apply(console, test_env):
-    import memory_mcp.startup as startup
-
     config, _, _ = test_env
     override, _, apply_state = startup_files(config.settings.data_dir)
     console.put("/api/v1/startup-settings", json={"data_dir": "/nonexistent/memory"}, headers=AUTH)
@@ -136,8 +134,6 @@ def test_apply_writes_the_override_and_the_marker_then_marks_it_applied(console,
 
 
 def test_clearing_the_draft_changes_nothing(console, test_env):
-    import memory_mcp.startup as startup
-
     config, _, _ = test_env
     override, pending, _ = startup_files(config.settings.data_dir)
     console.put("/api/v1/startup-settings", json={"debug": True}, headers=AUTH)
