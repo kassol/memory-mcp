@@ -177,3 +177,23 @@ test("slash focuses the search field", async () => {
   await user.keyboard("/");
   expect(screen.getByRole("searchbox", { name: "检索" })).toHaveFocus();
 });
+
+test("a search result opens its record", async () => {
+  db.memories.push(memory({ entity_key: "fact:gpu", content: "RTX 3090 runs Qwen3.6-35B" }));
+  const { user } = await renderAt("/records");
+  await screen.findByText("共 1 条");
+  await user.type(screen.getByRole("searchbox", { name: "检索" }), "Qwen3.6{Enter}");
+  expect(await screen.findByText("最相关的 1 条")).toBeInTheDocument();
+  await user.click(screen.getByRole("cell", { name: /Qwen3.6/ }));
+  expect(await screen.findByRole("dialog", { name: "记忆详情" })).toBeInTheDocument();
+});
+
+test("a record copies its full text", async () => {
+  const m = memory({ entity_key: "fact:a", content: "full text to copy" });
+  db.memories.push(m);
+  const { user } = await renderAt(`/records?memory=${m.memory_id}`);
+  const card = await screen.findByRole("region", { name: "fact:a" });
+  await user.click(within(card).getByRole("button", { name: "复制全文" }));
+  expect(await screen.findByText("已复制全文")).toBeInTheDocument();
+  await expect(navigator.clipboard.readText()).resolves.toBe("full text to copy");
+});
