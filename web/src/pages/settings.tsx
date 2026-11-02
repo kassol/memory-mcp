@@ -80,7 +80,14 @@ function SettingRow({ s }: { s: Setting }) {
         )}
         {s.source === "console" && (
           <FieldDescription>
-            {s.file_value !== null ? "配置文件为" : "默认值为"} <span className="tabular-nums">{s.file_value ?? s.default}</span>
+            {s.file_value !== null ? "配置文件为" : "默认值为"}{" "}
+            <span className="tabular-nums">
+              {typeof (s.file_value ?? s.default) === "boolean"
+                ? (s.file_value ?? s.default)
+                  ? "开启"
+                  : "关闭"
+                : (s.file_value ?? s.default)}
+            </span>
           </FieldDescription>
         )}
       </FieldContent>

@@ -179,7 +179,7 @@ function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; se
               (next?.querySelector("button") as HTMLElement | null)?.focus();
             }}
             className={cn(
-              "flex w-full flex-col gap-1.5 rounded-lg p-2.5 text-left text-sm transition-all",
+              "flex w-full min-w-0 flex-col gap-1.5 rounded-lg p-2.5 text-left text-sm transition-all",
               f.id === selectedId
                 ? "bg-card shadow-[0_1px_2px_rgba(23,24,26,0.05),0_6px_18px_-14px_rgba(23,24,26,0.35)]"
                 : "hover:bg-card/60",
@@ -191,8 +191,8 @@ function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; se
               <span className="text-[11px] text-muted-foreground">{KIND[f.kind] ?? f.kind}</span>
               <span className="ml-auto text-[10px] text-muted-foreground/80">{f.created_at.slice(5, 10)}</span>
             </div>
-            <span className="font-mono text-[11px] text-muted-foreground">{f.entity_key ?? f.memory_id.slice(0, 8)}</span>
-            <span className="line-clamp-2 text-xs leading-5 text-muted-foreground">{f.detail || f.entity_key || ""}</span>
+            <span className="w-full min-w-0 truncate font-mono text-[11px] text-muted-foreground">{f.entity_key ?? f.memory_id.slice(0, 8)}</span>
+            <span className="line-clamp-2 w-full min-w-0 text-xs leading-5 break-all text-muted-foreground">{f.detail || f.entity_key || ""}</span>
           </button>
         </li>
       ))}

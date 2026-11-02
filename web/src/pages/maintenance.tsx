@@ -134,8 +134,8 @@ export function MaintenancePage() {
                             <TableCell className="px-3 py-2.5 text-right text-[11px] text-muted-foreground">
                               <Findings round={round} />
                             </TableCell>
-                            <TableCell className="max-w-64 px-3 py-2.5 text-[11px] break-all text-destructive">
-                              {round.error ? <span className="line-clamp-2" title={round.error}>{round.error}</span> : null}
+                            <TableCell className="max-w-64 px-3 py-2.5 text-[11px] break-all whitespace-normal text-destructive">
+                              {round.error ? <span title={round.error}>{round.error}</span> : null}
                             </TableCell>
                           </TableRow>
                         );
