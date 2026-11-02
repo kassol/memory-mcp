@@ -8,7 +8,6 @@ import { EmptyState, ErrorState, Loading, PageHeader } from "@/components/page";
 import { RecordCard, type EditMode } from "@/components/record-card";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { api, enc, failed } from "@/lib/api";
@@ -261,8 +260,8 @@ export function DocketPage() {
       )}
       {!!all.length && (
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[18rem_1fr]">
-          <ScrollArea className={cn("min-h-0 min-w-0 border-r border-border/70", reading && "hidden")}>
-            <div className="sticky top-0 z-10 flex flex-col gap-2 border-b border-border/70 bg-background/95 px-3 py-3">
+          <div className={cn("min-h-0 min-w-0 overflow-y-auto border-r border-border/70", reading && "hidden")}>
+            <div className="sticky top-0 z-10 flex min-w-0 flex-col gap-2 border-b border-border/70 bg-background/95 px-3 py-3">
               <div className="flex items-baseline justify-between">
                 <span className="text-xs font-medium">待审队列</span>
                 <span className="text-[11px] text-muted-foreground tabular-nums">{items.length} / {all.length}</span>
@@ -287,9 +286,9 @@ export function DocketPage() {
             </div>
             <CaseList items={items} selectedId={selectedId} onOpen={setChosen} indexOf={(f) => all.findIndex((x) => x.id === f.id)} />
             {!items.length ? <p className="px-3 py-8 text-center text-xs text-muted-foreground">这一类没有待审发现。</p> : null}
-          </ScrollArea>
+          </div>
           {index >= 0 && (
-            <ScrollArea className="min-h-0 min-w-0">
+            <div className="min-h-0 min-w-0 overflow-y-auto">
               <Case
                 key={items[index].id}
                 finding={items[index]}
@@ -299,7 +298,7 @@ export function DocketPage() {
                 onMove={move}
                 shift={shift}
               />
-            </ScrollArea>
+            </div>
           )}
         </div>
       )}
