@@ -10,7 +10,7 @@ export const MUTATION: Record<string, string> = {
   initial: "初始",
   update: "更新",
   evolution: "演化",
-  correction: "改正",
+  correction: "人工改正",
   reversal: "反转",
   refinement: "补充",
 };

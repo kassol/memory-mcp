@@ -1,6 +1,6 @@
 // One memory as a quiet panel: full text, status badges, and inline correct / archive editors.
 import { useForm } from "@tanstack/react-form";
-import { ChevronDown, ClipboardCopy, Copy } from "lucide-react";
+import { ChevronDown, ChevronRight, ClipboardCopy, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -32,7 +32,7 @@ export function StatusBadges({ r }: { r: MemoryView }) {
           已失效
         </span>
       )}
-      {r.mutation_type === "correction" && <Badge>改正</Badge>}
+      {r.mutation_type === "correction" && <Badge variant="outline">人工改正</Badge>}
       {r.conflict && <Badge variant="outline">冲突合并</Badge>}
     </>
   );
@@ -273,7 +273,7 @@ function VersionDiff({ older, newer }: { older: string | null; newer: string }) 
   return (
     <details className="group rounded-lg border border-border/60 bg-muted/20">
       <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-1.5 text-[11px] text-muted-foreground select-none">
-        <ChevronDown className="size-3 transition-transform group-open:rotate-90" />
+        <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
         <span>相对上一版</span>
         {diff.added.length ? <span className="text-[var(--success)]">新增 {diff.added.length} 句</span> : null}
         {diff.removed.length ? <span className="text-destructive">删除 {diff.removed.length} 句</span> : null}
@@ -330,7 +330,7 @@ export function History({ r }: { r: MemoryRecord }) {
                 <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums">
                   <span className="mr-1">{when(v.created_at)}</span>
                   {v.is_current ? <Badge variant="secondary">当前</Badge> : <Badge variant="outline">已失效</Badge>}
-                  <Badge variant={v.mutation_type === "correction" ? "default" : "outline"}>{MUTATION[v.mutation_type] ?? v.mutation_type}</Badge>
+                  <Badge variant="outline">{MUTATION[v.mutation_type] ?? v.mutation_type}</Badge>
                   {v.conflict && <Badge variant="outline">冲突合并</Badge>}
                 </div>
                 <div className="flex flex-col gap-2">

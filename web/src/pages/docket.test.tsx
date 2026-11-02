@@ -78,7 +78,7 @@ test("correcting a record shows the new version in its place", async () => {
   await toast("已保存改正版本");
   const updated = await screen.findByRole("region", { name: "左侧记录" });
   expect(await within(updated).findByText("Lives in Hangzhou")).toBeInTheDocument();
-  expect(within(updated).getByText("改正", { selector: "[data-slot=badge]" })).toBeInTheDocument();
+  expect(within(updated).getByText("人工改正", { selector: "[data-slot=badge]" })).toBeInTheDocument();
   expect(db.calls.find((c) => c.path.endsWith("/correct"))?.body).toEqual({ content: "Lives in Hangzhou" });
 });
 
