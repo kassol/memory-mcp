@@ -122,8 +122,7 @@ function KeepActions({ left, right }: { left: string; right: string }) {
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/60 px-3 py-2.5">
-        <span className="text-[11px] text-muted-foreground">其中一条只是重复：</span>
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button variant="outline" size="sm" onClick={() => setKeeping(0)}>保留甲，归档乙</Button>
         <Button variant="outline" size="sm" onClick={() => setKeeping(1)}>保留乙，归档甲</Button>
       </div>
@@ -257,29 +256,33 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift, position, to
         ))}
       </div>
       {pair ? <PairSummary left={ids[0]} right={ids[1]} /> : null}
-      {pair ? <KeepActions left={ids[0]} right={ids[1]} /> : null}
-      <div className="flex flex-wrap items-center gap-3 border-t border-border/70 pt-4">
-        <p className="mr-auto text-xs text-muted-foreground">改正或归档任一条后，这件发现会在下一次维护时自动关闭。</p>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" disabled={!hasPrev} onClick={() => onMove(-1)}>
-            <ChevronLeft />
-            上一件
-          </Button>
-          <Button variant="outline" size="sm" disabled={!hasNext} onClick={() => onMove(1)}>
-            下一件
-            <ChevronRight />
+      <div className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-border/70 bg-background px-4 py-3 md:-mx-8 md:px-8">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-auto hidden text-xs text-muted-foreground md:inline">
+            改正或归档任一条后，这件发现会在下一次维护时自动关闭。
+          </span>
+          {pair ? <KeepActions left={ids[0]} right={ids[1]} /> : null}
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" disabled={!hasPrev} onClick={() => onMove(-1)}>
+              <ChevronLeft />
+              上一件
+            </Button>
+            <Button variant="outline" size="sm" disabled={!hasNext} onClick={() => onMove(1)}>
+              下一件
+              <ChevronRight />
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" disabled={dismissing} onClick={() => void dismiss()}>
+            判为误报
           </Button>
         </div>
-        <Button variant="outline" size="sm" disabled={dismissing} onClick={() => void dismiss()}>
-          判为误报
-        </Button>
-      </div>
-      <div className="hidden flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground md:flex" aria-label="快捷键">
-        <span><Kbd>J</Kbd> <Kbd>K</Kbd> 下一件 / 上一件</span>
-        <span><Kbd>C</Kbd> 改正</span>
-        <span><Kbd>A</Kbd> 归档</span>
-        {pair && <span><Kbd>⇧</Kbd> 加上一键作用于右侧</span>}
-        <span><Kbd>D</Kbd> 判为误报</span>
+        <div className="mt-2 hidden flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground md:flex" aria-label="快捷键">
+          <span><Kbd>J</Kbd> <Kbd>K</Kbd> 下一件 / 上一件</span>
+          <span><Kbd>C</Kbd> 改正</span>
+          <span><Kbd>A</Kbd> 归档</span>
+          {pair && <span><Kbd>⇧</Kbd> 加上一键作用于右侧</span>}
+          <span><Kbd>D</Kbd> 判为误报</span>
+        </div>
       </div>
     </div>
   );
@@ -408,7 +411,14 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
               </div>
             </div>
             <CaseList items={items} selectedId={selectedId} onOpen={setChosen} indexOf={(f) => all.findIndex((x) => x.id === f.id)} />
-            {!items.length ? <p className="px-3 py-8 text-center text-xs text-muted-foreground">这一类没有待审发现。</p> : null}
+            {!items.length ? (
+              <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
+                <p className="text-xs text-muted-foreground">这一类没有待审发现。</p>
+                <Button variant="ghost" size="sm" onClick={() => { setKind(null); setChosen(null); }}>
+                  查看全部
+                </Button>
+              </div>
+            ) : null}
           </div>
           {index >= 0 && (
             <div className="min-h-0 min-w-0 overflow-y-auto">
