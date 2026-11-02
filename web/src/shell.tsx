@@ -156,9 +156,6 @@ function AppSidebar({ onPalette }: { onPalette: () => void }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <p className="px-2 pt-2 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
-          长期记忆 · 人工裁定
-        </p>
       </SidebarFooter>
     </Sidebar>
   );

@@ -59,7 +59,7 @@ export function MaintenancePage() {
 
   return (
     <>
-      <PageHeader title="维护" description="检查重复、矛盾与多版本，只产生发现，不自动改动记忆。">
+      <PageHeader title="维护">
         <Button variant="outline" size="sm" onClick={refresh}>
           刷新
         </Button>
@@ -69,9 +69,7 @@ export function MaintenancePage() {
           <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
             <CardHeader className="border-b border-border/70 px-5 py-4">
               <CardTitle className="text-[13px] font-medium">维护检查</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                检查跨 key 重复、内部矛盾与同 key 多条当前版本。计划：{overview.data?.schedule ?? "由宿主机 cron 触发"}。
-              </p>
+              <p className="text-xs text-muted-foreground">计划：{overview.data?.schedule ?? "由宿主机 cron 触发"}</p>
             </CardHeader>
             <CardContent className="flex flex-wrap items-center gap-4 px-5 py-4">
               <Button onClick={() => void run()} disabled={running || isRunning}>
@@ -93,7 +91,6 @@ export function MaintenancePage() {
           <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
             <CardHeader className="border-b border-border/70 px-5 py-4">
               <CardTitle className="text-[13px] font-medium">历史</CardTitle>
-              <p className="text-xs text-muted-foreground">最近 20 轮，含调用次数、耗时与错误。</p>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 px-5 py-4">
               {rounds.error && <ErrorState error={rounds.error} onRetry={() => void rounds.refetch()} />}

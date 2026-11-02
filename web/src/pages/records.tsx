@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { api } from "@/lib/api";
 import { keys, searchMemories, useMemory } from "@/lib/queries";
 import { RecallLogPanel } from "@/pages/recall-log";
-import { when } from "@/lib/terms";
+import { shortWhen } from "@/lib/terms";
 import type { MemoryItem, MemoryView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -66,16 +66,6 @@ const columns: ColumnDef<MemoryItem>[] = [
     ),
   },
   {
-    accessorKey: "entity_type",
-    header: "类型",
-    cell: ({ row }) => (
-      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <span className="size-1 rounded-full bg-muted-foreground/35" />
-        {row.original.entity_type}
-      </span>
-    ),
-  },
-  {
     accessorKey: "content",
     header: "内容",
     enableSorting: false,
@@ -84,12 +74,12 @@ const columns: ColumnDef<MemoryItem>[] = [
   {
     accessorKey: "created_at",
     header: "写入时间",
-    cell: ({ row }) => <span className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">{when(row.original.created_at)}</span>,
+    cell: ({ row }) => <span className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">{shortWhen(row.original.created_at)}</span>,
   },
   {
     accessorKey: "valid_from",
     header: "生效时间",
-    cell: ({ row }) => <span className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">{when(row.original.valid_from)}</span>,
+    cell: ({ row }) => <span className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">{shortWhen(row.original.valid_from)}</span>,
   },
 ];
 
@@ -121,7 +111,7 @@ function MobileRow({ m, onOpen }: { m: MemoryItem; onOpen: () => void }) {
         </span>
       </div>
       <span className="line-clamp-2 text-[13px] leading-6">{m.content}</span>
-      <span className="text-[10px] text-muted-foreground tabular-nums">{when(m.created_at)}</span>
+      <span className="text-[10px] text-muted-foreground tabular-nums">{shortWhen(m.created_at)}</span>
     </button>
   );
 }
@@ -211,7 +201,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
 
   return (
     <>
-      <PageHeader title="档案" description="当前记忆、版本历史与检索记录。">
+      <PageHeader title="档案">
         {view === "records" && !query && list.data && <span className="text-sm text-muted-foreground tabular-nums">共 {matched} 条</span>}
       </PageHeader>
       <PageBody className="flex flex-col">
@@ -240,7 +230,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                   <Input
                     type="search"
                     aria-label="检索"
-                    placeholder="检索记忆（含型号、版本号），回车执行"
+                    placeholder="检索内容或型号，回车执行"
                     className="h-9 bg-card pl-8"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
@@ -256,7 +246,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                 {!query && (
                   <Input
                     aria-label="按 key 过滤"
-                    placeholder="按 key 过滤"
+                    placeholder="key 过滤"
                     spellCheck={false}
                     className="h-9 bg-card md:w-52"
                     value={keyDraft}

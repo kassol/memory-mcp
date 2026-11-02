@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { ErrorState, Loading } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -15,11 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api, enc, failed } from "@/lib/api";
 import { keys, useModelRoles, useModels, useProviders } from "@/lib/queries";
 import type { ModelRole, Provider, RoleTest } from "@/lib/types";
-
-const DESCRIPTION: Record<string, string> = {
-  write: "remember 时的 key 分配、合并与冲突判定。写入要快，模型只需稳定地输出结构化结果。",
-  maintenance: "后台检查的判定：内部矛盾、跨 key 重复。可以用更强的模型，不影响写入速度。",
-};
 
 function RoleRow({ role, providers }: { role: ModelRole; providers: Provider[] }) {
   const queryClient = useQueryClient();
@@ -82,7 +77,6 @@ function RoleRow({ role, providers }: { role: ModelRole; providers: Provider[] }
           </span>
         ) : null}
       </div>
-      <p className="text-sm text-muted-foreground">{DESCRIPTION[role.role]}</p>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem]">
         <Field>
           <FieldLabel htmlFor={`${role.role}-provider`}>Provider</FieldLabel>
@@ -160,9 +154,6 @@ export function RolesSection() {
     <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/70 px-5 py-4">
         <CardTitle className="text-[13px] font-medium">模型用途</CardTitle>
-        <CardDescription className="text-xs">
-          每一类模型调用用哪个 Provider、模型与超时。保存后下一次调用即生效，无需重启。
-        </CardDescription>
       </CardHeader>
       <CardContent className="px-5">
         {roles.error && <ErrorState error={roles.error} onRetry={() => void roles.refetch()} />}

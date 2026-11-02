@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useSession } from "@/lib/session";
@@ -60,7 +60,6 @@ function ChangePassword() {
       >
         <CardHeader className="border-b border-border/70 px-5 py-4">
           <CardTitle className="text-[13px] font-medium">管理口令</CardTitle>
-          <CardDescription className="text-xs">修改登录面板用的口令，需要输入当前口令。忘记口令时，在部署主机上执行重置命令。</CardDescription>
         </CardHeader>
         <CardContent className="px-5 py-5">
           <FieldGroup className="max-w-sm">
@@ -91,7 +90,6 @@ function SignOutEverywhere() {
     <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/70 px-5 py-4">
         <CardTitle className="text-[13px] font-medium">登录状态</CardTitle>
-        <CardDescription className="text-xs">退出所有设备上的面板登录，包括当前这台。设备丢失时使用。</CardDescription>
       </CardHeader>
       <CardContent className="px-5 py-5">
         <FieldDescription>访问令牌不受影响，agent 照常工作。</FieldDescription>

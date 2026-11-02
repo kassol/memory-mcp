@@ -8,7 +8,7 @@ import { ErrorState, Loading } from "@/components/page";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -174,9 +174,6 @@ export function StartupSection() {
     <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/70 px-5 py-4">
         <CardTitle className="text-[13px] font-medium">启动设置</CardTitle>
-        <CardDescription className="text-xs">
-          只在服务启动时读取，改动要校验、再应用。应用会让进程退出并由重启策略拉起；起不来时回退到上一份设置并记下原因。
-        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5 px-5 py-4">
         {data.container ? (

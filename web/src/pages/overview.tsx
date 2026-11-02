@@ -7,7 +7,7 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
 import { ErrorState, Loading, PageBody, PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { api } from "@/lib/api";
@@ -71,14 +71,12 @@ function Stat({ label, value, hint }: { label: string; value: number | string; h
 
 function ChartBlock({
   title,
-  description,
   value,
   children,
   first,
   last,
 }: {
   title: string;
-  description: string;
   value: string;
   children: React.ReactNode;
   first: string;
@@ -89,7 +87,6 @@ function ChartBlock({
       <div className="flex items-baseline justify-between gap-2">
         <div>
           <h3 className="text-[13px] font-medium">{title}</h3>
-          <p className="text-[11px] text-muted-foreground">{description}</p>
         </div>
         <span className="text-[13px] font-medium tabular-nums">{value}</span>
       </div>
@@ -111,7 +108,7 @@ export function OverviewPage() {
 
   return (
     <>
-      <PageHeader title="概览" description="待审、记忆与维护的当前状态。">
+      <PageHeader title="概览">
         <Button asChild variant="outline" size="sm">
           <Link to="/docket">
             去处理
@@ -131,14 +128,10 @@ export function OverviewPage() {
                     <Inbox className="size-4 text-primary" />
                     待审发现
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">维护检查产生的记忆问题，需要人判断。</p>
                   <div className="mt-6 flex flex-wrap items-end gap-x-3 gap-y-1">
                     <span className="text-[46px] leading-[0.95] font-semibold tracking-[-0.04em] tabular-nums">{totalFindings}</span>
-                    <span className="pb-1.5 text-sm text-muted-foreground">件待判断</span>
+                    <span className="pb-1.5 text-sm text-muted-foreground">件待审</span>
                   </div>
-                  <p className="mt-4 max-w-[34ch] text-[11px] leading-5 text-muted-foreground">
-                    每处理一件，下一件会接上；改正或归档后，下一次维护自动关单。
-                  </p>
                 </div>
                 <div className="grid gap-x-8 gap-y-1 sm:grid-cols-2 md:border-l md:border-border/70 md:pl-8">
                   {data.findings.length ? (
@@ -165,12 +158,11 @@ export function OverviewPage() {
               <Card className="ring-0 border border-border/80 shadow-none">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-[13px] font-medium">记忆</CardTitle>
-                  <CardDescription>当前版本与最近 7 / 30 天的变化。</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-x-4 gap-y-4">
                   <Stat label="当前记忆" value={data.memories.total} />
-                  <Stat label="新增 7 天" value={data.memories.new_7d} hint={`30 天 ${data.memories.new_30d}`} />
-                  <Stat label="演化 7 天" value={data.memories.evolved_7d} hint={`30 天 ${data.memories.evolved_30d}`} />
+                  <Stat label="7 天新增" value={data.memories.new_7d} hint={`30 天 ${data.memories.new_30d}`} />
+                  <Stat label="7 天演化" value={data.memories.evolved_7d} hint={`30 天 ${data.memories.evolved_30d}`} />
                   <Stat
                     label="最久未更新"
                     value={data.stalest.length ? when(data.stalest[0].valid_from).slice(0, 10) : "—"}
@@ -184,7 +176,7 @@ export function OverviewPage() {
                     <Wrench className="size-4 text-muted-foreground" />
                     维护
                   </CardTitle>
-                  <CardDescription>{data.schedule}</CardDescription>
+                  <p className="text-xs text-muted-foreground">{data.schedule.split("（")[0]}</p>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2">
                   {data.last_round ? (
@@ -219,12 +211,10 @@ export function OverviewPage() {
             <Card className="overflow-hidden ring-0 border border-border/80 shadow-none">
               <CardHeader className="pb-0">
                 <CardTitle className="text-[13px] font-medium">近 30 天</CardTitle>
-                <CardDescription>写入、召回与召回耗时的日统计。</CardDescription>
               </CardHeader>
               <CardContent className="grid px-0 md:grid-cols-3">
                 <ChartBlock
                   title="每日写入"
-                  description="30 天"
                   value={`${points.reduce((sum, p) => sum + p.writes, 0)} 次`}
                   first={points[0]?.day ?? ""}
                   last={points[points.length - 1]?.day ?? ""}
@@ -240,7 +230,6 @@ export function OverviewPage() {
                 </ChartBlock>
                 <ChartBlock
                   title="每日召回"
-                  description="30 天"
                   value={`${points.reduce((sum, p) => sum + p.recalls, 0)} 次`}
                   first={points[0]?.day ?? ""}
                   last={points[points.length - 1]?.day ?? ""}
@@ -256,7 +245,6 @@ export function OverviewPage() {
                 </ChartBlock>
                 <ChartBlock
                   title="召回耗时中位数"
-                  description="毫秒，30 天"
                   value={(() => {
                     const latest = [...points].reverse().find((p) => p.latency !== null);
                     return latest?.latency == null ? "—" : `${latest.latency} ms`;
@@ -283,7 +271,6 @@ export function OverviewPage() {
                     <Server className="size-4 text-muted-foreground" />
                     Provider
                   </CardTitle>
-                  <CardDescription>最近一次调用的结果。</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   {data.providers.map((p) => (
@@ -316,7 +303,6 @@ export function OverviewPage() {
               <Card className="ring-0 border border-border/80 shadow-none">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-[13px] font-medium">最久未更新的记忆</CardTitle>
-                  <CardDescription>按生效时间排序的前 5 条。</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   {data.stalest.length ? (
@@ -344,7 +330,6 @@ export function OverviewPage() {
                     <KeyRound className="size-4 text-muted-foreground" />
                     访问令牌
                   </CardTitle>
-                  <CardDescription>最近使用时间。</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   {data.tokens.map((t) => (

@@ -38,7 +38,7 @@ function Frame({ title, description, children }: { title: string; description: s
             留在版本里。
           </h2>
           <p className="mt-6 text-sm leading-6 text-[#f2f0e9]/55">
-            机器找出重复与矛盾，人只需要读、改正、归档。每一条记忆都有来历，也有下一次可查的版本。
+            机器找出问题，人只负责判断。
           </p>
         </div>
         <div className="grid grid-cols-3 gap-6 border-t border-[#f2f0e9]/10 pt-6">

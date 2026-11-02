@@ -148,13 +148,12 @@ function KeepActions({ left, right }: { left: string; right: string }) {
   );
 }
 
-function Case({ finding, index, onDismissed, onBack, onMove, shift, position, total, hasPrev, hasNext }: {
+function Case({ finding, index, onDismissed, onBack, onMove, position, total, hasPrev, hasNext }: {
   finding: Finding;
   index: number;
   onDismissed: () => void;
   onBack?: () => void;
   onMove: (step: 1 | -1) => void;
-  shift: boolean;
   position: number;
   total: number;
   hasPrev: boolean;
@@ -166,6 +165,8 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift, position, to
   const [ids, setIds] = useState(() => [finding.memory_id, finding.other_memory_id].filter((x): x is string => !!x));
   const [editing, setEditing] = useState<{ slot: Slot; mode: EditMode } | null>(null);
   const [dismissing, setDismissing] = useState(false);
+  const [opinionOpen, setOpinionOpen] = useState(false);
+  const longOpinion = (finding.detail?.length ?? 0) > 100;
   const pair = ids.length > 1;
 
   const dismiss = async () => {
@@ -217,30 +218,34 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift, position, to
         </Button>
       )}
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em]">卷宗 {caseNo(index)}</h2>          <span className="flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em]">卷宗 {caseNo(index)}</h2>
+          <span className="flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
             <span className={`size-1.5 rounded-full ${KIND_DOT[finding.kind] ?? "bg-muted-foreground/40"}`} />
             {KIND[finding.kind] ?? finding.kind}
           </span>
-          {finding.entity_key ? <span className="font-mono text-[11px] text-muted-foreground">{finding.entity_key}</span> : null}
           <span className="text-[11px] text-muted-foreground tabular-nums">队列 {position} / {total}</span>
-          <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            快捷键作用于
-            <span className="rounded-md bg-card px-1.5 py-0.5 font-medium text-foreground ring-1 ring-border/70">
-              {pair ? (shift ? "右侧 · 乙" : "左侧 · 甲") : "唯一记录"}
-            </span>
-          </span>
+          {finding.entity_key ? (
+            <span className="max-w-[42ch] truncate font-mono text-[11px] text-muted-foreground">{finding.entity_key}</span>
+          ) : null}
         </div>
-        <p className="max-w-[62ch] text-[13px] leading-6 text-muted-foreground">
-          {finding.detail ? (
-            <>
-              <span className="font-medium text-foreground">检查意见：</span>
-              {finding.detail}
-            </>
-          ) : (
-            "同一主题下有不止一条当前版本，保留正确的一条，归档其余。"
-          )}
-        </p>
+        <div className="flex flex-col gap-1">
+          <p className={cn("max-w-[62ch] text-[13px] leading-6 text-muted-foreground", !opinionOpen && longOpinion && "line-clamp-2")}>
+            {finding.detail ? (
+              <>
+                <span className="font-medium text-foreground">检查意见：</span>
+                {finding.detail}
+              </>
+            ) : (
+              "同一主题下有不止一条当前版本，保留正确的一条，归档其余。"
+            )}
+          </p>
+          {longOpinion ? (
+            <button type="button" onClick={() => setOpinionOpen((v) => !v)} className="w-fit text-[11px] text-muted-foreground hover:text-foreground">
+              {opinionOpen ? "收起" : "展开检查意见"}
+            </button>
+          ) : null}
+        </div>
       </div>
       {pair ? <PairSummary left={ids[0]} right={ids[1]} /> : null}
       <div className={cn("grid grid-cols-1 gap-4", pair && "xl:grid-cols-2")}>
@@ -256,10 +261,7 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift, position, to
         ))}
       </div>
       <div className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-border/70 bg-background px-4 py-3 md:-mx-8 md:px-8">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-auto hidden text-xs text-muted-foreground md:inline">
-            改正或归档任一条后，这件发现会在下一次维护时自动关闭。
-          </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {pair ? <KeepActions left={ids[0]} right={ids[1]} /> : null}
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" disabled={!hasPrev} onClick={() => onMove(-1)}>
@@ -311,11 +313,11 @@ function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; se
           >
             <div className="flex w-full min-w-0 items-center gap-2">
               <span className="text-[11px] text-muted-foreground tabular-nums">{caseNo(indexOf(f))}</span>
-              <span className={`size-1.5 rounded-full ${KIND_DOT[f.kind] ?? "bg-muted-foreground/40"}`} />
-              <span className="text-[11px] text-muted-foreground">{KIND[f.kind] ?? f.kind}</span>
-              <span className="ml-auto text-[10px] text-muted-foreground/80">{f.created_at.slice(5, 10)}</span>
+              <span className={`size-1.5 shrink-0 rounded-full ${KIND_DOT[f.kind] ?? "bg-muted-foreground/40"}`} />
+              <span className="shrink-0 text-[11px] text-muted-foreground">{KIND[f.kind] ?? f.kind}</span>
+              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground" title={f.entity_key ?? ""}>{f.entity_key ?? f.memory_id.slice(0, 8)}</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground/80">{f.created_at.slice(5, 10)}</span>
             </div>
-            <span className="w-full min-w-0 truncate font-mono text-[11px] text-muted-foreground">{f.entity_key ?? f.memory_id.slice(0, 8)}</span>
             <span className="line-clamp-2 w-full min-w-0 text-xs leading-5 break-all text-muted-foreground">{f.detail || f.entity_key || ""}</span>
           </button>
         </li>
@@ -330,18 +332,6 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
   const isMobile = useIsMobile();
   const [chosen, setChosen] = useState<string | null>(null);
   const [kind, setKind] = useState<string | null>(initialKind);
-  const [shift, setShift] = useState(false);
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => e.key === "Shift" && setShift(true);
-    const up = (e: KeyboardEvent) => e.key === "Shift" && setShift(false);
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, []);
 
   const all = findings.data?.items ?? [];
   const counts = all.reduce<Record<string, number>>((acc, f) => {
@@ -371,8 +361,7 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
 
   return (
     <>
-      <PageHeader title="待审" description="逐条判断，改正或归档后会在下一次维护自动关单。">
-        {findings.data && <span className="hidden text-sm text-muted-foreground tabular-nums md:inline">{all.length} 件待审</span>}
+      <PageHeader title="待审">
       </PageHeader>
       {findings.isPending && <div className="p-4 md:p-8"><Loading /></div>}
       {findings.error && <div className="p-4 md:p-8"><ErrorState error={findings.error} onRetry={() => void findings.refetch()} /></div>}
@@ -428,7 +417,6 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
                 onDismissed={() => remove(items[index])}
                 onBack={isMobile ? () => setChosen(null) : undefined}
                 onMove={move}
-                shift={shift}
                 position={index + 1}
                 total={items.length}
                 hasPrev={index > 0}

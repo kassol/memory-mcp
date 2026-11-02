@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -174,9 +174,6 @@ export function TokensSection() {
     <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/70 px-5 py-4">
         <CardTitle className="text-[13px] font-medium">访问令牌</CardTitle>
-        <CardDescription className="text-xs">
-          agent、CLI 与维护定时任务调用 MCP 和 REST 时使用。令牌只能读写记忆与发现，不能修改设置。写入的记忆会记下令牌名称。
-        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 px-5 py-4">
         <CreateToken />

@@ -10,7 +10,7 @@ import { ErrorState, Loading, PageBody, PageHeader } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -71,25 +71,30 @@ function SettingRow({ s }: { s: Setting }) {
             来源：{SOURCE[s.source]}
           </Badge>
         </div>
-        <code className="mt-0.5 block font-mono text-[10px] break-all text-muted-foreground/80">{s.key}</code>
-        <FieldDescription>{s.description}</FieldDescription>
-        {s.recommended !== null && (
-          <FieldDescription>
-            推荐值 <span className="font-medium text-foreground tabular-nums">{s.recommended}</span>。{s.note}
-          </FieldDescription>
-        )}
-        {s.source === "console" && (
-          <FieldDescription>
-            {s.file_value !== null ? "配置文件为" : "默认值为"}{" "}
-            <span className="tabular-nums">
-              {typeof (s.file_value ?? s.default) === "boolean"
-                ? (s.file_value ?? s.default)
-                  ? "开启"
-                  : "关闭"
-                : (s.file_value ?? s.default)}
-            </span>
-          </FieldDescription>
-        )}
+        <details className="mt-1">
+          <summary className="cursor-pointer text-[11px] text-muted-foreground">说明</summary>
+          <div className="mt-2 flex max-w-[58ch] flex-col gap-1 text-xs leading-5 text-muted-foreground">
+            <p>{s.description}</p>
+            {s.recommended !== null && (
+              <p>
+                推荐值 <span className="font-medium text-foreground tabular-nums">{s.recommended}</span>。{s.note}
+              </p>
+            )}
+            {s.source === "console" && (
+              <p>
+                {s.file_value !== null ? "配置文件为" : "默认值为"}{" "}
+                <span className="tabular-nums">
+                  {typeof (s.file_value ?? s.default) === "boolean"
+                    ? (s.file_value ?? s.default)
+                      ? "开启"
+                      : "关闭"
+                    : (s.file_value ?? s.default)}
+                </span>
+              </p>
+            )}
+            <code className="font-mono text-[10px] break-all text-muted-foreground/70">{s.key}</code>
+          </div>
+        </details>
       </FieldContent>
       {s.type === "bool" ? (
         <div className="flex flex-col gap-2">
@@ -162,12 +167,11 @@ function SettingRow({ s }: { s: Setting }) {
   );
 }
 
-function Section({ title, description, items }: { title: string; description: string; items: Setting[] }) {
+function Section({ title, items }: { title: string; items: Setting[] }) {
   return (
     <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/70 px-5 py-4">
         <CardTitle className="text-[13px] font-medium">{title}</CardTitle>
-        <CardDescription className="text-xs">{description}</CardDescription>
       </CardHeader>
       <CardContent className="px-5">
         {items.map((s, i) => (
@@ -186,7 +190,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="设置" description="参数、模型、令牌与启动选项。" />
+      <PageHeader title="设置" />
       <PageBody>
         <Tabs
           defaultValue="parameters"
@@ -212,19 +216,12 @@ export function SettingsPage() {
           </TabsList>
           <div className="min-w-0 flex-1">
             <TabsContent value="parameters" className="mt-0 flex flex-col gap-4">
-              <p className="max-w-[70ch] text-xs leading-6 text-muted-foreground">
-                这里保存的值优先于配置文件，保存后下一次调用即生效，无需重启。恢复后改用配置文件里的值；配置文件没有设置时用默认值。
-              </p>
               {settings.error && <ErrorState error={settings.error} onRetry={() => void settings.refetch()} />}
               {settings.isPending && <Loading />}
               {settings.data && (
                 <>
-                  <Section title="行为参数" description="写入合并与后台维护的行为。" items={settings.data.filter((s) => s.group === "behaviour")} />
-                  <Section
-                    title="高级参数"
-                    description="混合检索与维护检查里经线上评估定下的数值。偏离推荐值前先确认评估依据。"
-                    items={settings.data.filter((s) => s.group === "advanced")}
-                  />
+                  <Section title="行为参数" items={settings.data.filter((s) => s.group === "behaviour")} />
+                  <Section title="高级参数" items={settings.data.filter((s) => s.group === "advanced")} />
                 </>
               )}
             </TabsContent>

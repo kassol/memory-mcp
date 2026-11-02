@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -313,9 +313,6 @@ export function ProvidersSection() {
     <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/70 px-5 py-4">
         <CardTitle className="text-[13px] font-medium">Provider</CardTitle>
-        <CardDescription className="text-xs">
-          remember 的 key 分配、合并与冲突判定都经 Provider 调用模型。API key 只保存密文，之后只显示末四位。
-        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 px-5 py-4">
         <div>
