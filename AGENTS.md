@@ -64,6 +64,12 @@ Issue 与 spec 放在 GitHub Issues（kassol/memory-mcp），用 `gh` CLI 读写
 单上下文：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.
 
 ## 变更日志
+### 2026-11-02 面板第七轮：可到达与可读
+- 设置：tab 可深链（`?tab=parameters|providers|roles|tokens|startup|security`），切换 tab 同步更新 URL；概览的 Provider 与访问令牌卡可直接跳到对应 tab
+- 手机 toast 改为顶部，避免遮住吸底裁定条
+- 图表补屏幕阅读器摘要（30 天写入 / 召回与最近一次召回耗时），读屏能听到数据
+- 验证：前端 61 个测试（新增设置深链）、`typecheck` / `lint` / `build` 通过；后端 283 个测试与 `ruff` 通过；线上复核深链、tab URL 同步与图表摘要
+
 ### 2026-11-02 面板第六轮：审阅与设置回路
 - 待审：J / K 切换时队列自动滚到选中项，长队列不会把当前卷宗留在视野外
 - 档案：分页补首页 / 末页图标按钮，长列表不用逐页翻
