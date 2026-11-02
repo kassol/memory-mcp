@@ -2,7 +2,7 @@
 import { Link } from "@tanstack/react-router";
 import { Inbox } from "lucide-react";
 
-import { EmptyState, ErrorState } from "@/components/page";
+import { EmptyState, ErrorState, PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
 
 export function RouteError({ error, reset }: { error: unknown; reset: () => void }) {
@@ -16,16 +16,19 @@ export function RouteError({ error, reset }: { error: unknown; reset: () => void
 
 export function NotFound() {
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-8">
-      <EmptyState
-        icon={Inbox}
-        title="页面不存在"
-        action={
-          <Button asChild size="sm" variant="outline">
-            <Link to="/docket">回到待审</Link>
-          </Button>
-        }
-      />
-    </div>
+    <>
+      <PageHeader title="页面不存在" />
+      <div className="flex min-h-0 flex-1 items-center justify-center p-8">
+        <EmptyState
+          icon={Inbox}
+          title="没有这个页面"
+          action={
+            <Button asChild size="sm" variant="outline">
+              <Link to="/docket">回到待审</Link>
+            </Button>
+          }
+        />
+      </div>
+    </>
   );
 }

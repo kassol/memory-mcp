@@ -1,7 +1,7 @@
 // Maintenance (issue #16): start a round, follow it, and read the history of past rounds. The
 // schedule belongs to the host cron; the page shows it, it cannot change it.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Wrench } from "lucide-react";
+import { ChevronRight, Wrench } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -129,8 +129,11 @@ export function MaintenancePage() {
                             <span>发现 <b className="font-medium text-foreground tabular-nums"><Findings round={round} /></b></span>
                           </div>
                           {round.error ? (
-                            <details className="mt-2 border-t border-border/60 pt-2 text-[11px]">
-                              <summary className="cursor-pointer text-destructive">{errorSummary(round.error)}</summary>
+                            <details className="group mt-2 border-t border-border/60 pt-2 text-[11px]">
+                              <summary className="flex cursor-pointer items-center gap-1 text-destructive">
+                                <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
+                                {errorSummary(round.error)}
+                              </summary>
                               <p className="mt-1 whitespace-pre-wrap break-all text-muted-foreground">{round.error}</p>
                             </details>
                           ) : null}
@@ -179,8 +182,11 @@ export function MaintenancePage() {
                                 <div className="flex flex-col gap-1">
                                   <span title={round.error}>{errorSummary(round.error)}</span>
                                   {errorSummary(round.error) !== round.error ? (
-                                    <details>
-                                      <summary className="cursor-pointer text-[10px] text-muted-foreground">详情</summary>
+                                    <details className="group">
+                                      <summary className="flex cursor-pointer items-center gap-1 text-[10px] text-muted-foreground">
+                                        <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
+                                        详情
+                                      </summary>
                                       <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{round.error}</p>
                                     </details>
                                   ) : null}

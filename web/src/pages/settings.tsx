@@ -108,7 +108,7 @@ function SettingRow({ s }: { s: Setting }) {
             <span className="text-sm">{s.value ? "开启" : "关闭"}</span>
           </div>
           {s.source === "console" && (
-            <Button type="button" variant="outline" size="sm" onClick={() => void save(null)}>
+            <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => void save(null)}>
               恢复为{s.file_value !== null ? "配置文件值" : "默认值"}
             </Button>
           )}
@@ -157,7 +157,7 @@ function SettingRow({ s }: { s: Setting }) {
             </Button>
           )}
           {s.source === "console" && (
-            <Button type="button" variant="outline" size="sm" onClick={() => void save(null)}>
+            <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => void save(null)}>
               恢复为{s.file_value !== null ? "配置文件值" : "默认值"}
             </Button>
           )}
@@ -201,7 +201,7 @@ export function SettingsPage() {
           <TabsList
             variant="line"
             className={cn(
-              "h-auto! w-full justify-start gap-1 rounded-none border-b border-border/70 p-0 pb-2 flex-wrap md:sticky md:top-0 md:w-48 md:flex-col md:items-stretch md:border-b-0 md:pb-0",
+              "h-auto! grid w-full grid-cols-3 gap-1 rounded-none border-b border-border/70 p-0 pb-2 md:sticky md:top-0 md:flex md:w-48 md:flex-col md:items-stretch md:border-b-0 md:pb-0",
             )}
           >
             {TABS.map((t, i) => (
