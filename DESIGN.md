@@ -26,7 +26,7 @@ Dark:
 - Lifted pine `#7AAD9D`; soft pine `#1D2E29`.
 - Charts lift one step: `#7FB3A2`, `#D6A85A`, `#A8B6C9`, `#D98A7C`, `#9DBFA9`.
 
-Both: `--radius: 0.5rem` so panels land at 11.2 px and controls at 8 px. Borders are hairlines, not frames. Elevation is declared once per element: raised rows use a soft shadow; panels use a border. Cards never float on both.
+Both: `--radius: 0.5rem` so panels land at 11.2 px and controls at 8 px. Borders are hairlines, not frames. Elevation is declared once per element: raised rows use a soft shadow; panels use a border. Cards never float on both. An inline script in `index.html` applies the saved theme before React mounts, so a dark session never flashes light.
 
 Type: Geist Variable with a PingFang / Hiragino / YaHei CJK fallback. Page title 22 px semibold at -0.02em; section title 13 px medium; body 13–14 px; metadata 11 px; table numerals tabular. Monospace only for entity keys, setting keys and values that are code. No display serif, no all-caps labels.
 
@@ -37,8 +37,8 @@ Status is carried by a 6 px dot plus a word: current / finished / success use th
 - Shell: `SidebarProvider` with a porcelain sidebar (a sheet below 768 px) and `SidebarInset`. The brand is a graphite rounded square with 记 and a pine dot, the product name, and a small MEMORY REGISTRY line. Navigation is one rail under a 工作台 label; the active item is a white raised row with a pine icon. Footer: appearance cycle and sign out.
 - Page header: 64–71 px, sidebar trigger, page title 22 px, optional one-line description (hidden on phones), page facts or actions on the right. No vertical separator.
 - Page body: centered `max-w-[1180px]`, 16 px gutters on phones and 32 px from md, 32 px vertical rhythm.
-- Docket: 288 px queue on desktop with a sticky filter header (全部 / each kind with counts), a selected white card with a soft shadow, kind dot, global case number, date and key. The case is a single scroll column: case number, kind, entity key, a 快捷键作用于 甲/乙 chip that follows Shift, the check opinion, two record panels side by side from xl, a collapsible sentence-level 对比摘要, then the ruling bar pinned to the bottom of the pane (保留甲/归档乙 pair shortcut, 上一件 / 下一件, 判为误报, keyboard hints) so actions stay reachable while the records scroll. Phones show the queue until a case opens, then a 返回列表 ghost button. The queue is hidden while reading.
-- Records: underline tabs 档案 / 检索记录; a toolbar with search, key filter, type select and a phone-only sort select (最新 / 最早 / 最久未更新 / 最近更新 / Key A–Z); a bordered table on desktop (key, type, content, written, valid from; sortable headers; 50 rows a page); cards on phones. A row opens a right sheet with a sticky header, the record panel and a vertical version timeline.
+- Docket: 288 px queue on desktop with a sticky filter header (全部 / each kind with counts), a selected white card with a soft shadow, kind dot, global case number, date and key. The case is a single scroll column: case number, kind, entity key, a 快捷键作用于 甲/乙 chip that follows Shift, the check opinion, a collapsible sentence-level 对比摘要, then the two record panels side by side from xl, then the ruling bar pinned to the bottom of the pane (保留甲/归档乙 pair shortcut, 上一件 / 下一件, 判为误报, keyboard hints) so actions stay reachable while the records scroll. Phones show the queue until a case opens, then a 返回列表 ghost button. The queue is hidden while reading.
+- Records: underline tabs 档案 / 检索记录; a toolbar with search, key filter, type select and a phone-only sort select (最新 / 最早 / 最久未更新 / 最近更新 / Key A–Z); a bordered table on desktop (key, type, content, written, valid from; sortable headers; 50 rows a page; header sticky from lg); cards on phones. A row opens a right sheet with a sticky header, the record panel and a vertical version timeline.
 - Overview: a full-width 待审发现 band (large count, hint, kind breakdown with counts) then two secondary panels 记忆 and 维护; one 近 30 天 panel with three charts separated by hairlines; then Provider, 最久未更新的记忆 and 访问令牌 panels.
 - Maintenance: a schedule/run panel with the last round's status, then a ruled history table with right-aligned duration, model calls and findings; errors clamp to two lines with the full text on title.
 - Settings: vertical rail of numbered sections on desktop, wrapped two-row tabs on phones; one surface per section; setting rows show label, source, key on its own line, description and recommendation, with the control on the right.
@@ -46,7 +46,7 @@ Status is carried by a 6 px dot plus a word: current / finished / success use th
 
 ## Components
 
-- Record panel: bordered 11 px panel, optional 甲/乙 circle, monospace key, metadata line, status dot, full text (never truncated in panels), and a footer pinned to the bottom with 改正 (outline) and 归档 (ghost destructive). Correct and archive open inline forms with a reason and a confirm action.
+- Record panel: bordered 11 px panel, optional 甲/乙 circle, monospace key with a copy button, metadata line, status dot, full text (never truncated in panels), and a footer pinned to the bottom with 改正 (outline) and 归档 (ghost destructive). Correct and archive open inline forms with a reason and a confirm action.
 - Version timeline: vertical hairline with a pine dot for the current version, mutation badges, full text; older versions muted.
 - Tables: 11 px muted headers, 60 % hairlines, no zebra, hover row tint, selected row accent wash; cells align top; numeric columns right and tabular.
 - Charts: 96 px high, hairline grid, no animation, one pine series and one amber series, latency in slate.
