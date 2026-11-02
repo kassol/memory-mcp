@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, failed } from "@/lib/api";
-import { keys } from "@/lib/queries";
+import { keys, useSettings } from "@/lib/queries";
 import { when } from "@/lib/terms";
 import type { MaintenanceRound, Overview } from "@/lib/types";
 
@@ -45,6 +45,8 @@ export function MaintenancePage() {
     refetchInterval: (query) => (query.state.data?.some((r) => r.status === "running") ? 3000 : false),
   });
   const overview = useQuery({ queryKey: keys.overview, queryFn: () => api<Overview>("/overview") });
+  const settings = useSettings();
+  const budget = settings.data?.find((s) => s.key === "maintenance_max_llm_calls")?.value;
   const [running, setRunning] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -106,6 +108,9 @@ export function MaintenancePage() {
                   {elapsedLabel ? <span className="tabular-nums">已运行 {elapsedLabel}</span> : null}
                   {!elapsedLabel ? <span className="tabular-nums">{when(last.finished_at ?? last.started_at)}</span> : null}
                 </span>
+              ) : null}
+              {typeof budget === "number" ? (
+                <p className="w-full text-[11px] text-muted-foreground">单轮最多 {budget} 次模型调用；没跑完的留到下一轮。</p>
               ) : null}
             </CardContent>
           </Card>

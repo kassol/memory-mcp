@@ -1,7 +1,7 @@
 // One memory as a quiet panel: full text, status badges, and inline correct / archive editors.
 import { useForm } from "@tanstack/react-form";
-import { ClipboardCopy, Copy } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { ChevronDown, ClipboardCopy, Copy } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,10 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api, enc, failed } from "@/lib/api";
+import { diffSentences } from "@/lib/sentences";
 import { MUTATION, when } from "@/lib/terms";
 import type { MemoryRecord, MemoryView } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 export type EditMode = "correct" | "archive" | null;
 
@@ -242,25 +244,103 @@ export function RecordCard({
   );
 }
 
+function ChangeList({ label, items, tone }: { label: string; items: string[]; tone: string }) {
+  return (
+    <div>
+      <p className={cn("mb-1 font-medium", tone)}>{label}</p>
+      {items.length ? (
+        <ul className="list-disc space-y-1 pl-4">
+          {items.map((sentence) => (
+            <li key={sentence}>{sentence}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground">无。</p>
+      )}
+    </div>
+  );
+}
+
+/** What the newer text changed, sentence by sentence. Collapsed until asked for. */
+function VersionDiff({ older, newer }: { older: string | null; newer: string }) {
+  if (!older) return <p className="text-[11px] text-muted-foreground">首个版本</p>;
+  const diff = diffSentences(older, newer);
+  if (!diff.added.length && !diff.removed.length) {
+    return <p className="text-[11px] text-muted-foreground">内容没有变化</p>;
+  }
+  return (
+    <details className="group rounded-lg border border-border/60 bg-muted/20">
+      <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-1.5 text-[11px] text-muted-foreground select-none">
+        <ChevronDown className="size-3 transition-transform group-open:rotate-90" />
+        <span>相对上一版</span>
+        {diff.added.length ? <span className="text-[var(--success)]">新增 {diff.added.length} 句</span> : null}
+        {diff.removed.length ? <span className="text-destructive">删除 {diff.removed.length} 句</span> : null}
+      </summary>
+      <div className="grid gap-3 border-t border-border/60 px-2.5 py-2 text-[11px] leading-5 md:grid-cols-2">
+        <ChangeList label="新增" items={diff.added} tone="text-[var(--success)]" />
+        <ChangeList label="删除" items={diff.removed} tone="text-destructive" />
+      </div>
+    </details>
+  );
+}
+
+/** Older versions are long; show three lines and let the reader open the rest. */
+function VersionText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 240;
+  return (
+    <div className="flex flex-col gap-1">
+      <p className={cn("text-[13px] leading-6 break-words whitespace-pre-wrap text-muted-foreground", long && !open && "line-clamp-3")}>
+        {text}
+      </p>
+      {long ? (
+        <Button
+          variant="ghost"
+          size="xs"
+          className="-ml-2 w-fit text-[11px] text-muted-foreground"
+          onClick={() => setOpen((value) => !value)}
+        >
+          <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
+          {open ? "收起" : "展开全文"}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 export function History({ r }: { r: MemoryRecord }) {
+  const versions = r.versions;
   return (
     <section className="flex flex-col gap-4">
-      <h3 className="text-[13px] font-medium">版本历史（{r.versions.length}）</h3>
-      <ol className="relative flex flex-col gap-4 border-l border-border/80 pl-5">
-        {r.versions.map((v) => (
-          <li key={v.memory_id} className="relative">
-            <span className={`absolute top-1.5 -left-[25px] size-2 rounded-full ring-4 ring-background ${v.is_current ? "bg-primary" : "bg-border"}`} />
-            <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums">
-              <span className="mr-1">{when(v.created_at)}</span>
-              {v.is_current ? <Badge variant="secondary">当前</Badge> : <Badge variant="outline">已失效</Badge>}
-              <Badge variant={v.mutation_type === "correction" ? "default" : "outline"}>{MUTATION[v.mutation_type] ?? v.mutation_type}</Badge>
-              {v.conflict && <Badge variant="outline">冲突合并</Badge>}
-            </div>
-            <p className={`text-[13px] leading-6 break-words whitespace-pre-wrap ${v.is_current ? "" : "text-muted-foreground"}`}>{v.content}</p>
-            {v.archived_reason && <p className="mt-1 text-xs text-muted-foreground">归档原因：{v.archived_reason}</p>}
-          </li>
-        ))}
-      </ol>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-[13px] font-medium">版本历史（{versions.length}）</h3>
+        {versions.length > 1 ? <span className="text-[11px] text-muted-foreground">当前版本见上</span> : null}
+      </div>
+      {versions.length <= 1 ? (
+        <p className="text-xs text-muted-foreground">没有更早的版本。改正或演化后会在这里留下历史。</p>
+      ) : (
+        <ol className="relative flex flex-col gap-5 border-l border-border/80 pl-5">
+          {versions.map((v, index) => {
+            const older = versions[index + 1]?.content ?? null;
+            return (
+              <li key={v.memory_id} className="relative">
+                <span className={`absolute top-1.5 -left-[25px] size-2 rounded-full ring-4 ring-background ${v.is_current ? "bg-primary" : "bg-border"}`} />
+                <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums">
+                  <span className="mr-1">{when(v.created_at)}</span>
+                  {v.is_current ? <Badge variant="secondary">当前</Badge> : <Badge variant="outline">已失效</Badge>}
+                  <Badge variant={v.mutation_type === "correction" ? "default" : "outline"}>{MUTATION[v.mutation_type] ?? v.mutation_type}</Badge>
+                  {v.conflict && <Badge variant="outline">冲突合并</Badge>}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <VersionDiff older={older} newer={v.content} />
+                  {v.is_current ? null : <VersionText text={v.content} />}
+                  {v.archived_reason && <p className="text-xs text-muted-foreground">归档原因：{v.archived_reason}</p>}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </section>
   );
 }

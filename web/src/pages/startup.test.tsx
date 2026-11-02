@@ -69,10 +69,24 @@ test("applying restarts the service and reports the result", async () => {
   const { user } = await openStartup();
   const region = await card();
   await user.click(within(region).getByRole("button", { name: "应用并重启" }));
+  const dialog = await screen.findByRole("alertdialog");
+  expect(within(dialog).getByText(/服务会短暂中断/)).toBeInTheDocument();
+  await user.click(within(dialog).getByRole("button", { name: "应用并重启" }));
   await waitFor(() => expect(db.calls.find((c) => c.path === "/api/v1/startup-settings/apply")?.method).toBe("POST"));
   // The page waits for the process to go away, then for it to come back, then re-reads the settings.
   expect(await within(region).findByText("重启中…")).toBeInTheDocument();
   expect(await within(region).findByText("已生效", {}, { timeout: 10000 })).toBeInTheDocument();
   expect(db.startup.effective.debug).toBe(true);
   expect(db.startup.draft).toEqual({});
+});
+
+test("the restart asks first and can be cancelled", async () => {
+  db.startup.draft = { debug: true };
+  const { user } = await openStartup();
+  const region = await card();
+  await user.click(within(region).getByRole("button", { name: "应用并重启" }));
+  const dialog = await screen.findByRole("alertdialog");
+  await user.click(within(dialog).getByRole("button", { name: "取消" }));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(db.calls.some((c) => c.path.endsWith("/apply"))).toBe(false);
 });

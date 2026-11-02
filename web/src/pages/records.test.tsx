@@ -197,3 +197,16 @@ test("a record copies its full text", async () => {
   expect(await screen.findByText("已复制全文")).toBeInTheDocument();
   await expect(navigator.clipboard.readText()).resolves.toBe("full text to copy");
 });
+
+test("version history shows what changed and keeps the current text in the card", async () => {
+  const old = memory({ entity_key: "fact:city", content: "Lives in Shanghai. Works at Acme.", is_current: false });
+  const cur = memory({ entity_key: "fact:city", content: "Lives in Suzhou. Works at Acme." });
+  db.memories.push(old, cur);
+  const { user } = await renderAt(`/records?memory=${cur.memory_id}`);
+  const sheet = await screen.findByRole("dialog", { name: "记忆详情" });
+  expect(await within(sheet).findByText("版本历史（2）")).toBeInTheDocument();
+  expect(within(sheet).getByText("当前版本见上")).toBeInTheDocument();
+  await user.click(within(sheet).getByText(/新增 1 句/));
+  expect(within(sheet).getByText("Lives in Suzhou.")).toBeInTheDocument();
+  expect(within(sheet).getByText("Lives in Shanghai.")).toBeInTheDocument();
+});

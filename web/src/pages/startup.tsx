@@ -6,6 +6,17 @@ import { toast } from "sonner";
 
 import { ErrorState, Loading } from "@/components/page";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -278,9 +289,27 @@ export function StartupSection() {
           <Button size="sm" variant="outline" onClick={() => void check()} disabled={restarting}>
             校验
           </Button>
-          <Button size="sm" variant="outline" onClick={() => void apply()} disabled={restarting || !Object.keys(data.draft).length}>
-            {restarting ? "重启中…" : "应用并重启"}
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="outline" disabled={restarting || !Object.keys(data.draft).length}>
+                {restarting ? "重启中…" : "应用并重启"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>应用并重启？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  服务会短暂中断。容器里由编排自动拉起；手工运行时需要你自己再启动一次。页面会在服务回来后重新读取设置。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={() => void apply()}>
+                  应用并重启
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           {Object.keys(data.draft).length ? (
             <Button size="sm" variant="ghost" onClick={() => void discard()} disabled={restarting}>
               丢弃待生效

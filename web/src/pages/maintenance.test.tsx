@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, test } from "vitest";
 
 import { renderAt } from "@/test/render";
-import { db, reset } from "@/test/server";
+import { db, reset, setting } from "@/test/server";
 
 beforeEach(() => {
   reset();
@@ -54,4 +54,12 @@ test("past rounds show duration, model calls, findings and errors", async () => 
   expect(within(failed).getByText("LLM request failed")).toBeInTheDocument();
   // Refresh re-reads the history.
   await waitFor(() => expect(screen.getByRole("button", { name: "刷新维护" })).toBeInTheDocument());
+});
+
+test("the run panel names the per-round model budget", async () => {
+  db.settings.push(
+    setting({ key: "maintenance_max_llm_calls", label: "维护单轮模型调用上限", group: "behaviour", type: "int", default: 100, value: 100, min: 0, max: 1000 }),
+  );
+  await renderAt("/maintenance");
+  expect(await screen.findByText(/单轮最多 100 次模型调用/)).toBeInTheDocument();
 });

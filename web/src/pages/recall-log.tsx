@@ -7,6 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState, Loading } from "@/components/page";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -114,6 +115,7 @@ function Results({ entry, onMemory }: { entry: RecallLogEntry; onMemory: (id: st
           size="xs"
           aria-label={`打开第 ${i + 1} 条结果`}
           title={id}
+          className="max-sm:min-w-10"
           onClick={() => onMemory(id)}
         >
           {i + 1}
@@ -124,6 +126,7 @@ function Results({ entry, onMemory }: { entry: RecallLogEntry; onMemory: (id: st
 }
 
 export function RecallLogPanel({ onMemory }: { onMemory: (id: string) => void }) {
+  const isMobile = useIsMobile();
   const [limit, setLimit] = useState(PAGE);
   const log = useRecallLog(limit);
 
@@ -142,6 +145,25 @@ export function RecallLogPanel({ onMemory }: { onMemory: (id: string) => void })
       ) : null}
       {log.data && log.data.items.length ? (
         <>
+          {isMobile ? (
+            <div className="flex flex-col gap-2">
+              {log.data.items.map((entry) => (
+                <div key={entry.id} className="rounded-xl border border-border/80 bg-card p-3.5">
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground tabular-nums">
+                    <span>{when(entry.at)}</span>
+                    <span className="truncate">{entry.token ?? "面板"}</span>
+                  </div>
+                  <p className="mt-1.5 text-[13px] leading-6 break-all">{entry.query}</p>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground tabular-nums">
+                    <span>
+                      {entry.latency_ms} ms · {entry.results} 条结果
+                    </span>
+                    <Results entry={entry} onMemory={onMemory} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div className="overflow-x-auto rounded-xl border border-border/80 bg-card">
             <Table>
               <TableHeader>
@@ -170,6 +192,7 @@ export function RecallLogPanel({ onMemory }: { onMemory: (id: string) => void })
               </TableBody>
             </Table>
           </div>
+          )}
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>
               共 {log.data.total} 条，显示最近 {log.data.items.length} 条
