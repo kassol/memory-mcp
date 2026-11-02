@@ -212,33 +212,19 @@ export function OverviewPage() {
               <CardHeader className="pb-0">
                 <CardTitle className="text-[13px] font-medium">近 30 天</CardTitle>
               </CardHeader>
-              <CardContent className="grid px-0 md:grid-cols-3">
+              <CardContent className="grid px-0 md:grid-cols-2">
                 <ChartBlock
-                  title="每日写入"
-                  value={`${points.reduce((sum, p) => sum + p.writes, 0)} 次`}
+                  title="写入与召回"
+                  value={`写入 ${points.reduce((sum, p) => sum + p.writes, 0)} · 召回 ${points.reduce((sum, p) => sum + p.recalls, 0)}`}
                   first={points[0]?.day ?? ""}
                   last={points[points.length - 1]?.day ?? ""}
                 >
-                  <ChartContainer config={CHART} className="h-24 w-full">
-                    <BarChart data={points}>
+                  <ChartContainer config={CHART} className="h-28 w-full">
+                    <BarChart data={points} barGap={2}>
                       <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.7} />
                       <XAxis dataKey="day" tick={false} tickLine={false} axisLine={false} />
                       <ChartTooltip content={<ChartTooltipContent labelKey="day" />} />
                       <Bar dataKey="writes" fill="var(--color-writes)" radius={2} isAnimationActive={false} />
-                    </BarChart>
-                  </ChartContainer>
-                </ChartBlock>
-                <ChartBlock
-                  title="每日召回"
-                  value={`${points.reduce((sum, p) => sum + p.recalls, 0)} 次`}
-                  first={points[0]?.day ?? ""}
-                  last={points[points.length - 1]?.day ?? ""}
-                >
-                  <ChartContainer config={CHART} className="h-24 w-full">
-                    <BarChart data={points}>
-                      <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.7} />
-                      <XAxis dataKey="day" tick={false} tickLine={false} axisLine={false} />
-                      <ChartTooltip content={<ChartTooltipContent labelKey="day" />} />
                       <Bar dataKey="recalls" fill="var(--color-recalls)" radius={2} isAnimationActive={false} />
                     </BarChart>
                   </ChartContainer>
@@ -252,7 +238,7 @@ export function OverviewPage() {
                   first={points[0]?.day ?? ""}
                   last={points[points.length - 1]?.day ?? ""}
                 >
-                  <ChartContainer config={LATENCY} className="h-24 w-full">
+                  <ChartContainer config={LATENCY} className="h-28 w-full">
                     <LineChart data={points}>
                       <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.7} />
                       <XAxis dataKey="day" tick={false} tickLine={false} axisLine={false} />

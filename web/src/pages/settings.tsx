@@ -2,7 +2,7 @@
 // its value, where the value comes from, and can revert to the configuration file value.
 import { useForm } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { TriangleAlert } from "lucide-react";
+import { Check, TriangleAlert } from "lucide-react";
 import { useId } from "react";
 import { toast } from "sonner";
 
@@ -67,15 +67,20 @@ function SettingRow({ s }: { s: Setting }) {
       <FieldContent>
         <div className="flex flex-wrap items-center gap-2">
           <FieldLabel htmlFor={id}>{s.label}</FieldLabel>
-          <Badge variant={s.source === "console" ? "default" : "secondary"} className="h-4 text-[10px]">
-            来源：{SOURCE[s.source]}
-          </Badge>
+          {s.source !== "default" ? (
+            <Badge variant={s.source === "console" ? "default" : "secondary"} className="h-4 text-[10px]">
+              来源：{SOURCE[s.source]}
+            </Badge>
+          ) : null}
         </div>
+        {s.group === "advanced" ? (
+          <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{s.description.split("。")[0]}</p>
+        ) : null}
         <details className="mt-1">
           <summary className="cursor-pointer text-[11px] text-muted-foreground">说明</summary>
           <div className="mt-2 flex max-w-[58ch] flex-col gap-1 text-xs leading-5 text-muted-foreground">
-            <p>{s.description}</p>
-            {s.recommended !== null && (
+            {s.source === "default" ? <p>来源：{SOURCE[s.source]}</p> : null}
+            <p>{s.description}</p>            {s.recommended !== null && (
               <p>
                 推荐值 <span className="font-medium text-foreground tabular-nums">{s.recommended}</span>。{s.note}
               </p>
@@ -132,9 +137,13 @@ function SettingRow({ s }: { s: Setting }) {
                   />
                   <form.Subscribe selector={(st) => [st.isDirty, st.canSubmit, st.isSubmitting] as const}>
                     {([dirty, can, busy]) => (
-                      <Button type="submit" variant={dirty ? "default" : "outline"} disabled={!dirty || !can || busy}>
-                        保存
-                      </Button>
+                      dirty ? (
+                        <Button type="submit" disabled={!can || busy}>保存</Button>
+                      ) : (
+                        <Button type="submit" variant="ghost" size="icon-sm" aria-label="保存" disabled>
+                          <Check />
+                        </Button>
+                      )
                     )}
                   </form.Subscribe>
                 </div>

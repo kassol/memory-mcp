@@ -26,6 +26,14 @@ function Findings({ round }: { round: MaintenanceRound }) {
   return <span className="tabular-nums">{found}</span>;
 }
 
+/** Turn backend error prose into a short line; the raw text stays behind 详情. */
+function errorSummary(error: string): string {
+  const failed = error.match(/^(\d+)\s+judgment\(s\) failed/i);
+  if (failed) return `本轮有 ${failed[1]} 项判定失败`;
+  const first = error.split("\n")[0];
+  return first.length > 80 ? `${first.slice(0, 80)}…` : first;
+}
+
 export function MaintenancePage() {
   const queryClient = useQueryClient();
   const rounds = useQuery({
@@ -75,7 +83,6 @@ export function MaintenancePage() {
               <Button onClick={() => void run()} disabled={running || isRunning}>
                 {running ? "已提交…" : isRunning ? "运行中…" : "立即运行一轮"}
               </Button>
-              <span className="text-xs text-muted-foreground">已有一轮在跑时会返回 409，等它结束再试。</span>
               {last ? (
                 <span className="ml-auto flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1.5">
@@ -139,8 +146,8 @@ export function MaintenancePage() {
                             <TableCell className="max-w-64 px-3 py-2.5 text-[11px] break-all text-destructive" style={{ whiteSpace: "normal" }}>
                               {round.error ? (
                                 <div className="flex flex-col gap-1">
-                                  <span title={round.error}>{round.error.split("\n")[0]}</span>
-                                  {round.error.includes("\n") ? (
+                                  <span title={round.error}>{errorSummary(round.error)}</span>
+                                  {errorSummary(round.error) !== round.error ? (
                                     <details>
                                       <summary className="cursor-pointer text-[10px] text-muted-foreground">详情</summary>
                                       <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{round.error}</p>

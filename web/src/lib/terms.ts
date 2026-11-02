@@ -18,6 +18,10 @@ export const MUTATION: Record<string, string> = {
 export const SOURCE: Record<string, string> = { console: "面板", file: "配置文件", default: "默认值" };
 
 export const when = (iso: string | null | undefined) => (iso ? iso.replace("T", " ").slice(0, 16) : "");
-export const shortWhen = (iso: string | null | undefined) => (iso ? iso.replace("T", " ").slice(5, 16) : "");
+export const shortWhen = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const text = iso.replace("T", " ");
+  return text.startsWith(String(new Date().getFullYear())) ? text.slice(5, 16) : text.slice(2, 16);
+};
 
 export const caseNo = (index: number) => String(index + 1).padStart(2, "0");

@@ -1,6 +1,6 @@
 // Docket: open findings, one case at a time, ruled by correct / archive / dismiss.
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronLeft, ChevronRight, Inbox } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Inbox } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -241,9 +241,10 @@ function Case({ finding, index, onDismissed, onBack, onMove, position, total, ha
             )}
           </p>
           {longOpinion ? (
-            <button type="button" onClick={() => setOpinionOpen((v) => !v)} className="w-fit text-[11px] text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="xs" className="-ml-2 w-fit text-[11px] text-muted-foreground" onClick={() => setOpinionOpen((v) => !v)}>
+              <ChevronDown className={cn(opinionOpen && "rotate-180")} />
               {opinionOpen ? "收起" : "展开检查意见"}
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>

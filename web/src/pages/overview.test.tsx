@@ -61,11 +61,10 @@ test("chatty providers, stalest memories and token use are listed", async () => 
   expect(within(await screen.findByText("访问令牌").then((el) => Promise.resolve(el.closest("[data-slot=card]") as HTMLElement))).getByText("initial")).toBeInTheDocument();
 });
 
-test("the 30-day charts render for writes, recalls and latency", async () => {
+test("the 30-day charts render for activity and latency", async () => {
   await renderAt("/overview");
-  expect(await screen.findByText("每日写入")).toBeInTheDocument();
-  expect(screen.getByText("每日召回")).toBeInTheDocument();
+  expect(await screen.findByText("写入与召回")).toBeInTheDocument();
   expect(screen.getByText("召回耗时中位数")).toBeInTheDocument();
-  // ChartContainer marks each chart, so three charts means three of them rendered.
-  expect(document.querySelectorAll("[data-chart]")).toHaveLength(3);
+  // ChartContainer marks each chart, so two charts means two of them rendered.
+  expect(document.querySelectorAll("[data-chart]")).toHaveLength(2);
 });
