@@ -194,7 +194,11 @@ export function SettingsPage({ tab = "parameters", onTabChange }: { tab?: string
       <PageBody>
         <Tabs
           value={tab}
-          onValueChange={(next) => onTabChange?.(next)}
+          onValueChange={(next) => {
+            onTabChange?.(next);
+            // A long section can leave the next one half scrolled; put its heading back in view.
+            requestAnimationFrame(() => document.querySelector("[role=tablist]")?.scrollIntoView({ block: "start" }));
+          }}
           orientation={isMobile ? "horizontal" : "vertical"}
           className="flex flex-col gap-6 md:flex-row md:items-start"
         >

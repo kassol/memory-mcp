@@ -232,6 +232,7 @@
   button:not(.sr-only) {
     min-height: 2.5rem;
   }
+  [data-slot="button"][data-size^="icon"],
   [data-slot="sidebar-trigger"] {
     min-width: 2.5rem;
   }

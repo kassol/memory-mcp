@@ -49,7 +49,7 @@ const settingsRoute = createRoute({
     const { tab } = settingsRoute.useSearch();
     const navigate = settingsRoute.useNavigate();
     const value = tab && SETTINGS_TABS.includes(tab) ? tab : "parameters";
-    return <SettingsPage tab={value} onTabChange={(next) => void navigate({ search: { tab: next } })} />;
+    return <SettingsPage tab={value} onTabChange={(next) => void navigate({ search: next === "parameters" ? {} : { tab: next } })} />;
   },
 });
 
