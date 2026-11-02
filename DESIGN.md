@@ -61,6 +61,12 @@ Status is carried by a 6 px dot plus a word: current / finished / success use th
 - The favicon is the registry mark: a graphite rounded square, three porcelain rules and a pine dot, inlined as SVG.
 - `theme-color` follows the system light / dark ground.
 
+## Time
+
+- Every timestamp is rendered in Asia/Shanghai (UTC+8) with a fixed offset, independent of the browser's zone. The API keeps ISO timestamps with their offset; only the console converts.
+- Daily chart buckets and the recall-log day grouping use Beijing days. The 近 30 天 card says 北京时间; the recall-log note says so too.
+- Rows written before this convention keep their old UTC day buckets; near midnight the first day of history can differ by one.
+
 ## Rules
 
 - Memory text is untrusted: render as text only. ESLint rejects `dangerouslySetInnerHTML` and `innerHTML` everywhere, including generated components. The generated chart component writes static CSS variables into a `<style>` tag; the rule allows exactly that. API keys show only the last four characters.
