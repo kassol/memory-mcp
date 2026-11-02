@@ -96,12 +96,12 @@ MCP 只暴露 4 个工具，不提供 resources（全量记忆一次性返回会
 
 ```
 data/
-├── vectors/                # 向量（LanceDB 或 memories.json）
-└── graph/                  # 图谱 JSON
-    ├── entities.json
-    ├── relations.json
-    └── evolution_chains.json
+├── memory.sqlite3          # 主存储：记忆与版本、图谱、发现、设置、令牌
+├── vectors/                # 当前记忆的向量（LanceDB）
+└── provider-keys.key       # Provider API key 的加密数据密钥，首次加密时创建
 ```
+
+图谱不再写 JSON 文件，启动时从 SQLite 的 `entities` / `relations` 加载。
 
 ## 开发与测试
 
