@@ -7,6 +7,8 @@ import importlib
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+from memory_mcp.recall_log import _day, _now
+
 import anyio
 import pytest
 from starlette.testclient import TestClient
@@ -162,12 +164,12 @@ def test_clearing_removes_entries_and_keeps_the_statistics(app, console, api):
 
 
 def test_daily_statistics_group_by_day_and_token_and_report_the_median(app, console, api):
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = _day(_now())
     insert_event(today, "laptop", "write")
     insert_event(today, "laptop", "recall", 10.0)
     insert_event(today, "laptop", "recall", 30.0)
     insert_event(today, "ci", "recall", 100.0)
-    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday = _day(_now() - timedelta(days=1))
     insert_event(yesterday, "laptop", "recall", 20.0)
 
     rows = {(r["day"], r["token"]): r for r in daily(console)}

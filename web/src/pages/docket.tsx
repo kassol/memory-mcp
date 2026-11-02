@@ -26,7 +26,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { api, enc, failed } from "@/lib/api";
 import { keys, useFindings, useMemory } from "@/lib/queries";
 import { sentences } from "@/lib/sentences";
-import { caseNo, KIND } from "@/lib/terms";
+import { caseNo, KIND, shortDay } from "@/lib/terms";
 import type { Finding, MemoryRecord, MemoryView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -357,7 +357,7 @@ function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; se
               <span className={`size-1.5 shrink-0 rounded-full ${KIND_DOT[f.kind] ?? "bg-muted-foreground/40"}`} />
               <span className="shrink-0 text-[11px] text-muted-foreground">{KIND[f.kind] ?? f.kind}</span>
               <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground" title={f.entity_key ?? ""}>{f.entity_key ?? f.memory_id.slice(0, 8)}</span>
-              <span className="shrink-0 text-[10px] text-muted-foreground/80">{f.created_at.slice(5, 10)}</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground/80">{shortDay(f.created_at)}</span>
             </div>
             <span className="line-clamp-2 w-full min-w-0 text-xs leading-5 break-all text-muted-foreground">{f.detail || f.entity_key || ""}</span>
           </button>

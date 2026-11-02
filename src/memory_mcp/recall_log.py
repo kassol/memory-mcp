@@ -33,8 +33,12 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+BEIJING = timezone(timedelta(hours=8))
+
+
 def _day(moment: datetime) -> str:
-    return moment.strftime("%Y-%m-%d")
+    """The Beijing calendar day; daily statistics use the same day the console displays."""
+    return moment.astimezone(BEIJING).strftime("%Y-%m-%d")
 
 
 async def record(

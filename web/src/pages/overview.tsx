@@ -14,7 +14,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { keys } from "@/lib/queries";
-import { KIND, when } from "@/lib/terms";
+import { KIND, shanghaiDay, when } from "@/lib/terms";
 import type { DailyStat, Overview } from "@/lib/types";
 
 const CHART = { writes: { label: "写入", color: "var(--chart-1)" }, recalls: { label: "召回", color: "var(--chart-2)" } } satisfies ChartConfig;
@@ -49,7 +49,7 @@ function series(daily: DailyStat[]): Point[] {
   }
   const points: Point[] = [];
   for (let i = 29; i >= 0; i -= 1) {
-    const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+    const day = shanghaiDay(Date.now() - i * 86_400_000);
     const bucket = buckets.get(day);
     points.push({
       day,
@@ -237,7 +237,10 @@ export function OverviewPage() {
 
             <Card className="overflow-hidden ring-0 border border-border/80 shadow-none">
               <CardHeader className="pb-0">
-                <CardTitle className="text-[13px] font-medium">近 30 天</CardTitle>
+                <CardTitle className="flex items-baseline gap-2 text-[13px] font-medium">
+                  近 30 天
+                  <span className="text-[10px] font-normal text-muted-foreground">北京时间</span>
+                </CardTitle>
               </CardHeader>
               <CardContent className="grid px-0 md:grid-cols-2">
                 <ChartBlock

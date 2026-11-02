@@ -62,7 +62,7 @@ function LogSwitch() {
           恢复默认
         </Button>
       ) : null}
-      <span className="text-[11px] text-muted-foreground">保留 30 天。日统计不受影响。</span>
+      <span className="text-[11px] text-muted-foreground">保留 30 天（北京时间）。日统计不受影响。</span>
     </div>
   );
 }

@@ -26,7 +26,7 @@ test("tokens are listed with source, last use and state", async () => {
   await openTokens();
   expect(await findName("laptop")).toBeInTheDocument();
   expect(within(row("initial")).getByText("配置文件")).toBeInTheDocument();
-  expect(within(row("initial")).getByText("2026-11-01 09:30")).toBeInTheDocument();
+  expect(within(row("initial")).getByText("2026-11-01 17:30")).toBeInTheDocument();
   expect(within(row("laptop")).getByText("从未使用")).toBeInTheDocument();
   expect(within(row("old-host")).getByText("已吊销")).toBeInTheDocument();
   expect(within(row("old-host")).queryByRole("button")).not.toBeInTheDocument();

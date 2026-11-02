@@ -49,7 +49,7 @@ test("log entries show the query, token, latency and result count", async () => 
   expect(within(first).getByText("initial")).toBeInTheDocument();
   expect(within(first).getByText("42.5 ms")).toBeInTheDocument();
   expect(within(first).getByRole("button", { name: "打开第 2 条结果" })).toBeInTheDocument();
-  expect(within(first).getByText("2026-11-01 09:30")).toBeInTheDocument();
+  expect(within(first).getByText("2026-11-01 17:30")).toBeInTheDocument();
   // A console session has no access token.
   expect(within(await row("deploy")).getByText("面板")).toBeInTheDocument();
   expect(screen.getByText(/共 2 条，显示最近 2 条/)).toBeInTheDocument();
