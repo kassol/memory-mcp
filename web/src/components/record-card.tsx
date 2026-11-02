@@ -1,4 +1,4 @@
-// One memory as a shadcn Card: full text, status badges, and inline correct / archive editors.
+// One memory as a quiet panel: full text, status badges, and inline correct / archive editors.
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -18,7 +18,17 @@ export type EditMode = "correct" | "archive" | null;
 export function StatusBadges({ r }: { r: MemoryView }) {
   return (
     <>
-      {r.is_current ? <Badge variant="secondary">当前</Badge> : <Badge variant="outline">已失效</Badge>}
+      {r.is_current ? (
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="size-1.5 rounded-full bg-[var(--success)]" />
+          当前
+        </span>
+      ) : (
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="size-1.5 rounded-full bg-muted-foreground/40" />
+          已失效
+        </span>
+      )}
       {r.mutation_type === "correction" && <Badge>改正</Badge>}
       {r.conflict && <Badge variant="outline">冲突合并</Badge>}
     </>
@@ -60,7 +70,7 @@ function CorrectForm({ r, onDone, onCancel }: { r: MemoryRecord; onDone: (next: 
               <Textarea
                 ref={area}
                 id={`correct-${r.memory_id}`}
-                className="min-h-48"
+                className="min-h-48 text-[13px] leading-6"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
               />
@@ -163,31 +173,39 @@ export function RecordCard({
   onChanged: (next: MemoryView | null) => void;
   label?: string;
 }) {
+  const mark = label?.startsWith("左侧") ? "甲" : label?.startsWith("右侧") ? "乙" : null;
   return (
-    <Card role="region" aria-label={label ?? r.entity_key} className="min-w-0 flex-1">
-      <CardHeader>
-        <CardTitle className="font-mono text-sm break-all">{r.entity_key}</CardTitle>
-        <CardDescription className="tabular-nums">
+    <Card role="region" aria-label={label ?? r.entity_key} className="min-w-0 flex-1 h-full gap-4 self-stretch rounded-xl border border-border/80 shadow-none ring-0">
+      <CardHeader className="gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {mark ? (
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+              {mark}
+            </span>
+          ) : null}
+          <CardTitle className="min-w-0 truncate font-mono text-[12px] font-medium text-muted-foreground">{r.entity_key}</CardTitle>
+        </div>
+        <CardDescription className="text-[11px] tabular-nums">
           写入 {when(r.created_at)} · 生效 {when(r.valid_from)} · 版本 {r.versions.length}
         </CardDescription>
         <CardAction className="flex flex-wrap justify-end gap-1">
           <StatusBadges r={r} />
         </CardAction>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <p className="leading-relaxed break-words whitespace-pre-wrap">{r.content}</p>
-        {r.archived_reason && <p className="text-muted-foreground">归档原因：{r.archived_reason}</p>}
+      <CardContent className="flex flex-1 flex-col gap-3">
+        <p className="text-[13.5px] leading-7 break-words whitespace-pre-wrap">{r.content}</p>
+        {r.archived_reason && <p className="text-xs text-muted-foreground">归档原因：{r.archived_reason}</p>}
       </CardContent>
       {r.is_current && (
-        <CardFooter className="border-t">
+        <CardFooter className="mt-auto border-t border-border/70 bg-transparent">
           {mode === "correct" && <CorrectForm r={r} onCancel={() => onMode(null)} onDone={(next) => { onMode(null); onChanged(next); }} />}
           {mode === "archive" && <ArchiveForm r={r} onCancel={() => onMode(null)} onDone={() => { onMode(null); onChanged(null); }} />}
           {!mode && (
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onMode("correct")}>
+              <Button variant="outline" size="sm" onClick={() => onMode("correct")}>
                 改正
               </Button>
-              <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={() => onMode("archive")}>
+              <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onMode("archive")}>
                 归档
               </Button>
             </div>
@@ -200,18 +218,19 @@ export function RecordCard({
 
 export function History({ r }: { r: MemoryRecord }) {
   return (
-    <section className="flex flex-col gap-3">
-      <h3 className="text-sm font-medium">版本历史（{r.versions.length}）</h3>
-      <ol className="flex flex-col gap-2">
+    <section className="flex flex-col gap-4">
+      <h3 className="text-[13px] font-medium">版本历史（{r.versions.length}）</h3>
+      <ol className="relative flex flex-col gap-4 border-l border-border/80 pl-5">
         {r.versions.map((v) => (
-          <li key={v.memory_id} className="rounded-lg border p-3">
-            <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
+          <li key={v.memory_id} className="relative">
+            <span className={`absolute top-1.5 -left-[25px] size-2 rounded-full ring-4 ring-background ${v.is_current ? "bg-primary" : "bg-border"}`} />
+            <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums">
               <span className="mr-1">{when(v.created_at)}</span>
               {v.is_current ? <Badge variant="secondary">当前</Badge> : <Badge variant="outline">已失效</Badge>}
               <Badge variant={v.mutation_type === "correction" ? "default" : "outline"}>{MUTATION[v.mutation_type] ?? v.mutation_type}</Badge>
               {v.conflict && <Badge variant="outline">冲突合并</Badge>}
             </div>
-            <p className={`text-sm break-words whitespace-pre-wrap ${v.is_current ? "" : "text-muted-foreground"}`}>{v.content}</p>
+            <p className={`text-[13px] leading-6 break-words whitespace-pre-wrap ${v.is_current ? "" : "text-muted-foreground"}`}>{v.content}</p>
             {v.archived_reason && <p className="mt-1 text-xs text-muted-foreground">归档原因：{v.archived_reason}</p>}
           </li>
         ))}

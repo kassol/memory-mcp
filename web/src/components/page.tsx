@@ -1,23 +1,41 @@
-// Page frame inside the sidebar inset: a header bar with the sidebar trigger and title, then content.
-// Also the shared loading, error and empty states.
+// Page frame inside the sidebar inset: a quiet header, a centered body, and shared states.
 import { AlertCircle, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
+export function PageHeader({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children?: ReactNode;
+}) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-2 data-vertical:h-4 data-vertical:self-center" />
-      <h1 className="text-base font-medium">{title}</h1>
-      <div className="ml-auto flex items-center gap-2">{children}</div>
+    <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border/70 bg-background px-4 py-2.5 md:min-h-[68px] md:px-8 md:py-3">
+      <SidebarTrigger className="-ml-1 shrink-0 text-muted-foreground hover:text-foreground" />
+      <div className="min-w-0">
+        <h1 className="truncate text-[22px] leading-tight font-semibold tracking-[-0.02em]">{title}</h1>
+        {description ? <p className="mt-0.5 hidden truncate text-xs text-muted-foreground sm:block">{description}</p> : null}
+      </div>
+      {children ? <div className="ml-auto flex shrink-0 items-center gap-2">{children}</div> : null}
     </header>
+  );
+}
+
+/** The scrolling body. Pages that build their own split layout opt out. */
+export function PageBody({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn("min-h-0 flex-1 overflow-y-auto", className)}>
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-6 md:px-8 md:py-8">{children}</div>
+    </div>
   );
 }
 
@@ -25,7 +43,7 @@ export function Loading({ rows = 3 }: { rows?: number }) {
   return (
     <div className="flex flex-col gap-3" aria-busy="true" aria-label="加载中">
       {Array.from({ length: rows }, (_, i) => (
-        <Skeleton key={i} className="h-16 w-full" />
+        <Skeleton key={i} className="h-20 w-full rounded-xl" />
       ))}
     </div>
   );
@@ -33,7 +51,7 @@ export function Loading({ rows = 3 }: { rows?: number }) {
 
 export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) {
   return (
-    <Alert variant="destructive">
+    <Alert variant="destructive" className="border-destructive/25 bg-destructive/5">
       <AlertCircle />
       <AlertTitle>加载失败</AlertTitle>
       <AlertDescription>
@@ -50,13 +68,13 @@ export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => v
 
 export function EmptyState({ icon: Icon, title, children, action }: { icon: LucideIcon; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <Empty>
+    <Empty className="rounded-xl border border-dashed border-border/70 bg-card/40 py-12">
       <EmptyHeader>
-        <EmptyMedia variant="icon">
+        <EmptyMedia variant="icon" className="size-10 rounded-full bg-muted text-muted-foreground">
           <Icon />
         </EmptyMedia>
-        <EmptyTitle>{title}</EmptyTitle>
-        {children && <EmptyDescription>{children}</EmptyDescription>}
+        <EmptyTitle className="text-sm font-medium">{title}</EmptyTitle>
+        {children && <EmptyDescription className="text-xs">{children}</EmptyDescription>}
       </EmptyHeader>
       {action && <EmptyContent>{action}</EmptyContent>}
     </Empty>

@@ -171,43 +171,43 @@ function CreateToken() {
 export function TokensSection() {
   const tokens = useTokens();
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>访问令牌</CardTitle>
-        <CardDescription>
+    <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
+      <CardHeader className="border-b border-border/70 px-5 py-4">
+        <CardTitle className="text-[13px] font-medium">访问令牌</CardTitle>
+        <CardDescription className="text-xs">
           agent、CLI 与维护定时任务调用 MCP 和 REST 时使用。令牌只能读写记忆与发现，不能修改设置。写入的记忆会记下令牌名称。
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex flex-col gap-4 px-5 py-4">
         <CreateToken />
         {tokens.error && <ErrorState error={tokens.error} onRetry={() => void tokens.refetch()} />}
         {tokens.isPending && <Loading rows={2} />}
         {tokens.data && (
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>名称</TableHead>
-                <TableHead className="hidden md:table-cell">来源</TableHead>
-                <TableHead className="hidden md:table-cell">创建</TableHead>
-                <TableHead>最近使用</TableHead>
-                <TableHead>
+              <TableRow className="border-border/70 hover:bg-transparent">
+                <TableHead className="h-9 px-3 text-[11px] font-medium text-muted-foreground">名称</TableHead>
+                <TableHead className="hidden h-9 px-3 text-[11px] font-medium text-muted-foreground md:table-cell">来源</TableHead>
+                <TableHead className="hidden h-9 px-3 text-[11px] font-medium text-muted-foreground md:table-cell">创建</TableHead>
+                <TableHead className="h-9 px-3 text-[11px] font-medium text-muted-foreground">最近使用</TableHead>
+                <TableHead className="h-9 px-3">
                   <span className="sr-only">操作</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {tokens.data.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="whitespace-normal break-all">
-                    <div className="font-medium">{t.name}</div>
+                <TableRow key={t.id} className="border-border/60">
+                  <TableCell className="px-3 py-3 whitespace-normal break-all">
+                    <div className="text-[13px] font-medium">{t.name}</div>
                     <div className="mt-1">
                       <State t={t} />
                     </div>
                   </TableCell>
-                  <TableCell className="hidden text-muted-foreground md:table-cell">{t.source === "file" ? "配置文件" : "面板"}</TableCell>
-                  <TableCell className="hidden text-xs text-muted-foreground tabular-nums md:table-cell">{when(t.created_at)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground tabular-nums">{t.last_used_at ? when(t.last_used_at) : "从未使用"}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="hidden px-3 py-3 text-[11px] text-muted-foreground md:table-cell">{t.source === "file" ? "配置文件" : "面板"}</TableCell>
+                  <TableCell className="hidden px-3 py-3 text-[11px] text-muted-foreground tabular-nums md:table-cell">{when(t.created_at)}</TableCell>
+                  <TableCell className="px-3 py-3 text-[11px] text-muted-foreground tabular-nums">{t.last_used_at ? when(t.last_used_at) : "从未使用"}</TableCell>
+                  <TableCell className="px-3 py-3 text-right">
                     <Revoke t={t} />
                   </TableCell>
                 </TableRow>

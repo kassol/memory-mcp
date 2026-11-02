@@ -6,11 +6,9 @@ import { toast } from "sonner";
 
 import { EmptyState, ErrorState, Loading, PageHeader } from "@/components/page";
 import { RecordCard, type EditMode } from "@/components/record-card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { api, enc, failed } from "@/lib/api";
@@ -20,6 +18,13 @@ import type { Finding, MemoryRecord, MemoryView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Slot = 0 | 1;
+
+const KIND_DOT: Record<string, string> = {
+  duplicate: "bg-primary",
+  internal_contradiction: "bg-[var(--warning)]",
+  multiple_current: "bg-muted-foreground/50",
+  contradiction: "bg-[var(--warning)]",
+};
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -35,16 +40,17 @@ function SlotCard({ id, mode, onMode, onChanged, label }: {
 }) {
   const memory = useMemory(id);
   if (memory.error) return <ErrorState error={memory.error} onRetry={() => void memory.refetch()} />;
-  if (!memory.data) return <Skeleton className="h-48 w-full" />;
+  if (!memory.data) return <Skeleton className="h-56 w-full rounded-xl" />;
   return <RecordCard r={memory.data} label={label} mode={mode} onMode={onMode} onChanged={onChanged} />;
 }
 
-function Case({ finding, index, onDismissed, onBack, onMove }: {
+function Case({ finding, index, onDismissed, onBack, onMove, shift }: {
   finding: Finding;
   index: number;
   onDismissed: () => void;
   onBack?: () => void;
   onMove: (step: 1 | -1) => void;
+  shift: boolean;
 }) {
   const queryClient = useQueryClient();
   // A correction replaces the card in place with the new version; an archive refetches the card,
@@ -95,7 +101,7 @@ function Case({ finding, index, onDismissed, onBack, onMove }: {
 
   const side = ["左侧", "右侧"];
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <div className="flex flex-col gap-5 px-4 py-6 md:px-8 md:py-8">
       {onBack && (
         <Button variant="ghost" size="sm" className="-ml-2 w-fit" onClick={onBack}>
           <ArrowLeft />
@@ -103,11 +109,21 @@ function Case({ finding, index, onDismissed, onBack, onMove }: {
         </Button>
       )}
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">卷宗 {caseNo(index)}</h2>
-          <Badge variant="outline">{KIND[finding.kind] ?? finding.kind}</Badge>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em]">卷宗 {caseNo(index)}</h2>
+          <span className="flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+            <span className={`size-1.5 rounded-full ${KIND_DOT[finding.kind] ?? "bg-muted-foreground/40"}`} />
+            {KIND[finding.kind] ?? finding.kind}
+          </span>
+          {finding.entity_key ? <span className="font-mono text-[11px] text-muted-foreground">{finding.entity_key}</span> : null}
+          <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            快捷键作用于
+            <span className="rounded-md bg-card px-1.5 py-0.5 font-medium text-foreground ring-1 ring-border/70">
+              {pair ? (shift ? "右侧 · 乙" : "左侧 · 甲") : "唯一记录"}
+            </span>
+          </span>
         </div>
-        <p className="max-w-prose text-sm text-muted-foreground">
+        <p className="max-w-[62ch] text-[13px] leading-6 text-muted-foreground">
           {finding.detail ? (
             <>
               <span className="font-medium text-foreground">检查意见：</span>
@@ -118,7 +134,7 @@ function Case({ finding, index, onDismissed, onBack, onMove }: {
           )}
         </p>
       </div>
-      <div className={cn("grid grid-cols-1 items-start gap-4", pair && "xl:grid-cols-2")}>
+      <div className={cn("grid grid-cols-1 gap-4", pair && "xl:grid-cols-2")}>
         {ids.map((id, i) => (
           <SlotCard
             key={i}
@@ -130,14 +146,13 @@ function Case({ finding, index, onDismissed, onBack, onMove }: {
           />
         ))}
       </div>
-      <Separator />
-      <div className="flex flex-wrap items-center gap-3">
-        <p className="mr-auto text-sm text-muted-foreground">改正或归档任一条后，这件发现会在下一次维护时自动关闭。</p>
-        <Button variant="outline" disabled={dismissing} onClick={() => void dismiss()}>
+      <div className="flex flex-wrap items-center gap-3 border-t border-border/70 pt-4">
+        <p className="mr-auto text-xs text-muted-foreground">改正或归档任一条后，这件发现会在下一次维护时自动关闭。</p>
+        <Button variant="outline" size="sm" disabled={dismissing} onClick={() => void dismiss()}>
           判为误报
         </Button>
       </div>
-      <div className="hidden flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground md:flex" aria-label="快捷键">
+      <div className="hidden flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground md:flex" aria-label="快捷键">
         <span><Kbd>J</Kbd> <Kbd>K</Kbd> 下一件 / 上一件</span>
         <span><Kbd>C</Kbd> 改正</span>
         <span><Kbd>A</Kbd> 归档</span>
@@ -148,10 +163,10 @@ function Case({ finding, index, onDismissed, onBack, onMove }: {
   );
 }
 
-function CaseList({ items, selectedId, onOpen }: { items: Finding[]; selectedId: string | null; onOpen: (id: string) => void }) {
+function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; selectedId: string | null; onOpen: (id: string) => void; indexOf: (f: Finding) => number }) {
   return (
     <ul role="listbox" aria-label="待审的发现" className="flex flex-col gap-1 p-2">
-      {items.map((f, i) => (
+      {items.map((f) => (
         <li key={f.id} role="option" aria-selected={f.id === selectedId}>
           <button
             type="button"
@@ -164,17 +179,20 @@ function CaseList({ items, selectedId, onOpen }: { items: Finding[]; selectedId:
               (next?.querySelector("button") as HTMLElement | null)?.focus();
             }}
             className={cn(
-              "flex w-full flex-col gap-1 rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent",
-              f.id === selectedId && "bg-muted",
+              "flex w-full flex-col gap-1.5 rounded-lg p-2.5 text-left text-sm transition-all",
+              f.id === selectedId
+                ? "bg-card shadow-[0_1px_2px_rgba(23,24,26,0.05),0_6px_18px_-14px_rgba(23,24,26,0.35)]"
+                : "hover:bg-card/60",
             )}
           >
             <div className="flex w-full items-center gap-2">
-              <span className="font-medium">卷宗 {caseNo(i)}</span>
-              <Badge variant="outline" className="ml-auto">
-                {KIND[f.kind] ?? f.kind}
-              </Badge>
+              <span className="text-[11px] text-muted-foreground tabular-nums">{caseNo(indexOf(f))}</span>
+              <span className={`size-1.5 rounded-full ${KIND_DOT[f.kind] ?? "bg-muted-foreground/40"}`} />
+              <span className="text-[11px] text-muted-foreground">{KIND[f.kind] ?? f.kind}</span>
+              <span className="ml-auto text-[10px] text-muted-foreground/80">{f.created_at.slice(5, 10)}</span>
             </div>
-            <span className="line-clamp-2 text-xs text-muted-foreground">{f.detail || f.entity_key || ""}</span>
+            <span className="font-mono text-[11px] text-muted-foreground">{f.entity_key ?? f.memory_id.slice(0, 8)}</span>
+            <span className="line-clamp-2 text-xs leading-5 text-muted-foreground">{f.detail || f.entity_key || ""}</span>
           </button>
         </li>
       ))}
@@ -187,17 +205,39 @@ export function DocketPage() {
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [chosen, setChosen] = useState<string | null>(null);
-  const items = findings.data?.items ?? [];
+  const [kind, setKind] = useState<string | null>(null);
+  const [shift, setShift] = useState(false);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => e.key === "Shift" && setShift(true);
+    const up = (e: KeyboardEvent) => e.key === "Shift" && setShift(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, []);
+
+  const all = findings.data?.items ?? [];
+  const counts = all.reduce<Record<string, number>>((acc, f) => {
+    acc[f.kind] = (acc[f.kind] ?? 0) + 1;
+    return acc;
+  }, {});
+  const items = kind ? all.filter((f) => f.kind === kind) : all;
   // Wide screens always show a case (the first by default); phones show the list until a case is opened.
   const selectedId = items.some((f) => f.id === chosen) ? chosen : isMobile ? null : (items[0]?.id ?? null);
   const index = items.findIndex((f) => f.id === selectedId);
+  const globalIndex = all.findIndex((f) => f.id === selectedId);
   const reading = isMobile && index >= 0;
 
   const remove = (finding: Finding) => {
     const at = items.indexOf(finding);
     const rest = items.filter((f) => f.id !== finding.id);
-    queryClient.setQueryData(keys.findings, { items: rest, total: rest.length });
-    setChosen(rest[Math.min(at, rest.length - 1)]?.id ?? null);
+    const remaining = all.filter((f) => f.id !== finding.id);
+    queryClient.setQueryData(keys.findings, { items: remaining, total: remaining.length });
+    const next = (kind ? rest : remaining)[Math.min(at, (kind ? rest : remaining).length - 1)];
+    setChosen(next?.id ?? null);
   };
 
   const move = (step: 1 | -1) => {
@@ -207,30 +247,57 @@ export function DocketPage() {
 
   return (
     <>
-      <PageHeader title="待审">
-        {findings.data && <span className="text-sm text-muted-foreground">{items.length} 件待审</span>}
+      <PageHeader title="待审" description="逐条判断，改正或归档后会在下一次维护自动关单。">
+        {findings.data && <span className="hidden text-sm text-muted-foreground tabular-nums md:inline">{all.length} 件待审</span>}
       </PageHeader>
-      {findings.isPending && <div className="p-4"><Loading /></div>}
-      {findings.error && <div className="p-4"><ErrorState error={findings.error} onRetry={() => void findings.refetch()} /></div>}
-      {findings.data && !items.length && (
-        <EmptyState icon={Inbox} title="没有待审的发现">
-          维护检查每天运行一次，新的发现会出现在这里。可以到「档案」里按最久未更新排序，检查陈旧记忆。
-        </EmptyState>
+      {findings.isPending && <div className="p-4 md:p-8"><Loading /></div>}
+      {findings.error && <div className="p-4 md:p-8"><ErrorState error={findings.error} onRetry={() => void findings.refetch()} /></div>}
+      {findings.data && !all.length && (
+        <div className="p-4 md:p-8">
+          <EmptyState icon={Inbox} title="没有待审的发现">
+            维护检查每天运行一次，新的发现会出现在这里。可以到「档案」里按最久未更新排序，检查陈旧记忆。
+          </EmptyState>
+        </div>
       )}
-      {!!items.length && (
-        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[20rem_1fr]">
-          <ScrollArea className={cn("min-h-0 border-r", reading && "hidden")}>
-            <CaseList items={items} selectedId={selectedId} onOpen={setChosen} />
+      {!!all.length && (
+        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[18rem_1fr]">
+          <ScrollArea className={cn("min-h-0 border-r border-border/70", reading && "hidden")}>
+            <div className="sticky top-0 z-10 flex flex-col gap-2 border-b border-border/70 bg-background/95 px-3 py-3">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs font-medium">待审队列</span>
+                <span className="text-[11px] text-muted-foreground tabular-nums">{items.length} / {all.length}</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <button
+                  onClick={() => { setKind(null); setChosen(null); }}
+                  className={cn("rounded-full px-2 py-1 text-[10px] transition-colors", kind === null ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted")}
+                >
+                  全部 {all.length}
+                </button>
+                {Object.entries(counts).map(([k, n]) => (
+                  <button
+                    key={k}
+                    onClick={() => { setKind(k); setChosen(null); }}
+                    className={cn("rounded-full px-2 py-1 text-[10px] transition-colors", kind === k ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted")}
+                  >
+                    {KIND[k] ?? k} {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <CaseList items={items} selectedId={selectedId} onOpen={setChosen} indexOf={(f) => all.findIndex((x) => x.id === f.id)} />
+            {!items.length ? <p className="px-3 py-8 text-center text-xs text-muted-foreground">这一类没有待审发现。</p> : null}
           </ScrollArea>
           {index >= 0 && (
             <ScrollArea className="min-h-0">
               <Case
                 key={items[index].id}
                 finding={items[index]}
-                index={index}
+                index={globalIndex >= 0 ? globalIndex : index}
                 onDismissed={() => remove(items[index])}
                 onBack={isMobile ? () => setChosen(null) : undefined}
                 onMove={move}
+                shift={shift}
               />
             </ScrollArea>
           )}

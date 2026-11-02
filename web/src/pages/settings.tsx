@@ -6,16 +6,16 @@ import { TriangleAlert } from "lucide-react";
 import { useId } from "react";
 import { toast } from "sonner";
 
-import { ErrorState, Loading, PageHeader } from "@/components/page";
+import { ErrorState, Loading, PageBody, PageHeader } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { api, enc, failed } from "@/lib/api";
 import { keys, useSettings } from "@/lib/queries";
 import { invalidReason } from "@/lib/settings";
@@ -26,6 +26,16 @@ import { SecuritySection } from "@/pages/security";
 import { StartupSection } from "@/pages/startup";
 import { TokensSection } from "@/pages/tokens";
 import type { Setting } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+const TABS = [
+  { value: "parameters", label: "参数" },
+  { value: "providers", label: "Provider" },
+  { value: "roles", label: "模型用途" },
+  { value: "tokens", label: "访问令牌" },
+  { value: "startup", label: "启动设置" },
+  { value: "security", label: "安全" },
+];
 
 function SettingRow({ s }: { s: Setting }) {
   const queryClient = useQueryClient();
@@ -53,13 +63,15 @@ function SettingRow({ s }: { s: Setting }) {
   });
 
   return (
-    <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_18rem]">
       <FieldContent>
         <div className="flex flex-wrap items-center gap-2">
           <FieldLabel htmlFor={id}>{s.label}</FieldLabel>
-          <code className="text-xs text-muted-foreground">{s.key}</code>
-          <Badge variant={s.source === "console" ? "default" : "secondary"}>来源：{SOURCE[s.source]}</Badge>
+          <Badge variant={s.source === "console" ? "default" : "secondary"} className="h-4 text-[10px]">
+            来源：{SOURCE[s.source]}
+          </Badge>
         </div>
+        <code className="mt-0.5 block font-mono text-[10px] break-all text-muted-foreground/80">{s.key}</code>
         <FieldDescription>{s.description}</FieldDescription>
         {s.recommended !== null && (
           <FieldDescription>
@@ -101,14 +113,14 @@ function SettingRow({ s }: { s: Setting }) {
                   <Input
                     id={id}
                     inputMode="decimal"
-                    className="tabular-nums"
+                    className="h-9 bg-card tabular-nums"
                     aria-invalid={!!error}
                     value={field.state.value}
                     onChange={(e) => field.handleChange(e.target.value)}
                   />
                   <form.Subscribe selector={(st) => [st.isDirty, st.canSubmit, st.isSubmitting] as const}>
                     {([dirty, can, busy]) => (
-                      <Button type="submit" disabled={!dirty || !can || busy}>
+                      <Button type="submit" variant={dirty ? "default" : "outline"} disabled={!dirty || !can || busy}>
                         保存
                       </Button>
                     )}
@@ -120,8 +132,8 @@ function SettingRow({ s }: { s: Setting }) {
           }}
         </form.Field>
         {differs && (
-          <Alert>
-            <TriangleAlert />
+          <Alert className="border-[var(--warning)]/25 bg-[var(--warning)]/5">
+            <TriangleAlert className="text-[var(--warning)]" />
             <AlertDescription>与推荐值不同，检索或维护效果可能下降。</AlertDescription>
           </Alert>
         )}
@@ -145,15 +157,14 @@ function SettingRow({ s }: { s: Setting }) {
 
 function Section({ title, description, items }: { title: string; description: string; items: Setting[] }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+    <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
+      <CardHeader className="border-b border-border/70 px-5 py-4">
+        <CardTitle className="text-[13px] font-medium">{title}</CardTitle>
+        <CardDescription className="text-xs">{description}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5">
         {items.map((s, i) => (
-          <div key={`${s.key}:${s.source}:${s.value}`}>
-            {i > 0 && <Separator />}
+          <div key={`${s.key}:${s.source}:${s.value}`} className={cn(i > 0 && "border-t border-border/60")}>
             <SettingRow s={s} />
           </div>
         ))}
@@ -164,53 +175,70 @@ function Section({ title, description, items }: { title: string; description: st
 
 export function SettingsPage() {
   const settings = useSettings();
+  const isMobile = useIsMobile();
+
   return (
     <>
-      <PageHeader title="设置" />
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <Tabs defaultValue="parameters" className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-6">
-          <TabsList className="max-w-full overflow-x-auto">
-            <TabsTrigger value="parameters">参数</TabsTrigger>
-            <TabsTrigger value="providers">Provider</TabsTrigger>
-            <TabsTrigger value="roles">模型用途</TabsTrigger>
-            <TabsTrigger value="tokens">访问令牌</TabsTrigger>
-            <TabsTrigger value="startup">启动设置</TabsTrigger>
-            <TabsTrigger value="security">安全</TabsTrigger>
-          </TabsList>
-          <TabsContent value="parameters" className="flex flex-col gap-6">
-            <p className="text-sm text-muted-foreground">
-              这里保存的值优先于配置文件，保存后下一次调用即生效，无需重启。恢复后改用配置文件里的值；配置文件没有设置时用默认值。
-            </p>
-            {settings.error && <ErrorState error={settings.error} onRetry={() => void settings.refetch()} />}
-            {settings.isPending && <Loading />}
-            {settings.data && (
-              <>
-                <Section title="行为参数" description="写入合并与后台维护的行为。" items={settings.data.filter((s) => s.group === "behaviour")} />
-                <Section
-                  title="高级参数"
-                  description="混合检索与维护检查里经线上评估定下的数值。偏离推荐值前先确认评估依据。"
-                  items={settings.data.filter((s) => s.group === "advanced")}
-                />
-              </>
+      <PageHeader title="设置" description="参数、模型、令牌与启动选项。" />
+      <PageBody>
+        <Tabs
+          defaultValue="parameters"
+          orientation={isMobile ? "horizontal" : "vertical"}
+          className="flex flex-col gap-6 md:flex-row md:items-start"
+        >
+          <TabsList
+            variant="line"
+            className={cn(
+              "h-auto! w-full justify-start gap-1 rounded-none border-b border-border/70 p-0 pb-2 flex-wrap md:sticky md:top-0 md:w-48 md:flex-col md:items-stretch md:border-b-0 md:pb-0",
             )}
-          </TabsContent>
-          <TabsContent value="providers" className="flex flex-col gap-6">
-            <ProvidersSection />
-          </TabsContent>
-          <TabsContent value="roles" className="flex flex-col gap-6">
-            <RolesSection />
-          </TabsContent>
-          <TabsContent value="tokens" className="flex flex-col gap-6">
-            <TokensSection />
-          </TabsContent>
-          <TabsContent value="startup" className="flex flex-col gap-6">
-            <StartupSection />
-          </TabsContent>
-          <TabsContent value="security" className="flex flex-col gap-6">
-            <SecuritySection />
-          </TabsContent>
+          >
+            {TABS.map((t, i) => (
+              <TabsTrigger
+                key={t.value}
+                value={t.value}
+                className="h-9 flex-none justify-start rounded-lg px-2.5 text-[13px] text-muted-foreground after:hidden data-active:bg-card data-active:text-foreground data-active:shadow-[0_1px_2px_rgba(23,24,26,0.06)]"
+              >
+                <span aria-hidden="true" className="mr-2 font-mono text-[10px] text-muted-foreground/60">{String(i + 1).padStart(2, "0")}</span>
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <div className="min-w-0 flex-1">
+            <TabsContent value="parameters" className="mt-0 flex flex-col gap-4">
+              <p className="max-w-[70ch] text-xs leading-6 text-muted-foreground">
+                这里保存的值优先于配置文件，保存后下一次调用即生效，无需重启。恢复后改用配置文件里的值；配置文件没有设置时用默认值。
+              </p>
+              {settings.error && <ErrorState error={settings.error} onRetry={() => void settings.refetch()} />}
+              {settings.isPending && <Loading />}
+              {settings.data && (
+                <>
+                  <Section title="行为参数" description="写入合并与后台维护的行为。" items={settings.data.filter((s) => s.group === "behaviour")} />
+                  <Section
+                    title="高级参数"
+                    description="混合检索与维护检查里经线上评估定下的数值。偏离推荐值前先确认评估依据。"
+                    items={settings.data.filter((s) => s.group === "advanced")}
+                  />
+                </>
+              )}
+            </TabsContent>
+            <TabsContent value="providers" className="mt-0 flex flex-col gap-4">
+              <ProvidersSection />
+            </TabsContent>
+            <TabsContent value="roles" className="mt-0 flex flex-col gap-4">
+              <RolesSection />
+            </TabsContent>
+            <TabsContent value="tokens" className="mt-0 flex flex-col gap-4">
+              <TokensSection />
+            </TabsContent>
+            <TabsContent value="startup" className="mt-0 flex flex-col gap-4">
+              <StartupSection />
+            </TabsContent>
+            <TabsContent value="security" className="mt-0 flex flex-col gap-4">
+              <SecuritySection />
+            </TabsContent>
+          </div>
         </Tabs>
-      </div>
+      </PageBody>
     </>
   );
 }

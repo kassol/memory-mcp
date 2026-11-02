@@ -50,8 +50,11 @@ function LastCall({ p }: { p: Provider }) {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={p.last_call_ok ? "secondary" : "destructive"}>{p.last_call_ok ? "成功" : "失败"}</Badge>
-        <span className="text-xs text-muted-foreground tabular-nums">{when(p.last_call_at)}</span>
+        <span className={`flex items-center gap-1.5 text-[11px] ${p.last_call_ok ? "text-[var(--success)]" : "text-destructive"}`}>
+          <span className={`size-1.5 rounded-full ${p.last_call_ok ? "bg-[var(--success)]" : "bg-destructive"}`} />
+          {p.last_call_ok ? "成功" : "失败"}
+        </span>
+        <span className="text-[11px] text-muted-foreground tabular-nums">{when(p.last_call_at)}</span>
       </div>
       {p.last_call_ok === false && p.last_call_error ? (
         <span className="line-clamp-2 text-xs break-all text-destructive" title={p.last_call_error}>
@@ -307,37 +310,37 @@ export function ProvidersSection() {
   const providers = useProviders();
   const [editing, setEditing] = useState<Provider | "new" | null>(null);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Provider</CardTitle>
-        <CardDescription>
+    <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
+      <CardHeader className="border-b border-border/70 px-5 py-4">
+        <CardTitle className="text-[13px] font-medium">Provider</CardTitle>
+        <CardDescription className="text-xs">
           remember 的 key 分配、合并与冲突判定都经 Provider 调用模型。API key 只保存密文，之后只显示末四位。
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex flex-col gap-4 px-5 py-4">
         <div>
-          <Button onClick={() => setEditing("new")}>添加 Provider</Button>
+          <Button size="sm" onClick={() => setEditing("new")}>添加 Provider</Button>
         </div>
         {providers.error && <ErrorState error={providers.error} onRetry={() => void providers.refetch()} />}
         {providers.isPending && <Loading rows={2} />}
         {providers.data && (
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>名称</TableHead>
-                <TableHead className="hidden md:table-cell">地址</TableHead>
-                <TableHead className="hidden lg:table-cell">API key</TableHead>
-                <TableHead>最近调用</TableHead>
-                <TableHead>
+              <TableRow className="border-border/70 hover:bg-transparent">
+                <TableHead className="h-9 px-3 text-[11px] font-medium text-muted-foreground">名称</TableHead>
+                <TableHead className="hidden h-9 px-3 text-[11px] font-medium text-muted-foreground md:table-cell">地址</TableHead>
+                <TableHead className="hidden h-9 px-3 text-[11px] font-medium text-muted-foreground lg:table-cell">API key</TableHead>
+                <TableHead className="h-9 px-3 text-[11px] font-medium text-muted-foreground">最近调用</TableHead>
+                <TableHead className="h-9 px-3">
                   <span className="sr-only">操作</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {providers.data.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="whitespace-normal">
-                    <div className="font-medium break-all">{p.name}</div>
+                <TableRow key={p.id} className="border-border/60">
+                  <TableCell className="px-3 py-3 whitespace-normal">
+                    <div className="text-[13px] font-medium break-all">{p.name}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       <Badge variant={p.source === "console" ? "default" : "secondary"}>
                         {p.source === "console" ? "面板" : "配置文件"}
@@ -345,16 +348,16 @@ export function ProvidersSection() {
                       <Badge variant="outline">{PROTOCOL_LABEL[p.protocol]}</Badge>
                     </div>
                   </TableCell>
-                  <TableCell className="hidden max-w-[16rem] truncate font-mono text-xs text-muted-foreground md:table-cell">
+                  <TableCell className="hidden max-w-[16rem] truncate px-3 py-3 font-mono text-[11px] text-muted-foreground md:table-cell">
                     {p.base_url}
                   </TableCell>
-                  <TableCell className="hidden font-mono text-xs text-muted-foreground lg:table-cell">
+                  <TableCell className="hidden px-3 py-3 font-mono text-[11px] text-muted-foreground lg:table-cell">
                     {p.has_key ? `····${p.api_key_last4}` : "未设置"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-3 py-3">
                     <LastCall p={p} />
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
+                  <TableCell className="px-3 py-3 text-right whitespace-nowrap">
                     <Button variant="ghost" size="sm" onClick={() => setEditing(p)}>
                       编辑
                     </Button>

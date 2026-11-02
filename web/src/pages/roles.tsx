@@ -135,14 +135,14 @@ function RoleRow({ role, providers }: { role: ModelRole; providers: Provider[] }
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => void save()} disabled={!model.trim() || !timeout.trim()}>
+        <Button size="sm" onClick={() => void save()} disabled={!model.trim() || !timeout.trim()}>
           保存
         </Button>
-        <Button variant="outline" onClick={() => void runTest()}>
+        <Button size="sm" variant="outline" onClick={() => void runTest()}>
           测试调用
         </Button>
         {role.custom ? (
-          <Button variant="outline" onClick={() => void clear()}>
+          <Button size="sm" variant="outline" onClick={() => void clear()}>
             恢复默认
           </Button>
         ) : null}
@@ -157,14 +157,14 @@ export function RolesSection() {
   const providers = useProviders();
   const embedding = roles.data?.find((r) => r.read_only);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>模型用途</CardTitle>
-        <CardDescription>
+    <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
+      <CardHeader className="border-b border-border/70 px-5 py-4">
+        <CardTitle className="text-[13px] font-medium">模型用途</CardTitle>
+        <CardDescription className="text-xs">
           每一类模型调用用哪个 Provider、模型与超时。保存后下一次调用即生效，无需重启。
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5">
         {roles.error && <ErrorState error={roles.error} onRetry={() => void roles.refetch()} />}
         {roles.isPending && <Loading rows={2} />}
         {roles.data && providers.data ? (
@@ -173,11 +173,11 @@ export function RolesSection() {
               .filter((r) => !r.read_only)
               .map((role, i) => (
                 <div key={role.role}>
-                  {i > 0 && <Separator />}
+                  {i > 0 && <Separator className="bg-border/60" />}
                   <RoleRow role={role} providers={providers.data} />
                 </div>
               ))}
-            {embedding ? <Separator /> : null}
+            {embedding ? <Separator className="bg-border/60" /> : null}
             {embedding ? (
               <div className="flex flex-col gap-2 py-5">
                 <div className="flex flex-wrap items-center gap-2">

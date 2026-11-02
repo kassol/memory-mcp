@@ -1,33 +1,83 @@
 // Signed-out views: sign in with the admin password; on a fresh deployment, sign in once with the
 // configuration-file access token, then set the admin password (docs/adr/0001).
 import { useForm } from "@tanstack/react-form";
-import { BookMarked } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useSession } from "@/lib/session";
 
+function Mark() {
+  return (
+    <span className="relative grid size-8 place-items-center rounded-[9px] bg-foreground text-[13px] font-semibold text-background">
+      记
+      <span className="absolute right-1 bottom-1 size-1.5 rounded-full bg-primary" />
+    </span>
+  );
+}
+
 function Frame({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
-      <div className="flex items-center gap-2 font-medium">
-        <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <BookMarked className="size-4" />
+    <main className="grid min-h-svh bg-background lg:grid-cols-[1.08fr_1fr]">
+      <section className="relative hidden flex-col justify-between overflow-hidden bg-[#141917] p-12 text-[#f2f0e9] lg:flex">
+        <div className="flex items-center gap-3">
+          <span className="grid size-9 place-items-center rounded-[10px] bg-[#f2f0e9] text-[14px] font-semibold text-[#141917]">
+            记
+          </span>
+          <span className="grid leading-tight">
+            <span className="text-sm font-semibold">记忆登记簿</span>
+            <span className="text-[9px] tracking-[0.16em] text-[#f2f0e9]/40">MEMORY REGISTRY</span>
+          </span>
         </div>
-        记忆登记簿
-      </div>
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-xl">
-            <h1>{title}</h1>
-          </CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent>{children}</CardContent>
-      </Card>
+        <div className="max-w-[26rem]">
+          <p className="text-[10px] font-medium tracking-[0.16em] text-[#f2f0e9]/40">LONG-TERM MEMORY</p>
+          <h2 className="mt-5 text-[40px] leading-[1.12] font-semibold tracking-[-0.035em]">
+            把每一次判断，
+            <br />
+            留在版本里。
+          </h2>
+          <p className="mt-6 text-sm leading-6 text-[#f2f0e9]/55">
+            机器找出重复与矛盾，人只需要读、改正、归档。每一条记忆都有来历，也有下一次可查的版本。
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-6 border-t border-[#f2f0e9]/10 pt-6">
+          {[
+            ["检查", "重复 · 矛盾 · 多版本"],
+            ["检索", "向量 · 全文 · 图谱"],
+            ["版本", "改正随时可追溯"],
+          ].map(([label, note]) => (
+            <div key={label}>
+              <p className="text-xs font-medium text-[#f2f0e9]/80">{label}</p>
+              <p className="mt-1 text-[11px] leading-4 text-[#f2f0e9]/40">{note}</p>
+            </div>
+          ))}
+        </div>
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-24 -bottom-24 size-[28rem] rounded-full border border-[#f2f0e9]/[0.06]"
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-6 -bottom-6 size-[16rem] rounded-full border border-[#f2f0e9]/[0.06]"
+        />
+      </section>
+
+      <section className="flex items-center justify-center px-6 py-10 md:px-10">
+        <div className="w-full max-w-[340px]">
+          <div className="mb-10 flex items-center gap-3 lg:hidden">
+            <Mark />
+            <span className="grid leading-tight">
+              <span className="text-sm font-semibold">记忆登记簿</span>
+              <span className="text-[9px] tracking-[0.14em] text-muted-foreground">MEMORY REGISTRY</span>
+            </span>
+          </div>
+          <p className="eyebrow">CONSOLE</p>
+          <h1 className="mt-2 text-[28px] leading-tight font-semibold tracking-[-0.025em]">{title}</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+          <div className="mt-8">{children}</div>
+        </div>
+      </section>
     </main>
   );
 }
@@ -83,6 +133,7 @@ function SecretForm({ id, label, hint, submit, autoComplete, onSubmit, confirm }
                 spellCheck={false}
                 required
                 aria-invalid={!!error}
+                className="h-10"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
               />
@@ -100,6 +151,7 @@ function SecretForm({ id, label, hint, submit, autoComplete, onSubmit, confirm }
                   type="password"
                   autoComplete={autoComplete}
                   required
+                  className="h-10"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
@@ -110,7 +162,7 @@ function SecretForm({ id, label, hint, submit, autoComplete, onSubmit, confirm }
         )}
         <form.Subscribe selector={(s) => s.isSubmitting}>
           {(busy) => (
-            <Button type="submit" className="w-full" disabled={busy}>
+            <Button type="submit" className="mt-1 h-10 w-full" disabled={busy}>
               {submit}
             </Button>
           )}
@@ -126,7 +178,7 @@ export function SignInPage() {
 
   if (status.signed_in && status.bootstrap) {
     return (
-      <Frame title="设置管理口令" description="登录面板用的口令，与 agent 使用的访问令牌无关。设置后，访问令牌不能再登录面板。">
+      <Frame title="设置管理口令" description="这是登录面板用的口令，与 agent 使用的访问令牌无关。设置后，访问令牌不能再登录面板。">
         <SecretForm
           key="new-password"
           id="new-password"
@@ -158,7 +210,7 @@ export function SignInPage() {
   }
 
   return (
-    <Frame title="登录" description="输入管理口令。">
+    <Frame title="登录" description="输入管理口令，回到待审队列。">
       <SecretForm
         key="password"
         id="password"

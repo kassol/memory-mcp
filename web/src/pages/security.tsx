@@ -50,19 +50,19 @@ function ChangePassword() {
     </form.Field>
   );
   return (
-    <Card>
+    <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
       <form
         onSubmit={(e) => {
           e.preventDefault();
           void form.handleSubmit();
         }}
-        className="flex flex-col gap-6"
+        className="flex flex-col gap-0"
       >
-        <CardHeader>
-          <CardTitle>管理口令</CardTitle>
-          <CardDescription>修改登录面板用的口令，需要输入当前口令。忘记口令时，在部署主机上执行重置命令。</CardDescription>
+        <CardHeader className="border-b border-border/70 px-5 py-4">
+          <CardTitle className="text-[13px] font-medium">管理口令</CardTitle>
+          <CardDescription className="text-xs">修改登录面板用的口令，需要输入当前口令。忘记口令时，在部署主机上执行重置命令。</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-5 py-5">
           <FieldGroup className="max-w-sm">
             {field("current", "当前口令", "current-password")}
             {field("next", "新口令", "new-password")}
@@ -70,10 +70,10 @@ function ChangePassword() {
             {error ? <FieldError>{error}</FieldError> : null}
           </FieldGroup>
         </CardContent>
-        <CardFooter className="border-t">
+        <CardFooter className="border-t border-border/70 px-5 py-3">
           <form.Subscribe selector={(s) => s.isSubmitting}>
             {(busy) => (
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" size="sm" disabled={busy}>
                 更新口令
               </Button>
             )}
@@ -88,16 +88,17 @@ function SignOutEverywhere() {
   const { signOutEverywhere } = useSession();
   const [busy, setBusy] = useState(false);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>登录状态</CardTitle>
-        <CardDescription>退出所有设备上的面板登录，包括当前这台。设备丢失时使用。</CardDescription>
+    <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
+      <CardHeader className="border-b border-border/70 px-5 py-4">
+        <CardTitle className="text-[13px] font-medium">登录状态</CardTitle>
+        <CardDescription className="text-xs">退出所有设备上的面板登录，包括当前这台。设备丢失时使用。</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5 py-5">
         <FieldDescription>访问令牌不受影响，agent 照常工作。</FieldDescription>
       </CardContent>
-      <CardFooter className="border-t">
+      <CardFooter className="border-t border-border/70 px-5 py-3">
         <Button
+          size="sm"
           variant="destructive"
           disabled={busy}
           onClick={async () => {
@@ -119,9 +120,9 @@ function SignOutEverywhere() {
 
 export function SecuritySection() {
   return (
-    <>
+    <div className="flex flex-col gap-4">
       <ChangePassword />
       <SignOutEverywhere />
-    </>
+    </div>
   );
 }

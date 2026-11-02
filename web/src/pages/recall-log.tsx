@@ -49,7 +49,7 @@ function LogSwitch() {
 
   if (!setting) return null;
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <Switch
         aria-label="记录检索"
         checked={Boolean(setting.value)}
@@ -57,10 +57,10 @@ function LogSwitch() {
       />
       <span className="text-sm">
         记录检索（{setting.value ? "开启" : "关闭"}）
-        <span className="ml-2 text-xs text-muted-foreground">保留 30 天。日统计不受影响。</span>
+        <span className="ml-2 text-[11px] text-muted-foreground">保留 30 天。日统计不受影响。</span>
       </span>
       {setting.source === "console" ? (
-        <Button variant="ghost" size="sm" onClick={() => void save(null)}>
+        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => void save(null)}>
           恢复默认
         </Button>
       ) : null}
@@ -104,14 +104,14 @@ function Clear() {
 }
 
 function Results({ entry, onMemory }: { entry: RecallLogEntry; onMemory: (id: string) => void }) {
-  if (!entry.memory_ids.length) return <span className="text-xs text-muted-foreground">无结果</span>;
+  if (!entry.memory_ids.length) return <span className="text-[11px] text-muted-foreground">无结果</span>;
   return (
     <div className="flex gap-1">
       {entry.memory_ids.map((id, i) => (
         <Button
           key={id}
           variant="ghost"
-          size="sm"
+          size="xs"
           aria-label={`打开第 ${i + 1} 条结果`}
           title={id}
           onClick={() => onMemory(id)}
@@ -142,27 +142,27 @@ export function RecallLogPanel({ onMemory }: { onMemory: (id: string) => void })
       ) : null}
       {log.data && log.data.items.length ? (
         <>
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-xl border border-border/80 bg-card">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>时间</TableHead>
-                  <TableHead>查询</TableHead>
-                  <TableHead className="hidden md:table-cell">令牌</TableHead>
-                  <TableHead className="text-right">耗时</TableHead>
-                  <TableHead className="text-right">结果</TableHead>
-                  <TableHead>打开</TableHead>
+                <TableRow className="border-border/70 hover:bg-transparent">
+                  <TableHead className="h-9 px-3 text-[11px] font-medium text-muted-foreground">时间</TableHead>
+                  <TableHead className="h-9 px-3 text-[11px] font-medium text-muted-foreground">查询</TableHead>
+                  <TableHead className="hidden h-9 px-3 text-[11px] font-medium text-muted-foreground md:table-cell">令牌</TableHead>
+                  <TableHead className="h-9 px-3 text-right text-[11px] font-medium text-muted-foreground">耗时</TableHead>
+                  <TableHead className="h-9 px-3 text-right text-[11px] font-medium text-muted-foreground">结果</TableHead>
+                  <TableHead className="h-9 px-3 text-[11px] font-medium text-muted-foreground">打开</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {log.data.items.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{when(entry.at)}</TableCell>
-                    <TableCell className="max-w-64 text-sm break-all">{entry.query}</TableCell>
-                    <TableCell className="hidden text-xs text-muted-foreground md:table-cell">{entry.token ?? "面板"}</TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground tabular-nums">{entry.latency_ms} ms</TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground tabular-nums">{entry.results}</TableCell>
-                    <TableCell>
+                  <TableRow key={entry.id} className="border-border/60">
+                    <TableCell className="px-3 py-2.5 text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">{when(entry.at)}</TableCell>
+                    <TableCell className="max-w-64 px-3 py-2.5 text-[13px] break-all">{entry.query}</TableCell>
+                    <TableCell className="hidden px-3 py-2.5 text-[11px] text-muted-foreground md:table-cell">{entry.token ?? "面板"}</TableCell>
+                    <TableCell className="px-3 py-2.5 text-right text-[11px] text-muted-foreground tabular-nums">{entry.latency_ms} ms</TableCell>
+                    <TableCell className="px-3 py-2.5 text-right text-[11px] text-muted-foreground tabular-nums">{entry.results}</TableCell>
+                    <TableCell className="px-3 py-2.5">
                       <Results entry={entry} onMemory={onMemory} />
                     </TableCell>
                   </TableRow>
@@ -170,7 +170,7 @@ export function RecallLogPanel({ onMemory }: { onMemory: (id: string) => void })
               </TableBody>
             </Table>
           </div>
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>
               共 {log.data.total} 条，显示最近 {log.data.items.length} 条
             </span>

@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-React with TypeScript, Vite, TanStack Router, Query, Table and Form, shadcn/ui (default look) on Tailwind and lucide icons (docs/adr/0003). Source in `web/`; the Dockerfile builds it in a Node stage into the Python package's `ui/` directory, served by the service under `/ui/`. Build output is not committed; the runtime image has no Node.
+React with TypeScript, Vite, TanStack Router, Query, Table and Form, shadcn/ui on Tailwind and lucide icons (docs/adr/0003), with the porcelain theme in `web/src/index.css` (DESIGN.md). Source in `web/`; the Dockerfile builds it in a Node stage into the Python package's `ui/` directory, served by the service under `/ui/`. Build output is not committed; the runtime image has no Node.
 
 ## Users
 
@@ -22,7 +22,7 @@ Keep long-term memories fresh and consistent. The console is where a person revi
 
 - Terms follow `GLOSSARY.md`: finding, check, internal contradiction, duplicate, multiple current, correction, archive.
 - Memories are mostly Chinese, often long (up to about 1500 characters), with dates, version strings and identifiers.
-- Access needs the service's existing Bearer token, entered once per browser session, until the admin password and console session land (docs/adr/0001).
+- Access uses the admin password and a console session cookie; agents use Bearer access tokens (docs/adr/0001).
 
 ## Capabilities and Constraints
 
@@ -33,7 +33,7 @@ Keep long-term memories fresh and consistent. The console is where a person revi
 
 ## Brand Commitments
 
-None. Interface language: Chinese.
+The console is porcelain and graphite with a single deep-pine accent: modern, restrained, editorial, never decorative for its own sake. Status is carried by small dots and words. Light is a working paper surface; dark is the same system at night. Interface language: Chinese.
 
 ## Product Principles
 

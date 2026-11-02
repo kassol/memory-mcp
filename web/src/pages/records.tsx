@@ -11,9 +11,8 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown, Archive, Search, X } from "lucide-react";
 import { useState } from "react";
 
-import { EmptyState, ErrorState, PageHeader } from "@/components/page";
+import { EmptyState, ErrorState, PageBody, PageHeader } from "@/components/page";
 import { History, RecordCard, type EditMode } from "@/components/record-card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,6 +25,7 @@ import { keys, searchMemories, useMemory } from "@/lib/queries";
 import { RecallLogPanel } from "@/pages/recall-log";
 import { when } from "@/lib/terms";
 import type { MemoryItem, MemoryView } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const PAGE = 50;
 const ALL = "__all";
@@ -39,9 +39,9 @@ function SortHeader({ label, sorted, onClick }: { label: string; sorted: false |
   if (!onClick) return <span>{label}</span>;
   const Icon = sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;
   return (
-    <Button variant="ghost" size="sm" className="-ml-2.5" onClick={onClick}>
+    <Button variant="ghost" size="sm" className="-ml-2.5 h-7 text-[11px] font-medium text-muted-foreground hover:text-foreground" onClick={onClick}>
       {label}
-      <Icon className={sorted ? "" : "text-muted-foreground"} />
+      <Icon className={cn("size-3", sorted ? "text-foreground" : "text-muted-foreground/60")} />
     </Button>
   );
 }
@@ -52,7 +52,7 @@ const columns: ColumnDef<MemoryItem>[] = [
     header: "Key",
     // Keys run long (60+ characters); cap the column so content and times stay on screen.
     cell: ({ row }) => (
-      <span className="block max-w-40 truncate font-mono text-xs md:max-w-64" title={row.original.entity_key}>
+      <span className="block max-w-40 truncate font-mono text-[11px] text-muted-foreground md:max-w-64" title={row.original.entity_key}>
         {row.original.entity_key}
       </span>
     ),
@@ -60,23 +60,28 @@ const columns: ColumnDef<MemoryItem>[] = [
   {
     accessorKey: "entity_type",
     header: "类型",
-    cell: ({ row }) => <Badge variant="outline">{row.original.entity_type}</Badge>,
+    cell: ({ row }) => (
+      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span className="size-1 rounded-full bg-muted-foreground/35" />
+        {row.original.entity_type}
+      </span>
+    ),
   },
   {
     accessorKey: "content",
     header: "内容",
     enableSorting: false,
-    cell: ({ row }) => <span className="line-clamp-2 min-w-48 text-sm whitespace-normal">{row.original.content}</span>,
+    cell: ({ row }) => <span className="line-clamp-2 min-w-48 text-[13px] leading-6 whitespace-normal">{row.original.content}</span>,
   },
   {
     accessorKey: "created_at",
     header: "写入时间",
-    cell: ({ row }) => <span className="text-xs text-muted-foreground tabular-nums">{when(row.original.created_at)}</span>,
+    cell: ({ row }) => <span className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">{when(row.original.created_at)}</span>,
   },
   {
     accessorKey: "valid_from",
     header: "生效时间",
-    cell: ({ row }) => <span className="text-xs text-muted-foreground tabular-nums">{when(row.original.valid_from)}</span>,
+    cell: ({ row }) => <span className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">{when(row.original.valid_from)}</span>,
   },
 ];
 
@@ -84,12 +89,32 @@ function Detail({ id, onChanged }: { id: string; onChanged: (next: MemoryView | 
   const memory = useMemory(id);
   const [mode, setMode] = useState<EditMode>(null);
   if (memory.error) return <ErrorState error={memory.error} onRetry={() => void memory.refetch()} />;
-  if (!memory.data) return <Skeleton className="h-48 w-full" />;
+  if (!memory.data) return <Skeleton className="h-56 w-full rounded-xl" />;
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-7">
       <RecordCard r={memory.data} mode={mode} onMode={setMode} onChanged={onChanged} />
       <History r={memory.data} />
     </div>
+  );
+}
+
+function MobileRow({ m, onOpen }: { m: MemoryItem; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full flex-col gap-1.5 rounded-xl border border-border/80 bg-card p-3.5 text-left transition-colors active:bg-muted/50"
+    >
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">{m.entity_key}</span>
+        <span className="flex shrink-0 items-center gap-1.5 pl-2 text-[10px] text-muted-foreground">
+          <span className="size-1 rounded-full bg-muted-foreground/35" />
+          {m.entity_type}
+        </span>
+      </div>
+      <span className="line-clamp-2 text-[13px] leading-6">{m.content}</span>
+      <span className="text-[10px] text-muted-foreground tabular-nums">{when(m.created_at)}</span>
+    </button>
   );
 }
 
@@ -148,7 +173,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
     enableSorting: !query,
     enableSortingRemoval: false,
     sortDescFirst: false,
-    // Phones keep key, type and content; the two timestamps would push content off screen.
+    // Phones use a card list instead of the table.
     state: { sorting, columnVisibility: { created_at: !isMobile, valid_from: !isMobile } },
     onSortingChange: (updater) => {
       setSorting(updater);
@@ -171,160 +196,181 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
 
   return (
     <>
-      <PageHeader title="档案">
-        {view === "records" && !query && list.data && <span className="text-sm text-muted-foreground">共 {matched} 条</span>}
+      <PageHeader title="档案" description="当前记忆、版本历史与检索记录。">
+        {view === "records" && !query && list.data && <span className="text-sm text-muted-foreground tabular-nums">共 {matched} 条</span>}
       </PageHeader>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
-        <div className="flex items-center gap-1">
-          <Button variant={view === "records" ? "secondary" : "ghost"} size="sm" onClick={() => setView("records")}>
-            档案
-          </Button>
-          <Button variant={view === "log" ? "secondary" : "ghost"} size="sm" onClick={() => setView("log")}>
-            检索记录
-          </Button>
-        </div>
-        {view === "log" ? (
-          <RecallLogPanel onMemory={onMemory} />
-        ) : (
-          <>
-        <div className="flex flex-col gap-2 md:flex-row md:items-center">
-          <div className="relative md:w-96">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              aria-label="检索"
-              placeholder="检索记忆（含型号、版本号），回车执行"
-              className="pl-8"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") setQuery(draft.trim());
-                if (e.key === "Escape" && draft) {
-                  setDraft("");
-                  setQuery("");
-                }
-              }}
-            />
+      <PageBody className="flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="flex items-center gap-4 border-b border-border/70">
+            {(["records", "log"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={cn(
+                  "-mb-px border-b-2 pb-2 text-[13px] transition-colors",
+                  view === v ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {v === "records" ? "档案" : "检索记录"}
+              </button>
+            ))}
           </div>
-          {!query && (
-            <Input
-              aria-label="按 key 过滤"
-              placeholder="按 key 过滤"
-              spellCheck={false}
-              className="md:w-56"
-              value={keyDraft}
-              onChange={(e) => setKeyDraft(e.target.value)}
-              onBlur={() => resetPage(setKeyFilter)(keyDraft.trim())}
-              onKeyDown={(e) => e.key === "Enter" && resetPage(setKeyFilter)(keyDraft.trim())}
-            />
-          )}
-          <Select value={type || ALL} onValueChange={(v) => resetPage(setType)(v === ALL ? "" : v)}>
-            <SelectTrigger aria-label="按类型过滤" className="md:w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>全部类型</SelectItem>
-              {types.data?.map((t) => (
-                <SelectItem key={t.entity_type} value={t.entity_type}>
-                  {t.entity_type}（{t.count}）
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {query && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setDraft("");
-                setQuery("");
-              }}
-            >
-              <X />
-              清除检索
-            </Button>
+          {view === "log" ? (
+            <RecallLogPanel onMemory={onMemory} />
+          ) : (
+            <>
+              <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                <div className="relative md:w-96">
+                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    aria-label="检索"
+                    placeholder="检索记忆（含型号、版本号），回车执行"
+                    className="h-9 bg-card pl-8"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setQuery(draft.trim());
+                      if (e.key === "Escape" && draft) {
+                        setDraft("");
+                        setQuery("");
+                      }
+                    }}
+                  />
+                </div>
+                {!query && (
+                  <Input
+                    aria-label="按 key 过滤"
+                    placeholder="按 key 过滤"
+                    spellCheck={false}
+                    className="h-9 bg-card md:w-52"
+                    value={keyDraft}
+                    onChange={(e) => setKeyDraft(e.target.value)}
+                    onBlur={() => resetPage(setKeyFilter)(keyDraft.trim())}
+                    onKeyDown={(e) => e.key === "Enter" && resetPage(setKeyFilter)(keyDraft.trim())}
+                  />
+                )}
+                <Select value={type || ALL} onValueChange={(v) => resetPage(setType)(v === ALL ? "" : v)}>
+                  <SelectTrigger aria-label="按类型过滤" className="h-9 w-full bg-card md:w-44">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>全部类型</SelectItem>
+                    {types.data?.map((t) => (
+                      <SelectItem key={t.entity_type} value={t.entity_type}>
+                        {t.entity_type}（{t.count}）
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {query && (
+                  <Button
+                    variant="ghost"
+                    className="text-muted-foreground"
+                    onClick={() => {
+                      setDraft("");
+                      setQuery("");
+                    }}
+                  >
+                    <X />
+                    清除检索
+                  </Button>
+                )}
+              </div>
+
+              {active.error && <ErrorState error={active.error} onRetry={() => void active.refetch()} />}
+              {active.data && !rows.length ? (
+                <EmptyState icon={query ? Search : Archive} title={query ? "没有匹配的记忆" : "没有当前记忆"}>
+                  {query ? "换个说法，或直接用型号、版本号检索。" : keyFilter || type ? "换一个过滤条件。" : undefined}
+                </EmptyState>
+              ) : isMobile ? (
+                <div className="flex flex-col gap-2">
+                  {rows.map((row) => (
+                    <MobileRow key={row.memory_id} m={row} onOpen={() => onMemory(row.memory_id)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-border/80 bg-card">
+                  <Table>
+                    <TableHeader>
+                      {table.getHeaderGroups().map((group) => (
+                        <TableRow key={group.id} className="border-border/70 hover:bg-transparent">
+                          {group.headers.map((header) => (
+                            <TableHead
+                              key={header.id}
+                              className="h-9 px-3 text-[11px] font-medium text-muted-foreground"
+                              aria-sort={header.column.getIsSorted() ? (header.column.getIsSorted() === "asc" ? "ascending" : "descending") : undefined}
+                            >
+                              <SortHeader
+                                label={String(header.column.columnDef.header)}
+                                sorted={header.column.getIsSorted()}
+                                onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
+                              />
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {active.isPending
+                        ? Array.from({ length: 6 }, (_, i) => (
+                            <TableRow key={i} className="border-border/60">
+                              <TableCell colSpan={table.getVisibleLeafColumns().length}>
+                                <Skeleton className="h-6 w-full" />
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        : table.getRowModel().rows.map((row) => (
+                            <TableRow
+                              key={row.id}
+                              tabIndex={0}
+                              data-state={row.id === memory ? "selected" : undefined}
+                              className="cursor-pointer border-border/60 data-[state=selected]:bg-accent/60"
+                              onClick={() => onMemory(row.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  onMemory(row.id);
+                                }
+                              }}
+                            >
+                              {row.getVisibleCells().map((cell) => (
+                                <TableCell key={cell.id} className="px-3 py-2.5 align-top">
+                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{query ? (search.data ? `最相关的 ${rows.length} 条` : "") : list.data ? `第 ${page + 1} / ${pages} 页` : ""}</span>
+                {!query && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" disabled={page === 0 || list.isFetching} onClick={() => setPage((p) => p - 1)}>
+                      上一页
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={page + 1 >= pages || list.isFetching} onClick={() => setPage((p) => p + 1)}>
+                      下一页
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
-
-        {active.error && <ErrorState error={active.error} onRetry={() => void active.refetch()} />}
-        {active.data && !rows.length ? (
-          <EmptyState icon={query ? Search : Archive} title={query ? "没有匹配的记忆" : "没有当前记忆"}>
-            {query ? "换个说法，或直接用型号、版本号检索。" : keyFilter || type ? "换一个过滤条件。" : undefined}
-          </EmptyState>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((group) => (
-                  <TableRow key={group.id}>
-                    {group.headers.map((header) => (
-                      <TableHead key={header.id} aria-sort={header.column.getIsSorted() ? (header.column.getIsSorted() === "asc" ? "ascending" : "descending") : undefined}>
-                        <SortHeader
-                          label={String(header.column.columnDef.header)}
-                          sorted={header.column.getIsSorted()}
-                          onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
-                        />
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {active.isPending
-                  ? Array.from({ length: 6 }, (_, i) => (
-                      <TableRow key={i}>
-                        <TableCell colSpan={table.getVisibleLeafColumns().length}>
-                          <Skeleton className="h-6 w-full" />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  : table.getRowModel().rows.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        tabIndex={0}
-                        data-state={row.id === memory ? "selected" : undefined}
-                        className="cursor-pointer"
-                        onClick={() => onMemory(row.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            onMemory(row.id);
-                          }
-                        }}
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{query ? (search.data ? `最相关的 ${rows.length} 条` : "") : list.data ? `第 ${page + 1} / ${pages} 页` : ""}</span>
-          {!query && (
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page === 0 || list.isFetching} onClick={() => setPage((p) => p - 1)}>
-                上一页
-              </Button>
-              <Button variant="outline" size="sm" disabled={page + 1 >= pages || list.isFetching} onClick={() => setPage((p) => p + 1)}>
-                下一页
-              </Button>
-            </div>
-          )}
-        </div>
-          </>
-        )}
-      </div>
+      </PageBody>
 
       <Sheet open={!!memory} onOpenChange={(open) => !open && onMemory(null)}>
-        <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle>记忆详情</SheetTitle>
-            <SheetDescription>全文与版本历史，必要时改正或归档。</SheetDescription>
+        <SheetContent className="w-full gap-0 overflow-y-auto border-l-border/80 sm:max-w-2xl">
+          <SheetHeader className="border-b border-border/70 px-5 py-4">
+            <SheetTitle className="text-base">记忆详情</SheetTitle>
+            <SheetDescription className="text-xs">全文与版本历史，必要时改正或归档。</SheetDescription>
           </SheetHeader>
-          <div className="p-4 pt-0">{memory && <Detail key={memory} id={memory} onChanged={changed} />}</div>
+          <div className="p-5">{memory && <Detail key={memory} id={memory} onChanged={changed} />}</div>
         </SheetContent>
       </Sheet>
     </>

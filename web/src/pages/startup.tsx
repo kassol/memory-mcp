@@ -171,14 +171,14 @@ export function StartupSection() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>启动设置</CardTitle>
-        <CardDescription>
+    <Card className="gap-0 rounded-xl border border-border/80 py-0 shadow-none ring-0">
+      <CardHeader className="border-b border-border/70 px-5 py-4">
+        <CardTitle className="text-[13px] font-medium">启动设置</CardTitle>
+        <CardDescription className="text-xs">
           只在服务启动时读取，改动要校验、再应用。应用会让进程退出并由重启策略拉起；起不来时回退到上一份设置并记下原因。
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-5">
+      <CardContent className="flex flex-col gap-5 px-5 py-4">
         {data.container ? (
           <Alert>
             <AlertTitle>容器里运行</AlertTitle>
@@ -237,7 +237,7 @@ export function StartupSection() {
           </Field>
         </div>
 
-        <Separator />
+        <Separator className="bg-border/60" />
 
         <div className="flex flex-col gap-2">
           <span className="text-sm text-muted-foreground">
@@ -275,17 +275,17 @@ export function StartupSection() {
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => void saveDraft()} disabled={restarting || !Object.keys(changed).length}>
+          <Button size="sm" onClick={() => void saveDraft()} disabled={restarting || !Object.keys(changed).length}>
             保存为待生效
           </Button>
-          <Button variant="outline" onClick={() => void check()} disabled={restarting}>
+          <Button size="sm" variant="outline" onClick={() => void check()} disabled={restarting}>
             校验
           </Button>
-          <Button variant="outline" onClick={() => void apply()} disabled={restarting || !Object.keys(data.draft).length}>
+          <Button size="sm" variant="outline" onClick={() => void apply()} disabled={restarting || !Object.keys(data.draft).length}>
             {restarting ? "重启中…" : "应用并重启"}
           </Button>
           {Object.keys(data.draft).length ? (
-            <Button variant="ghost" onClick={() => void discard()} disabled={restarting}>
+            <Button size="sm" variant="ghost" onClick={() => void discard()} disabled={restarting}>
               丢弃待生效
             </Button>
           ) : null}
