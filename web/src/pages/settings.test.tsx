@@ -32,6 +32,7 @@ test("settings are grouped with their source, range and evaluation note", async 
 test("an out-of-range value is rejected before saving", async () => {
   const { user } = await renderAt("/settings");
   const input = await screen.findByLabelText("全文检索权重");
+  expect(within(row("全文检索权重")).queryByRole("button", { name: "保存" })).not.toBeInTheDocument();
   await user.clear(input);
   await user.type(input, "11");
   expect(within(row("全文检索权重")).getByRole("alert")).toHaveTextContent("超出范围 0 – 10");

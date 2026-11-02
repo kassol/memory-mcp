@@ -386,6 +386,7 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
               <div className="flex flex-wrap gap-1">
                 <button
                   onClick={() => { setKind(null); setChosen(null); }}
+                  aria-pressed={kind === null}
                   className={cn("rounded-full px-2 py-1 text-[10px] transition-colors", kind === null ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted")}
                 >
                   全部 {all.length}
@@ -394,6 +395,7 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
                   <button
                     key={k}
                     onClick={() => { setKind(k); setChosen(null); }}
+                    aria-pressed={kind === k}
                     className={cn("rounded-full px-2 py-1 text-[10px] transition-colors", kind === k ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted")}
                   >
                     {KIND[k] ?? k} {counts[k] ?? 0}
@@ -402,8 +404,8 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
               </div>
             </div>
             <CaseList items={items} selectedId={selectedId} onOpen={setChosen} indexOf={(f) => all.findIndex((x) => x.id === f.id)} />
-            {!items.length ? (
-              <div className="flex flex-col items-center gap-2 px-3 py-8 text-center md:hidden">
+            {!items.length && isMobile ? (
+              <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
                 <p className="text-xs text-muted-foreground">这一类没有待审发现。</p>
                 <Button variant="ghost" size="sm" onClick={() => { setKind(null); setChosen(null); }}>
                   查看全部

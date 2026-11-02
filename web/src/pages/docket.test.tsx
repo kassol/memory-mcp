@@ -44,6 +44,15 @@ test("a kind link opens the docket filtered to that kind", async () => {
   expect(within(rows()[0]).getByText(/内部矛盾/)).toBeInTheDocument();
 });
 
+test("an empty kind filter shows the active chip and a way back", async () => {
+  seedDuplicate();
+  const { user } = await renderAt("/docket?kind=contradiction");
+  expect(await screen.findByText("这一类没有待审发现")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "矛盾 0" })).toHaveAttribute("aria-pressed", "true");
+  await user.click(screen.getByRole("button", { name: "查看全部" }));
+  expect(await screen.findByRole("heading", { name: "卷宗 01" })).toBeInTheDocument();
+});
+
 test("dismissing removes the case and opens the next one", async () => {
   seedDuplicate();
   const { user } = await renderAt("/docket");
