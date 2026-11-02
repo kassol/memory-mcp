@@ -9,7 +9,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, Archive, ChevronsLeft, ChevronsRight, Search, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { EmptyState, ErrorState, PageBody, PageHeader } from "@/components/page";
 import { History, RecordCard, type EditMode } from "@/components/record-card";
@@ -22,6 +22,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { keys, searchMemories, useMemory } from "@/lib/queries";
+import { cleanRecordsSearch, DEFAULT_SORT, SORTS, type RecordsSearch } from "@/lib/records-search";
 import { RecallLogPanel } from "@/pages/recall-log";
 import { shortWhen } from "@/lib/terms";
 import type { MemoryItem, MemoryView } from "@/lib/types";
@@ -29,14 +30,6 @@ import { cn } from "@/lib/utils";
 
 const PAGE = 50;
 const ALL = "__all";
-
-const SORTS = [
-  { value: "created_at:desc", label: "最新写入" },
-  { value: "created_at:asc", label: "最早写入" },
-  { value: "valid_from:asc", label: "最久未更新" },
-  { value: "valid_from:desc", label: "最近更新" },
-  { value: "entity_key:asc", label: "Key A–Z" },
-];
 
 interface ListPage {
   results: MemoryItem[];
@@ -116,18 +109,29 @@ function MobileRow({ m, onOpen }: { m: MemoryItem; onOpen: () => void }) {
   );
 }
 
-export function RecordsPage({ memory, onMemory }: { memory: string | null; onMemory: (id: string | null) => void }) {
+export function RecordsPage({
+  search,
+  onSearch,
+}: {
+  search: RecordsSearch;
+  onSearch: (next: RecordsSearch, options?: { replace?: boolean }) => void;
+}) {
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const [sorting, setSorting] = useState<SortingState>([{ id: "created_at", desc: true }]);
-  const [page, setPage] = useState(0);
-  const [type, setType] = useState("");
-  const [keyFilter, setKeyFilter] = useState("");
-  const [keyDraft, setKeyDraft] = useState("");
-  const [query, setQuery] = useState("");
-  const [draft, setDraft] = useState("");
   // Records and the recall log share this page: both answer "what has been asked and what is known".
-  const [view, setView] = useState<"records" | "log">("records");
+  const view = search.view ?? "records";
+  const query = search.q ?? "";
+  const type = search.type ?? "";
+  const keyFilter = search.key ?? "";
+  const page = search.page ?? 0;
+  const sortValue = search.sort ?? DEFAULT_SORT;
+  const sorting: SortingState = [{ id: sortValue.split(":")[0], desc: sortValue.endsWith(":desc") }];
+  const [keyDraft, setKeyDraft] = useState(keyFilter);
+  const [draft, setDraft] = useState(query);
+
+  // The address is the source of truth; a back step or a link can change it under the drafts.
+  useEffect(() => setDraft(query), [query]);
+  useEffect(() => setKeyDraft(keyFilter), [keyFilter]);
 
   const types = useQuery({
     queryKey: ["memory-types"],
@@ -150,16 +154,26 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
     placeholderData: keepPreviousData,
     enabled: !query,
   });
-  const search = useQuery({
+  const searchQuery = useQuery({
     queryKey: keys.search(query, type),
     queryFn: () => searchMemories(query, type, 30),
     enabled: !!query,
   });
 
-  const active = query ? search : list;
-  const rows = query ? (search.data ?? []) : (list.data?.results ?? []);
+  const active = query ? searchQuery : list;
+  const rows = query ? (searchQuery.data ?? []) : (list.data?.results ?? []);
   const matched = list.data?.matched ?? 0;
   const pages = Math.max(1, Math.ceil(matched / PAGE));
+  // A saved link can outlive the records it pointed at; say so instead of showing an empty table.
+  const beyond = !query && page > 0 && matched > 0 && page >= pages;
+
+  // A list change drops an open record; opening or closing one keeps every filter in place.
+  const navigateList = (patch: Partial<RecordsSearch>) => {
+    onSearch(cleanRecordsSearch({ ...search, memory: undefined, ...patch }));
+  };
+  const openRecord = (id: string | null) => {
+    onSearch(cleanRecordsSearch({ ...search, memory: id ?? undefined }), { replace: !id });
+  };
 
   // Server-side sorting and paging: the table renders one page and reports sort changes.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -174,8 +188,9 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
     // Phones use a card list instead of the table.
     state: { sorting, columnVisibility: { created_at: !isMobile, valid_from: !isMobile } },
     onSortingChange: (updater) => {
-      setSorting(updater);
-      setPage(0);
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      const first = next[0];
+      navigateList({ sort: first ? `${first.id}:${first.desc ? "desc" : "asc"}` : undefined, page: undefined });
     },
     getRowId: (row) => row.memory_id,
   });
@@ -184,19 +199,17 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
     // A correction moves the row to the new version; an archive drops it from the list.
     void queryClient.invalidateQueries({ queryKey: query ? keys.search(query, type) : keys.records });
     void queryClient.invalidateQueries({ queryKey: ["memory-types"] });
-    onMemory(next ? next.memory_id : null);
+    openRecord(next ? next.memory_id : null);
   };
 
-  const resetPage = <T,>(set: (v: T) => void) => (v: T) => {
-    set(v);
-    setPage(0);
+  const clearSearch = () => {
+    setDraft("");
+    navigateList({ q: undefined, page: undefined });
   };
 
   const clearFilters = () => {
     setKeyDraft("");
-    setKeyFilter("");
-    setType("");
-    setPage(0);
+    navigateList({ key: undefined, type: undefined, page: undefined });
   };
 
   return (
@@ -210,7 +223,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
             {(["records", "log"] as const).map((v) => (
               <button
                 key={v}
-                onClick={() => setView(v)}
+                onClick={() => navigateList({ view: v === "log" ? "log" : undefined, page: undefined })}
                 className={cn(
                   "-mb-px border-b-2 pb-2 text-[13px] transition-colors",
                   view === v ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
@@ -221,7 +234,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
             ))}
           </div>
           {view === "log" ? (
-            <RecallLogPanel onMemory={onMemory} />
+            <RecallLogPanel onMemory={openRecord} />
           ) : (
             <>
               <div className="flex flex-col gap-2 md:flex-row md:items-center">
@@ -235,11 +248,8 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") setQuery(draft.trim());
-                      if (e.key === "Escape" && draft) {
-                        setDraft("");
-                        setQuery("");
-                      }
+                      if (e.key === "Enter") navigateList({ q: draft.trim() || undefined, page: undefined });
+                      if (e.key === "Escape" && draft) clearSearch();
                     }}
                   />
                 </div>
@@ -251,11 +261,11 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                     className="h-9 bg-card md:w-52"
                     value={keyDraft}
                     onChange={(e) => setKeyDraft(e.target.value)}
-                    onBlur={() => resetPage(setKeyFilter)(keyDraft.trim())}
-                    onKeyDown={(e) => e.key === "Enter" && resetPage(setKeyFilter)(keyDraft.trim())}
+                    onBlur={() => navigateList({ key: keyDraft.trim() || undefined, page: undefined })}
+                    onKeyDown={(e) => e.key === "Enter" && navigateList({ key: keyDraft.trim() || undefined, page: undefined })}
                   />
                 )}
-                <Select value={type || ALL} onValueChange={(v) => resetPage(setType)(v === ALL ? "" : v)}>
+                <Select value={type || ALL} onValueChange={(v) => navigateList({ type: v === ALL ? undefined : v, page: undefined })}>
                   <SelectTrigger aria-label="按类型过滤" className="h-9 w-full bg-card md:w-44">
                     <SelectValue />
                   </SelectTrigger>
@@ -270,11 +280,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                 </Select>
                 <Select
                   value={sort ? `${sort.id}:${sort.desc ? "desc" : "asc"}` : "created_at:desc"}
-                  onValueChange={(v) => {
-                    const [id, direction] = v.split(":");
-                    setSorting([{ id, desc: direction === "desc" }]);
-                    setPage(0);
-                  }}
+                  onValueChange={(v) => navigateList({ sort: v === DEFAULT_SORT ? undefined : v, page: undefined })}
                 >
                   <SelectTrigger aria-label="排序" className="h-9 w-full bg-card md:hidden">
                     <SelectValue />
@@ -291,10 +297,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                   <Button
                     variant="ghost"
                     className="text-muted-foreground"
-                    onClick={() => {
-                      setDraft("");
-                      setQuery("");
-                    }}
+                    onClick={clearSearch}
                   >
                     <X />
                     清除检索
@@ -310,13 +313,37 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
 
               {active.error && <ErrorState error={active.error} onRetry={() => void active.refetch()} />}
               {active.data && !rows.length ? (
-                <EmptyState icon={query ? Search : Archive} title={query ? "没有匹配的记忆" : "没有当前记忆"}>
+                beyond ? (
+                  <EmptyState
+                    icon={Archive}
+                    title="这一页没有记录"
+                    action={
+                      <Button variant="outline" size="sm" onClick={() => navigateList({ page: undefined })}>
+                        回到第一页
+                      </Button>
+                    }
+                  >
+                    记录变少后，这一页已经超出范围。
+                  </EmptyState>
+                ) : (
+                <EmptyState
+                  icon={query ? Search : Archive}
+                  title={query ? "没有匹配的记忆" : "没有当前记忆"}
+                  action={
+                    query ? (
+                      <Button variant="outline" size="sm" onClick={clearSearch}>清除检索</Button>
+                    ) : keyFilter || type ? (
+                      <Button variant="outline" size="sm" onClick={clearFilters}>清除筛选</Button>
+                    ) : undefined
+                  }
+                >
                   {query ? "换个说法，或直接用型号、版本号检索。" : keyFilter || type ? "换一个过滤条件。" : undefined}
                 </EmptyState>
+                )
               ) : isMobile ? (
                 <div className="flex flex-col gap-2">
                   {rows.map((row) => (
-                    <MobileRow key={row.memory_id} m={row} onOpen={() => onMemory(row.memory_id)} />
+                    <MobileRow key={row.memory_id} m={row} onOpen={() => openRecord(row.memory_id)} />
                   ))}
                 </div>
               ) : (
@@ -354,13 +381,13 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                             <TableRow
                               key={row.id}
                               tabIndex={0}
-                              data-state={row.id === memory ? "selected" : undefined}
+                              data-state={row.id === search.memory ? "selected" : undefined}
                               className="cursor-pointer border-border/60 data-[state=selected]:bg-accent/60"
-                              onClick={() => onMemory(row.id)}
+                              onClick={() => openRecord(row.id)}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {
                                   e.preventDefault();
-                                  onMemory(row.id);
+                                  openRecord(row.id);
                                 }
                               }}
                             >
@@ -377,19 +404,19 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
               )}
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>{query ? (search.data ? `最相关的 ${rows.length} 条` : "") : list.data ? `第 ${page + 1} / ${pages} 页` : ""}</span>
+                <span>{query ? (searchQuery.data ? `最相关的 ${rows.length} 条` : "") : list.data ? `第 ${Math.min(page + 1, pages)} / ${pages} 页` : ""}</span>
                 {!query && (
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon-sm" aria-label="首页" disabled={page === 0 || list.isFetching} onClick={() => setPage(0)}>
+                    <Button variant="ghost" size="icon-sm" aria-label="首页" disabled={page === 0 || list.isFetching} onClick={() => navigateList({ page: undefined })}>
                       <ChevronsLeft />
                     </Button>
-                    <Button variant="outline" size="sm" disabled={page === 0 || list.isFetching} onClick={() => setPage((p) => p - 1)}>
+                    <Button variant="outline" size="sm" disabled={page === 0 || list.isFetching} onClick={() => navigateList({ page: page > 1 ? page - 1 : undefined })}>
                       上一页
                     </Button>
-                    <Button variant="outline" size="sm" disabled={page + 1 >= pages || list.isFetching} onClick={() => setPage((p) => p + 1)}>
+                    <Button variant="outline" size="sm" disabled={page + 1 >= pages || list.isFetching} onClick={() => navigateList({ page: page + 1 })}>
                       下一页
                     </Button>
-                    <Button variant="ghost" size="icon-sm" aria-label="末页" disabled={page + 1 >= pages || list.isFetching} onClick={() => setPage(pages - 1)}>
+                    <Button variant="ghost" size="icon-sm" aria-label="末页" disabled={page + 1 >= pages || list.isFetching} onClick={() => navigateList({ page: pages > 1 ? pages - 1 : undefined })}>
                       <ChevronsRight />
                     </Button>
                   </div>
@@ -400,13 +427,13 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
         </div>
       </PageBody>
 
-      <Sheet open={!!memory} onOpenChange={(open) => !open && onMemory(null)}>
+      <Sheet open={!!search.memory} onOpenChange={(open) => !open && openRecord(null)}>
         <SheetContent className="w-full gap-0 overflow-y-auto border-l-border/80 sm:max-w-2xl">
           <SheetHeader className="sticky top-0 z-10 border-b border-border/70 bg-background px-5 py-4">
             <SheetTitle className="text-base">记忆详情</SheetTitle>
             <SheetDescription className="text-xs">全文与版本历史，必要时改正或归档。</SheetDescription>
           </SheetHeader>
-          <div className="p-5">{memory && <Detail key={memory} id={memory} onChanged={changed} />}</div>
+          <div className="p-5">{search.memory && <Detail key={search.memory} id={search.memory} onChanged={changed} />}</div>
         </SheetContent>
       </Sheet>
     </>

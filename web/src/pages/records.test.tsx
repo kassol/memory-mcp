@@ -120,3 +120,43 @@ test("a memory linked from the command palette opens directly", async () => {
   await renderAt(`/records?memory=${m.memory_id}`);
   expect(await screen.findByRole("region", { name: "fact:linked" })).toBeInTheDocument();
 });
+
+test("the address keeps the page, the sort and the filters", async () => {
+  seed(60);
+  const { user, router } = await renderAt("/records");
+  await screen.findByText("第 1 / 2 页");
+  await user.click(screen.getByRole("button", { name: "下一页" }));
+  await waitFor(() => expect(router.state.location.search).toEqual({ page: 2 }));
+  expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Key" }));
+  await waitFor(() => expect(router.state.location.search).toEqual({ sort: "entity_key:asc" }));
+  expect(screen.getByText("第 1 / 2 页")).toBeInTheDocument();
+});
+
+test("a link restores the search and the type filter", async () => {
+  seed(4);
+  db.memories.push(memory({ entity_key: "fact:gpu", content: "RTX 3090 runs Qwen3.6-35B" }));
+  const { router } = await renderAt("/records?q=RTX&type=fact");
+  expect(await screen.findByText("最相关的 1 条")).toBeInTheDocument();
+  expect(bodyRows()[0]).toHaveTextContent("fact:gpu");
+  expect(router.state.location.search).toEqual({ q: "RTX", type: "fact" });
+});
+
+test("the recall log is addressable", async () => {
+  seed(2);
+  const { user, router } = await renderAt("/records?view=log");
+  expect(await screen.findByText("检索记录", { selector: "button" })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "档案" }));
+  await waitFor(() => expect(router.state.location.search).toEqual({}));
+  expect(await screen.findByText("共 2 条")).toBeInTheDocument();
+});
+
+test("a stale page link offers the way back", async () => {
+  seed(60);
+  const { user } = await renderAt("/records?page=9");
+  expect(await screen.findByText("这一页没有记录")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "回到第一页" }));
+  expect(await screen.findByText("第 1 / 2 页")).toBeInTheDocument();
+  expect(bodyRows()).toHaveLength(50);
+});

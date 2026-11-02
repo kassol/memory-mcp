@@ -11,6 +11,7 @@ import {
 
 import { RouteLoading } from "@/components/page";
 import { NotFound, RouteError } from "@/components/route-states";
+import { cleanRecordsSearch, parseRecordsSearch } from "@/lib/records-search";
 import { Shell } from "@/shell";
 
 const OverviewPage = lazyRouteComponent(() => import("@/pages/overview"), "OverviewPage");
@@ -24,12 +25,16 @@ const rootRoute = createRootRoute({ component: Shell });
 const recordsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/records",
-  validateSearch: (search: Record<string, unknown>): { memory?: string } =>
-    typeof search.memory === "string" && search.memory ? { memory: search.memory } : {},
+  validateSearch: parseRecordsSearch,
   component: function Records() {
-    const { memory } = recordsRoute.useSearch();
+    const search = recordsRoute.useSearch();
     const navigate = recordsRoute.useNavigate();
-    return <RecordsPage memory={memory ?? null} onMemory={(id) => void navigate({ search: id ? { memory: id } : {} })} />;
+    return (
+      <RecordsPage
+        search={search}
+        onSearch={(next, options) => void navigate({ search: cleanRecordsSearch(next), replace: options?.replace ?? true })}
+      />
+    );
   },
 });
 
@@ -44,18 +49,36 @@ const settingsRoute = createRoute({
     const { tab } = settingsRoute.useSearch();
     const navigate = settingsRoute.useNavigate();
     const value = tab && SETTINGS_TABS.includes(tab) ? tab : "parameters";
-    return <SettingsPage key={value} tab={value} onTabChange={(next) => void navigate({ search: { tab: next } })} />;
+    return <SettingsPage tab={value} onTabChange={(next) => void navigate({ search: { tab: next } })} />;
   },
 });
 
 const docketRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/docket",
-  validateSearch: (search: Record<string, unknown>): { kind?: string } =>
-    typeof search.kind === "string" && search.kind ? { kind: search.kind } : {},
+  validateSearch: (search: Record<string, unknown>): { kind?: string; case?: string } => {
+    const out: { kind?: string; case?: string } = {};
+    if (typeof search.kind === "string" && search.kind) out.kind = search.kind;
+    if (typeof search.case === "string" && search.case) out.case = search.case;
+    return out;
+  },
   component: function Docket() {
-    const { kind } = docketRoute.useSearch();
-    return <DocketPage key={kind ?? "all"} initialKind={kind ?? null} />;
+    const { kind = null, case: chosen = null } = docketRoute.useSearch();
+    const navigate = docketRoute.useNavigate();
+    return (
+      <DocketPage
+        kind={kind}
+        chosen={chosen}
+        onChange={(patch) => {
+          const next: { kind?: string; case?: string } = {};
+          const nextKind = "kind" in patch ? patch.kind : kind;
+          const nextCase = "case" in patch ? patch.case : chosen;
+          if (nextKind) next.kind = nextKind;
+          if (nextCase) next.case = nextCase;
+          void navigate({ search: next, replace: true });
+        }}
+      />
+    );
   },
 });
 

@@ -1,7 +1,7 @@
 // Command palette (Ctrl/Cmd+K): jump to a page, or search memories and open one in the records page.
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { FileText } from "lucide-react";
+import { FileText, Search } from "lucide-react";
 import { useDeferredValue, useEffect, useState } from "react";
 
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -35,7 +35,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   // cmdk keeps its own highlighted item; results that arrive after typing would leave nothing
   // highlighted, so Enter did nothing. Highlight the first visible entry whenever the list changes.
   const pages = NAV.filter((n) => !query || n.label.includes(query));
-  const first = pages[0] ? `page:${pages[0].to}` : memories.data?.[0] ? `memory:${memories.data[0].memory_id}` : "";
+  const first = pages[0] ? `page:${pages[0].to}` : memories.data?.[0] ? `memory:${memories.data[0].memory_id}` : query ? `records:${query}` : "";
   const [picked, setPicked] = useState("");
   const [seen, setSeen] = useState(first);
   if (seen !== first) {
@@ -80,6 +80,17 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             ))}
           </CommandGroup>
         )}
+        {query ? (
+          <CommandGroup heading="检索">
+            <CommandItem
+              value={`records:${query}`}
+              onSelect={() => go(() => void navigate({ to: "/records", search: { q: query } }))}
+            >
+              <Search aria-hidden />
+              <span>在档案中检索「{query}」</span>
+            </CommandItem>
+          </CommandGroup>
+        ) : null}
       </CommandList>
       <div className="flex items-center gap-3 border-t border-border/70 px-3 py-2 text-[11px] text-muted-foreground">
         <span className="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> 选择</span>

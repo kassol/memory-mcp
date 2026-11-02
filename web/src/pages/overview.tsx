@@ -5,11 +5,13 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, Inbox, KeyRound, Server, Wrench } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
-import { ErrorState, Loading, PageBody, PageHeader } from "@/components/page";
+import { ErrorState, PageBody, PageHeader } from "@/components/page";
+import { RefreshButton } from "@/components/refresh-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { keys } from "@/lib/queries";
 import { KIND, when } from "@/lib/terms";
@@ -105,6 +107,24 @@ function ChartBlock({
   );
 }
 
+function OverviewLoading() {
+  return (
+    <div className="flex flex-col gap-4" aria-busy="true" aria-label="加载中">
+      <Skeleton className="h-[168px] w-full rounded-xl" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Skeleton className="h-[172px] w-full rounded-xl" />
+        <Skeleton className="h-[172px] w-full rounded-xl" />
+      </div>
+      <Skeleton className="h-[196px] w-full rounded-xl" />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
 export function OverviewPage() {
   const overview = useQuery({ queryKey: keys.overview, queryFn: () => api<Overview>("/overview") });
 
@@ -115,6 +135,7 @@ export function OverviewPage() {
   return (
     <>
       <PageHeader title="概览">
+        <RefreshButton label="刷新概览" busy={overview.isFetching} onClick={() => void overview.refetch()} />
         <Button asChild variant="outline" size="sm">
           <Link to="/docket">
             去处理
@@ -124,7 +145,7 @@ export function OverviewPage() {
       </PageHeader>
       <PageBody>
         {overview.error ? <ErrorState error={overview.error} onRetry={() => void overview.refetch()} /> : null}
-        {!data && !overview.error ? <Loading rows={4} /> : null}
+        {!data && !overview.error ? <OverviewLoading /> : null}
         {data ? (
           <div className="flex flex-col gap-4">
             <Card className="ring-0 border border-border/80 shadow-none">

@@ -3,7 +3,7 @@
 import { useForm } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { toast } from "sonner";
 
 import { ErrorState, Loading, PageBody, PageHeader } from "@/components/page";
@@ -188,15 +188,13 @@ function Section({ title, items }: { title: string; items: Setting[] }) {
 export function SettingsPage({ tab = "parameters", onTabChange }: { tab?: string; onTabChange?: (tab: string) => void }) {
   const settings = useSettings();
   const isMobile = useIsMobile();
-  const [active, setActive] = useState(tab);
-
   return (
     <>
       <PageHeader title="设置" />
       <PageBody>
         <Tabs
-          value={active}
-          onValueChange={(next) => { setActive(next); onTabChange?.(next); }}
+          value={tab}
+          onValueChange={(next) => onTabChange?.(next)}
           orientation={isMobile ? "horizontal" : "vertical"}
           className="flex flex-col gap-6 md:flex-row md:items-start"
         >
@@ -218,7 +216,8 @@ export function SettingsPage({ tab = "parameters", onTabChange }: { tab?: string
             ))}
           </TabsList>
           <div className="min-w-0 flex-1">
-            <TabsContent value="parameters" className="mt-0 flex flex-col gap-4">
+            {/* Kept mounted while hidden so unsaved numeric drafts survive a tab switch. */}
+            <TabsContent value="parameters" forceMount className="mt-0 flex flex-col gap-4 data-[state=inactive]:hidden">
               {settings.error && <ErrorState error={settings.error} onRetry={() => void settings.refetch()} />}
               {settings.isPending && <Loading />}
               {settings.data && (

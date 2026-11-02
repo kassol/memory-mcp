@@ -58,6 +58,7 @@ test("dismissing removes the case and opens the next one", async () => {
   const { user } = await renderAt("/docket");
   await screen.findByRole("region", { name: "左侧记录" });
   await user.click(screen.getByRole("button", { name: "判为误报" }));
+  await user.click(await screen.findByRole("button", { name: "确认判为误报" }));
   await toast("已判为误报");
   expect(db.calls.some((c) => c.method === "POST" && c.path === "/api/v1/findings/f1/dismiss")).toBe(true);
   expect(await screen.findByText("vim and emacs both current.", { selector: "p" })).toBeInTheDocument();
@@ -115,6 +116,7 @@ test("keyboard shortcuts move between cases and rule on them", async () => {
   await user.click(within(right).getByRole("button", { name: "取消" }));
 
   await user.keyboard("d");
+  await user.click(await screen.findByRole("button", { name: "确认判为误报" }));
   await toast("已判为误报");
   expect(db.calls.some((c) => c.path === "/api/v1/findings/f1/dismiss")).toBe(true);
 });
@@ -146,6 +148,26 @@ test("a pair shortcut archives the other record after confirmation", async () =>
   expect(db.calls.find((c) => c.method === "POST" && c.path === `/api/v1/memories/${b.memory_id}/archive`)).toMatchObject({
     body: { reason: "与另一条内容重复，保留这一条" },
   });
+});
+
+test("the open case lives in the address", async () => {
+  seedDuplicate();
+  const { user, router } = await renderAt("/docket?case=f2");
+  expect(await screen.findByRole("heading", { name: "卷宗 02" })).toBeInTheDocument();
+  await user.click(within(rows()[0]).getByRole("button"));
+  expect(await screen.findByRole("heading", { name: "卷宗 01" })).toBeInTheDocument();
+  await waitFor(() => expect(router.state.location.search).toEqual({ case: "f1" }));
+  await user.keyboard("j");
+  await waitFor(() => expect(router.state.location.search).toEqual({ case: "f2" }));
+});
+
+test("the tab names the page", async () => {
+  seedDuplicate();
+  const { user } = await renderAt("/docket");
+  await screen.findByRole("heading", { name: "卷宗 01" });
+  await waitFor(() => expect(document.title).toBe("待审 · 记忆登记簿"));
+  await user.click(screen.getByRole("link", { name: "档案" }));
+  await waitFor(() => expect(document.title).toBe("档案 · 记忆登记簿"));
 });
 
 test("an empty docket says so", async () => {

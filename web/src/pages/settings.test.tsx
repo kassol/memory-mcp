@@ -80,3 +80,15 @@ test("revert drops the console value and shows the file value again", async () =
   expect(within(row("RRF 常数 k")).getByText("来源：配置文件")).toBeInTheDocument();
   expect(db.calls.find((c) => c.method === "DELETE")?.path).toBe("/api/v1/settings/rrf_k");
 });
+
+test("an unsaved value survives a tab switch", async () => {
+  const { user } = await renderAt("/settings");
+  const input = await screen.findByLabelText("全文检索权重");
+  await user.clear(input);
+  await user.type(input, "3");
+  await user.click(screen.getByRole("tab", { name: /Provider/ }));
+  expect(await screen.findByText("添加 Provider")).toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: /参数/ }));
+  expect(screen.getByLabelText("全文检索权重")).toHaveValue("3");
+  expect(within(row("全文检索权重")).getByRole("button", { name: "保存" })).toBeEnabled();
+});

@@ -53,5 +53,5 @@ test("past rounds show duration, model calls, findings and errors", async () => 
   const failed = screen.getByText("失败").closest("tr") as HTMLElement;
   expect(within(failed).getByText("LLM request failed")).toBeInTheDocument();
   // Refresh re-reads the history.
-  await waitFor(() => expect(screen.getByRole("button", { name: "刷新" })).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: "刷新维护" })).toBeInTheDocument());
 });

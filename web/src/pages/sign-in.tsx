@@ -3,19 +3,11 @@
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useSession } from "@/lib/session";
-
-function Mark() {
-  return (
-    <span className="relative grid size-8 place-items-center rounded-[9px] bg-foreground text-[13px] font-semibold text-background">
-      记
-      <span className="absolute right-1 bottom-1 size-1.5 rounded-full bg-primary" />
-    </span>
-  );
-}
 
 function Frame({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
@@ -66,7 +58,7 @@ function Frame({ title, description, children }: { title: string; description: s
       <section className="flex items-center justify-center px-6 py-10 md:px-10">
         <div className="w-full max-w-[340px]">
           <div className="mb-10 flex items-center gap-3 lg:hidden">
-            <Mark />
+            <BrandMark />
             <span className="grid leading-tight">
               <span className="text-sm font-semibold">记忆登记簿</span>
               <span className="text-[9px] tracking-[0.14em] text-muted-foreground">MEMORY REGISTRY</span>

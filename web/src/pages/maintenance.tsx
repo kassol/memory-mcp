@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState, Loading, PageBody, PageHeader } from "@/components/page";
+import { RefreshButton } from "@/components/refresh-button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,9 +84,7 @@ export function MaintenancePage() {
   return (
     <>
       <PageHeader title="维护">
-        <Button variant="outline" size="sm" onClick={refresh}>
-          刷新
-        </Button>
+        <RefreshButton label="刷新维护" busy={rounds.isFetching || overview.isFetching} onClick={refresh} />
       </PageHeader>
       <PageBody>
         <div className="flex flex-col gap-4">

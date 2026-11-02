@@ -5,8 +5,18 @@ import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Inbox } from "lucide
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { EmptyState, ErrorState, Loading, PageHeader } from "@/components/page";
+import { EmptyState, ErrorState, PageHeader } from "@/components/page";
+import { RefreshButton } from "@/components/refresh-button";
 import { RecordCard, type EditMode } from "@/components/record-card";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -166,6 +176,7 @@ function Case({ finding, index, onDismissed, onBack, onMove, position, total, ha
   const [ids, setIds] = useState(() => [finding.memory_id, finding.other_memory_id].filter((x): x is string => !!x));
   const [editing, setEditing] = useState<{ slot: Slot; mode: EditMode } | null>(null);
   const [dismissing, setDismissing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [opinionOpen, setOpinionOpen] = useState(false);
   const longOpinion = (finding.detail?.length ?? 0) > 100;
   const pair = ids.length > 1;
@@ -176,6 +187,7 @@ function Case({ finding, index, onDismissed, onBack, onMove, position, total, ha
     try {
       await api(`/findings/${enc(finding.id)}/dismiss`, { method: "POST" });
       toast.success("已判为误报");
+      setConfirming(false);
       onDismissed();
     } catch (error) {
       failed(error);
@@ -192,12 +204,12 @@ function Case({ finding, index, onDismissed, onBack, onMove, position, total, ha
   // right one; D dismisses. Ignored while typing or while an editor or a dialog is open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || editing || document.querySelector("[role=dialog]")) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || editing || document.querySelector("[role=dialog], [role=alertdialog]")) return;
       const key = e.key.toLowerCase();
       const slot: Slot = e.shiftKey && pair ? 1 : 0;
       if (key === "j") onMove(1);
       else if (key === "k") onMove(-1);
-      else if (key === "d") void dismiss();
+      else if (key === "d") setConfirming(true);
       else if (key === "c" || key === "a") {
         // Only a current record has editors; an archived one ignores C and A.
         const shown = queryClient.getQueryData<MemoryRecord>(keys.memory(ids[slot]));
@@ -262,6 +274,22 @@ function Case({ finding, index, onDismissed, onBack, onMove, position, total, ha
           />
         ))}
       </div>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>判为误报？</AlertDialogTitle>
+            <AlertDialogDescription>
+              这件发现会关闭，维护以后不再报同一件。记忆本身不受影响。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <Button variant="destructive" disabled={dismissing} onClick={() => void dismiss()}>
+              确认判为误报
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-border/70 bg-background px-4 py-3 md:-mx-8 md:px-8">
         <div className="flex flex-wrap items-center justify-end gap-2">
           {pair ? <KeepActions left={ids[0]} right={ids[1]} /> : null}
@@ -275,7 +303,7 @@ function Case({ finding, index, onDismissed, onBack, onMove, position, total, ha
               <ChevronRight />
             </Button>
           </div>
-          <Button variant="outline" size="sm" disabled={dismissing} onClick={() => void dismiss()}>
+          <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>
             判为误报
           </Button>
         </div>
@@ -333,12 +361,18 @@ function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; se
   );
 }
 
-export function DocketPage({ initialKind = null }: { initialKind?: string | null }) {
+export function DocketPage({
+  kind,
+  chosen,
+  onChange,
+}: {
+  kind: string | null;
+  chosen: string | null;
+  onChange: (patch: { kind?: string | null; case?: string | null }) => void;
+}) {
   const findings = useFindings();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const [chosen, setChosen] = useState<string | null>(null);
-  const [kind, setKind] = useState<string | null>(initialKind);
 
   const all = findings.data?.items ?? [];
   const counts = all.reduce<Record<string, number>>((acc, f) => {
@@ -360,19 +394,38 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
     const remaining = all.filter((f) => f.id !== finding.id);
     queryClient.setQueryData(keys.findings, { items: remaining, total: remaining.length });
     const next = (kind ? rest : remaining)[Math.min(at, (kind ? rest : remaining).length - 1)];
-    setChosen(next?.id ?? null);
+    onChange({ case: next?.id ?? null });
   };
 
   const move = (step: 1 | -1) => {
     const next = items[index + step];
-    if (next) setChosen(next.id);
+    if (next) onChange({ case: next.id });
   };
 
   return (
     <>
       <PageHeader title="待审">
+        <RefreshButton label="刷新待审" busy={findings.isFetching} onClick={() => void findings.refetch()} />
       </PageHeader>
-      {findings.isPending && <div className="p-4 md:p-8"><Loading /></div>}
+      {findings.isPending && (
+        <div className="page-enter grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[18rem_1fr]">
+          <div className="hidden flex-col gap-2 border-r border-border/70 p-3 md:flex">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-7 w-full" />
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={i} className="h-14 w-full rounded-lg" />
+            ))}
+          </div>
+          <div className="flex flex-col gap-4 p-4 md:p-8">
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="h-12 w-full" />
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <Skeleton className="h-64 w-full rounded-xl" />
+              <Skeleton className="h-64 w-full rounded-xl" />
+            </div>
+          </div>
+        </div>
+      )}
       {findings.error && <div className="p-4 md:p-8"><ErrorState error={findings.error} onRetry={() => void findings.refetch()} /></div>}
       {findings.data && !all.length && (
         <div className="p-4 md:p-8">
@@ -399,7 +452,7 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
               </div>
               <div className="flex flex-wrap gap-1">
                 <button
-                  onClick={() => { setKind(null); setChosen(null); }}
+                  onClick={() => onChange({ kind: null, case: null })}
                   aria-pressed={kind === null}
                   className={cn("rounded-full px-2 py-1 text-[10px] transition-colors", kind === null ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted")}
                 >
@@ -408,7 +461,7 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
                 {filterKinds.map((k) => (
                   <button
                     key={k}
-                    onClick={() => { setKind(k); setChosen(null); }}
+                    onClick={() => onChange({ kind: k, case: null })}
                     aria-pressed={kind === k}
                     className={cn("rounded-full px-2 py-1 text-[10px] transition-colors", kind === k ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted")}
                   >
@@ -417,11 +470,11 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
                 ))}
               </div>
             </div>
-            <CaseList items={items} selectedId={selectedId} onOpen={setChosen} indexOf={(f) => all.findIndex((x) => x.id === f.id)} />
+            <CaseList items={items} selectedId={selectedId} onOpen={(id) => onChange({ case: id })} indexOf={(f) => all.findIndex((x) => x.id === f.id)} />
             {!items.length && isMobile ? (
               <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
                 <p className="text-xs text-muted-foreground">这一类没有待审发现。</p>
-                <Button variant="ghost" size="sm" onClick={() => { setKind(null); setChosen(null); }}>
+                <Button variant="ghost" size="sm" onClick={() => onChange({ kind: null, case: null })}>
                   查看全部
                 </Button>
               </div>
@@ -433,7 +486,7 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
                 icon={Inbox}
                 title="这一类没有待审发现"
                 action={
-                  <Button variant="ghost" size="sm" onClick={() => { setKind(null); setChosen(null); }}>
+                  <Button variant="ghost" size="sm" onClick={() => onChange({ kind: null, case: null })}>
                     查看全部
                   </Button>
                 }
@@ -447,7 +500,7 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
                 finding={items[index]}
                 index={globalIndex >= 0 ? globalIndex : index}
                 onDismissed={() => remove(items[index])}
-                onBack={isMobile ? () => setChosen(null) : undefined}
+                onBack={isMobile ? () => onChange({ case: null }) : undefined}
                 onMove={move}
                 position={index + 1}
                 total={items.length}

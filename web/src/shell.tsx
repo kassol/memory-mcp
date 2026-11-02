@@ -2,8 +2,10 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { LogOut, Monitor, Moon, Search, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
+import { BrandMark } from "@/components/brand";
+import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/command-palette";
 import { Kbd } from "@/components/ui/kbd";
 import {
@@ -66,10 +68,7 @@ function AppSidebar({ onPalette }: { onPalette: () => void }) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="h-11 rounded-xl px-1.5 hover:bg-transparent">
               <Link to="/docket" onClick={close}>
-                <span className="relative grid size-8 shrink-0 place-items-center rounded-[9px] bg-foreground text-[13px] font-semibold text-background dark:bg-[#1e211f] dark:text-[#edebe5] dark:ring-1 dark:ring-[#2c302d]">
-                  记
-                  <span className="absolute right-1 bottom-1 size-1.5 rounded-full bg-primary" />
-                </span>
+                <BrandMark className="dark:bg-[#1e211f] dark:text-[#edebe5] dark:ring-1 dark:ring-[#2c302d]" />
                 <span className="grid flex-1 gap-0 text-left leading-tight">
                   <span className="truncate text-[13px] font-semibold tracking-[-0.01em]">记忆登记簿</span>
                   <span className="truncate text-[9px] tracking-[0.12em] text-muted-foreground">MEMORY REGISTRY</span>
@@ -130,7 +129,7 @@ function AppSidebar({ onPalette }: { onPalette: () => void }) {
                           "dark:data-[active=true]:bg-[#1e211f] dark:data-[active=true]:shadow-none",
                         )}
                       >
-                        <Link to={n.to} onClick={close}>
+                        <Link to={n.to} onClick={close} aria-current={active ? "page" : undefined}>
                           <n.icon />
                           <span>{n.label}</span>
                         </Link>
@@ -168,12 +167,57 @@ function AppSidebar({ onPalette }: { onPalette: () => void }) {
   );
 }
 
-export function Shell() {
-  const { status } = useSession();
-  const [palette, setPalette] = useState(false);
+/** The session check is local and quick; a mark appears only when it takes noticeably long. */
+function Splash() {
+  return (
+    <div className="grid min-h-svh place-items-center bg-background" aria-busy="true" aria-label="正在载入面板">
+      <BrandMark className="size-10 rounded-[11px] text-[15px]" />
+    </div>
+  );
+}
 
-  if (!status) return null;
-  if (!status.signed_in || status.bootstrap) return <SignInPage />;
+function SessionUnavailable({ error, retry }: { error: Error | null; retry: () => void }) {
+  return (
+    <div className="grid min-h-svh place-items-center bg-background p-6">
+      <div className="flex max-w-sm flex-col items-center text-center">
+        <BrandMark className="size-10 rounded-[11px] text-[15px]" />
+        <p className="mt-4 text-sm font-medium">无法连接服务</p>
+        <p className="mt-1 text-xs leading-5 break-words text-muted-foreground">
+          {error?.message ?? "面板会话没有响应。"}
+        </p>
+        <Button variant="outline" size="sm" className="mt-4" onClick={retry}>
+          重试
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function Shell() {
+  const { status, error, retry } = useSession();
+  const [palette, setPalette] = useState(false);
+  const [waited, setWaited] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const signedIn = !!status?.signed_in && !status.bootstrap;
+
+  useEffect(() => {
+    const id = setTimeout(() => setWaited(true), 250);
+    return () => clearTimeout(id);
+  }, []);
+
+  // The tab and the back history name the page, not just the product.
+  useEffect(() => {
+    if (!status) return;
+    if (!signedIn) {
+      document.title = "登录 · 记忆登记簿";
+      return;
+    }
+    const page = NAV.find((n) => pathname === n.to);
+    document.title = `${page?.label ?? "页面不存在"} · 记忆登记簿`;
+  }, [pathname, signedIn, status]);
+
+  if (!status) return waited ? error ? <SessionUnavailable error={error} retry={retry} /> : <Splash /> : null;
+  if (!signedIn) return <SignInPage />;
 
   return (
     <SidebarProvider className="h-full">

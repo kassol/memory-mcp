@@ -12,6 +12,9 @@ export interface SessionStatus {
 
 interface Session {
   status: SessionStatus | undefined;
+  /** Set when the session check itself failed, so the shell can offer a retry instead of a blank page. */
+  error: Error | null;
+  retry: () => void;
   /** Sign in with the admin password, or with the access token while no password exists. */
   signIn: (credential: { password: string } | { token: string }) => Promise<void>;
   setPassword: (newPassword: string, currentPassword?: string) => Promise<void>;
@@ -24,7 +27,7 @@ const KEY = ["console-session"] as const;
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const status = useQuery({ queryKey: KEY, queryFn: () => consoleApi<SessionStatus>("/console/session"), staleTime: Infinity });
+  const { data, error, refetch } = useQuery({ queryKey: KEY, queryFn: () => consoleApi<SessionStatus>("/console/session"), staleTime: Infinity });
 
   // Data is dropped whenever the session changes, so nothing from one session shows in the next.
   const refresh = useCallback(async () => {
@@ -36,7 +39,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => setUnauthorizedHandler(() => void refresh()), [refresh]);
 
   const value = useMemo<Session>(() => ({
-    status: status.data,
+    status: data,
+    error,
+    retry: () => void refetch(),
     signIn: async (credential) => {
       await consoleApi("/console/login", { method: "POST", body: credential });
       await refresh();
@@ -53,7 +58,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       await consoleApi("/console/sessions", { method: "DELETE" });
       await refresh();
     },
-  }), [status.data, refresh]);
+  }), [data, error, refetch, refresh]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
