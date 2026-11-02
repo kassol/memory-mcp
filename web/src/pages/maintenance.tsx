@@ -28,7 +28,11 @@ function Findings({ round }: { round: MaintenanceRound }) {
 
 export function MaintenancePage() {
   const queryClient = useQueryClient();
-  const rounds = useQuery({ queryKey: keys.rounds, queryFn: () => api<{ items: MaintenanceRound[] }>("/overview/rounds").then((d) => d.items) });
+  const rounds = useQuery({
+    queryKey: keys.rounds,
+    queryFn: () => api<{ items: MaintenanceRound[] }>("/overview/rounds").then((d) => d.items),
+    refetchInterval: (query) => (query.state.data?.some((r) => r.status === "running") ? 3000 : false),
+  });
   const overview = useQuery({ queryKey: keys.overview, queryFn: () => api<Overview>("/overview") });
   const [running, setRunning] = useState(false);
 

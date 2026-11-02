@@ -1,6 +1,6 @@
 // Docket: open findings, one case at a time, ruled by correct / archive / dismiss.
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Inbox } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Inbox } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -43,13 +43,17 @@ function SlotCard({ id, mode, onMode, onChanged, label }: {
   return <RecordCard r={memory.data} label={label} mode={mode} onMode={onMode} onChanged={onChanged} />;
 }
 
-function Case({ finding, index, onDismissed, onBack, onMove, shift }: {
+function Case({ finding, index, onDismissed, onBack, onMove, shift, position, total, hasPrev, hasNext }: {
   finding: Finding;
   index: number;
   onDismissed: () => void;
   onBack?: () => void;
   onMove: (step: 1 | -1) => void;
   shift: boolean;
+  position: number;
+  total: number;
+  hasPrev: boolean;
+  hasNext: boolean;
 }) {
   const queryClient = useQueryClient();
   // A correction replaces the card in place with the new version; an archive refetches the card,
@@ -115,6 +119,7 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift }: {
             {KIND[finding.kind] ?? finding.kind}
           </span>
           {finding.entity_key ? <span className="font-mono text-[11px] text-muted-foreground">{finding.entity_key}</span> : null}
+          <span className="text-[11px] text-muted-foreground tabular-nums">队列 {position} / {total}</span>
           <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
             快捷键作用于
             <span className="rounded-md bg-card px-1.5 py-0.5 font-medium text-foreground ring-1 ring-border/70">
@@ -147,6 +152,16 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift }: {
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t border-border/70 pt-4">
         <p className="mr-auto text-xs text-muted-foreground">改正或归档任一条后，这件发现会在下一次维护时自动关闭。</p>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" disabled={!hasPrev} onClick={() => onMove(-1)}>
+            <ChevronLeft />
+            上一件
+          </Button>
+          <Button variant="outline" size="sm" disabled={!hasNext} onClick={() => onMove(1)}>
+            下一件
+            <ChevronRight />
+          </Button>
+        </div>
         <Button variant="outline" size="sm" disabled={dismissing} onClick={() => void dismiss()}>
           判为误报
         </Button>
@@ -297,6 +312,10 @@ export function DocketPage() {
                 onBack={isMobile ? () => setChosen(null) : undefined}
                 onMove={move}
                 shift={shift}
+                position={index + 1}
+                total={items.length}
+                hasPrev={index > 0}
+                hasNext={index < items.length - 1}
               />
             </div>
           )}

@@ -5,6 +5,7 @@ import { FileText } from "lucide-react";
 import { useDeferredValue, useEffect, useState } from "react";
 
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Kbd } from "@/components/ui/kbd";
 import { searchMemories } from "@/lib/queries";
 import { NAV } from "@/nav";
 
@@ -80,6 +81,11 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           </CommandGroup>
         )}
       </CommandList>
+      <div className="flex items-center gap-3 border-t border-border/70 px-3 py-2 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> 选择</span>
+        <span className="flex items-center gap-1"><Kbd>↵</Kbd> 打开</span>
+        <span className="ml-auto flex items-center gap-1"><Kbd>esc</Kbd> 关闭</span>
+      </div>
       </Command>
     </CommandDialog>
   );

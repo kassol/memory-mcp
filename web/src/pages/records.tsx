@@ -194,6 +194,13 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
     setPage(0);
   };
 
+  const clearFilters = () => {
+    setKeyDraft("");
+    setKeyFilter("");
+    setType("");
+    setPage(0);
+  };
+
   return (
     <>
       <PageHeader title="档案" description="当前记忆、版本历史与检索记录。">
@@ -274,6 +281,12 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                   >
                     <X />
                     清除检索
+                  </Button>
+                )}
+                {!query && (keyFilter || type) && (
+                  <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={clearFilters}>
+                    <X />
+                    清除筛选
                   </Button>
                 )}
               </div>
@@ -366,7 +379,7 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
 
       <Sheet open={!!memory} onOpenChange={(open) => !open && onMemory(null)}>
         <SheetContent className="w-full gap-0 overflow-y-auto border-l-border/80 sm:max-w-2xl">
-          <SheetHeader className="border-b border-border/70 px-5 py-4">
+          <SheetHeader className="sticky top-0 z-10 border-b border-border/70 bg-background px-5 py-4">
             <SheetTitle className="text-base">记忆详情</SheetTitle>
             <SheetDescription className="text-xs">全文与版本历史，必要时改正或归档。</SheetDescription>
           </SheetHeader>
