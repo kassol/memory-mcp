@@ -1,6 +1,6 @@
 // Page frame inside the sidebar inset: a quiet header, a centered body, and shared states.
 import { AlertCircle, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,13 @@ export function PageHeader({
   description?: string;
   children?: ReactNode;
 }) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => titleRef.current?.focus(), [title]);
   return (
     <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border/70 bg-background px-4 py-2.5 md:min-h-[68px] md:px-8 md:py-3">
       <SidebarTrigger className="-ml-1 shrink-0 text-muted-foreground hover:text-foreground" />
       <div className="min-w-0">
-        <h1 className="truncate text-[22px] leading-tight font-semibold tracking-[-0.02em]">{title}</h1>
+        <h1 ref={titleRef} tabIndex={-1} className="truncate text-[22px] leading-tight font-semibold tracking-[-0.02em] focus:outline-none">{title}</h1>
         {description ? <p className="mt-0.5 hidden truncate text-xs text-muted-foreground sm:block">{description}</p> : null}
       </div>
       {children ? <div className="ml-auto flex shrink-0 items-center gap-2">{children}</div> : null}

@@ -218,8 +218,7 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift, position, to
       )}
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em]">卷宗 {caseNo(index)}</h2>
-          <span className="flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+          <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em]">卷宗 {caseNo(index)}</h2>          <span className="flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
             <span className={`size-1.5 rounded-full ${KIND_DOT[finding.kind] ?? "bg-muted-foreground/40"}`} />
             {KIND[finding.kind] ?? finding.kind}
           </span>
@@ -243,6 +242,7 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift, position, to
           )}
         </p>
       </div>
+      {pair ? <PairSummary left={ids[0]} right={ids[1]} /> : null}
       <div className={cn("grid grid-cols-1 gap-4", pair && "xl:grid-cols-2")}>
         {ids.map((id, i) => (
           <SlotCard
@@ -255,7 +255,6 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift, position, to
           />
         ))}
       </div>
-      {pair ? <PairSummary left={ids[0]} right={ids[1]} /> : null}
       <div className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-border/70 bg-background px-4 py-3 md:-mx-8 md:px-8">
         <div className="flex flex-wrap items-center gap-2">
           <span className="mr-auto hidden text-xs text-muted-foreground md:inline">

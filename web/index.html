@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="referrer" content="no-referrer" />
+    <script>
+      (() => {
+        try {
+          const theme = localStorage.getItem("theme") || "system";
+          const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch {
+          // Storage can be unavailable; the app still renders in the system theme.
+        }
+      })();
+    </script>
     <title>记忆登记簿</title>
   </head>
   <body>

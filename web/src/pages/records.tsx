@@ -330,9 +330,9 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                   ))}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-border/80 bg-card">
+                <div className="overflow-x-auto rounded-xl border border-border/80 bg-card lg:overflow-x-visible">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 z-10 bg-card">
                       {table.getHeaderGroups().map((group) => (
                         <TableRow key={group.id} className="border-border/70 hover:bg-transparent">
                           {group.headers.map((header) => (

@@ -1,5 +1,6 @@
 // One memory as a quiet panel: full text, status badges, and inline correct / archive editors.
 import { useForm } from "@tanstack/react-form";
+import { Copy } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -184,6 +185,20 @@ export function RecordCard({
             </span>
           ) : null}
           <CardTitle className="min-w-0 truncate font-mono text-[12px] font-medium text-muted-foreground">{r.entity_key}</CardTitle>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="shrink-0 text-muted-foreground"
+            aria-label="复制 key"
+            onClick={() => {
+              void navigator.clipboard.writeText(r.entity_key).then(
+                () => toast.success("已复制 key"),
+                () => toast.error("复制失败，请手动选中"),
+              );
+            }}
+          >
+            <Copy />
+          </Button>
         </div>
         <CardDescription className="text-[11px] tabular-nums">
           写入 {when(r.created_at)} · 生效 {when(r.valid_from)} · 版本 {r.versions.length}
