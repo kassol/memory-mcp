@@ -146,6 +146,7 @@ export function OverviewPage() {
                       <Link
                         key={f.kind}
                         to="/docket"
+                        search={{ kind: f.kind }}
                         className="flex items-center gap-2 border-b border-border/60 py-2.5 text-sm transition-colors last:border-b-0 hover:text-primary"
                       >
                         <span className={`size-1.5 rounded-full ${KIND_DOT[f.kind] ?? "bg-muted-foreground/40"}`} />

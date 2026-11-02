@@ -30,6 +30,14 @@ import { cn } from "@/lib/utils";
 const PAGE = 50;
 const ALL = "__all";
 
+const SORTS = [
+  { value: "created_at:desc", label: "最新写入" },
+  { value: "created_at:asc", label: "最早写入" },
+  { value: "valid_from:asc", label: "最久未更新" },
+  { value: "valid_from:desc", label: "最近更新" },
+  { value: "entity_key:asc", label: "Key A–Z" },
+];
+
 interface ListPage {
   results: MemoryItem[];
   matched: number;
@@ -266,6 +274,25 @@ export function RecordsPage({ memory, onMemory }: { memory: string | null; onMem
                     {types.data?.map((t) => (
                       <SelectItem key={t.entity_type} value={t.entity_type}>
                         {t.entity_type}（{t.count}）
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={sort ? `${sort.id}:${sort.desc ? "desc" : "asc"}` : "created_at:desc"}
+                  onValueChange={(v) => {
+                    const [id, direction] = v.split(":");
+                    setSorting([{ id, desc: direction === "desc" }]);
+                    setPage(0);
+                  }}
+                >
+                  <SelectTrigger aria-label="排序" className="h-9 w-full bg-card md:hidden">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORTS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

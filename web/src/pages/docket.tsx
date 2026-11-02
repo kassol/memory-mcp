@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { EmptyState, ErrorState, Loading, PageHeader } from "@/components/page";
 import { RecordCard, type EditMode } from "@/components/record-card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -41,6 +43,110 @@ function SlotCard({ id, mode, onMode, onChanged, label }: {
   if (memory.error) return <ErrorState error={memory.error} onRetry={() => void memory.refetch()} />;
   if (!memory.data) return <Skeleton className="h-56 w-full rounded-xl" />;
   return <RecordCard r={memory.data} label={label} mode={mode} onMode={onMode} onChanged={onChanged} />;
+}
+
+/** Exact-sentence comparison of a pair; the check opinion stays the authority for near matches. */
+function PairSummary({ left, right }: { left: string; right: string }) {
+  const a = useMemory(left);
+  const b = useMemory(right);
+  if (!a.data || !b.data) return null;
+  const split = (text: string) => text.split(/(?<=[。！？；\n])/).map((s) => s.trim()).filter((s) => s.length >= 8);
+  const onlyA = split(a.data.content);
+  const onlyB = split(b.data.content);
+  const setB = new Set(onlyB);
+  const shared = onlyA.filter((s) => setB.has(s));
+  const uniqueA = onlyA.filter((s) => !setB.has(s));
+  const setA = new Set(onlyA);
+  const uniqueB = onlyB.filter((s) => !setA.has(s));
+  if (!shared.length && !uniqueA.length && !uniqueB.length) return null;
+
+  const list = (items: string[]) => (
+    <ul className="list-disc space-y-1 pl-4">
+      {items.slice(0, 3).map((s) => <li key={s}>{s}</li>)}
+      {items.length > 3 ? <li className="text-muted-foreground">还有 {items.length - 3} 句</li> : null}
+    </ul>
+  );
+
+  return (
+    <details className="rounded-lg border border-border/70 bg-card">
+      <summary className="cursor-pointer px-3 py-2 text-[11px] text-muted-foreground select-none">
+        对比摘要 · 共同 {shared.length} 句 · 仅甲 {uniqueA.length} · 仅乙 {uniqueB.length}
+      </summary>
+      <div className="grid gap-4 border-t border-border/60 px-3 py-3 text-[11px] leading-5 md:grid-cols-3">
+        <div>
+          <p className="mb-1.5 font-medium">共同</p>
+          {shared.length ? list(shared) : <p className="text-muted-foreground">没有完全相同的句子。</p>}
+        </div>
+        <div>
+          <p className="mb-1.5 font-medium">仅甲</p>
+          {uniqueA.length ? list(uniqueA) : <p className="text-muted-foreground">无。</p>}
+        </div>
+        <div>
+          <p className="mb-1.5 font-medium">仅乙</p>
+          {uniqueB.length ? list(uniqueB) : <p className="text-muted-foreground">无。</p>}
+        </div>
+      </div>
+    </details>
+  );
+}
+function KeepActions({ left, right }: { left: string; right: string }) {
+  const a = useMemory(left);
+  const b = useMemory(right);
+  const queryClient = useQueryClient();
+  const [keeping, setKeeping] = useState<0 | 1 | null>(null);
+  const [reason, setReason] = useState("与另一条内容重复，保留这一条");
+  const [busy, setBusy] = useState(false);
+
+  if (!a.data?.is_current || !b.data?.is_current) return null;
+  const side = ["甲", "乙"];
+  const other = (slot: 0 | 1) => (slot === 0 ? right : left);
+
+  const archive = async () => {
+    if (keeping === null) return;
+    if (!reason.trim()) {
+      toast.error("请填写归档原因");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api(`/memories/${enc(other(keeping))}/archive`, { method: "POST", body: { reason: reason.trim() } });
+      void queryClient.invalidateQueries({ queryKey: keys.memory(other(keeping)) });
+      toast.success(`已归档${side[keeping === 0 ? 1 : 0]}，下一次维护会关单`);
+      setKeeping(null);
+    } catch (error) {
+      failed(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/60 px-3 py-2.5">
+        <span className="text-[11px] text-muted-foreground">其中一条只是重复：</span>
+        <Button variant="outline" size="sm" onClick={() => setKeeping(0)}>保留甲，归档乙</Button>
+        <Button variant="outline" size="sm" onClick={() => setKeeping(1)}>保留乙，归档甲</Button>
+      </div>
+      <Dialog open={keeping !== null} onOpenChange={(open) => !open && setKeeping(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>保留{keeping === 0 ? "甲" : "乙"}，归档{keeping === 0 ? "乙" : "甲"}？</DialogTitle>
+            <DialogDescription>
+              归档后另一条不再被检索到，版本历史保留。这件发现会在下一次维护时自动关闭。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="keep-reason" className="text-sm font-medium">归档原因</label>
+            <Input id="keep-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setKeeping(null)}>取消</Button>
+            <Button variant="destructive" disabled={busy} onClick={() => void archive()}>确认归档</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function Case({ finding, index, onDismissed, onBack, onMove, shift, position, total, hasPrev, hasNext }: {
@@ -150,6 +256,8 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift, position, to
           />
         ))}
       </div>
+      {pair ? <PairSummary left={ids[0]} right={ids[1]} /> : null}
+      {pair ? <KeepActions left={ids[0]} right={ids[1]} /> : null}
       <div className="flex flex-wrap items-center gap-3 border-t border-border/70 pt-4">
         <p className="mr-auto text-xs text-muted-foreground">改正或归档任一条后，这件发现会在下一次维护时自动关闭。</p>
         <div className="flex items-center gap-1">
@@ -214,12 +322,12 @@ function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; se
   );
 }
 
-export function DocketPage() {
+export function DocketPage({ initialKind = null }: { initialKind?: string | null }) {
   const findings = useFindings();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [chosen, setChosen] = useState<string | null>(null);
-  const [kind, setKind] = useState<string | null>(null);
+  const [kind, setKind] = useState<string | null>(initialKind);
   const [shift, setShift] = useState(false);
 
   useEffect(() => {

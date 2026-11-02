@@ -55,6 +55,7 @@ export function MaintenancePage() {
   };
 
   const last = overview.data?.last_round;
+  const isRunning = rounds.data?.some((r) => r.status === "running") ?? false;
 
   return (
     <>
@@ -73,8 +74,8 @@ export function MaintenancePage() {
               </p>
             </CardHeader>
             <CardContent className="flex flex-wrap items-center gap-4 px-5 py-4">
-              <Button onClick={() => void run()} disabled={running}>
-                {running ? "已提交…" : "立即运行一轮"}
+              <Button onClick={() => void run()} disabled={running || isRunning}>
+                {running ? "已提交…" : isRunning ? "运行中…" : "立即运行一轮"}
               </Button>
               <span className="text-xs text-muted-foreground">已有一轮在跑时会返回 409，等它结束再试。</span>
               {last ? (
@@ -139,7 +140,17 @@ export function MaintenancePage() {
                               <Findings round={round} />
                             </TableCell>
                             <TableCell className="max-w-64 px-3 py-2.5 text-[11px] break-all text-destructive" style={{ whiteSpace: "normal" }}>
-                              {round.error ? <span title={round.error}>{round.error}</span> : null}
+                              {round.error ? (
+                                <div className="flex flex-col gap-1">
+                                  <span title={round.error}>{round.error.split("\n")[0]}</span>
+                                  {round.error.includes("\n") ? (
+                                    <details>
+                                      <summary className="cursor-pointer text-[10px] text-muted-foreground">详情</summary>
+                                      <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{round.error}</p>
+                                    </details>
+                                  ) : null}
+                                </div>
+                              ) : null}
                             </TableCell>
                           </TableRow>
                         );

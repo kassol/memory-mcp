@@ -32,10 +32,21 @@ const recordsRoute = createRoute({
   },
 });
 
+const docketRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/docket",
+  validateSearch: (search: Record<string, unknown>): { kind?: string } =>
+    typeof search.kind === "string" && search.kind ? { kind: search.kind } : {},
+  component: function Docket() {
+    const { kind } = docketRoute.useSearch();
+    return <DocketPage key={kind ?? "all"} initialKind={kind ?? null} />;
+  },
+});
+
 const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/", beforeLoad: () => { throw redirect({ to: "/docket" }); } }),
   createRoute({ getParentRoute: () => rootRoute, path: "/overview", component: OverviewPage }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/docket", component: DocketPage }),
+  docketRoute,
   recordsRoute,
   createRoute({ getParentRoute: () => rootRoute, path: "/maintenance", component: MaintenancePage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/settings", component: SettingsPage }),

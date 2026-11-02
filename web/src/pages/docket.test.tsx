@@ -31,8 +31,17 @@ test("the first case opens with both records side by side in full", async () => 
   expect(within(left).getByText("Lives in Shanghai")).toBeInTheDocument();
   expect(within(right).getByText("Lives in Shanghai, near the river")).toBeInTheDocument();
   expect(screen.getByText("Both say where the owner lives.", { selector: "p" })).toBeInTheDocument();
+  expect(await screen.findByText(/对比摘要/)).toBeInTheDocument();
   expect(rows()).toHaveLength(2);
   await waitFor(() => expect(docketCount()).toHaveTextContent("2"));
+});
+
+test("a kind link opens the docket filtered to that kind", async () => {
+  seedDuplicate();
+  await renderAt("/docket?kind=internal_contradiction");
+  expect(await screen.findByRole("heading", { name: "卷宗 02" })).toBeInTheDocument();
+  expect(rows()).toHaveLength(1);
+  expect(within(rows()[0]).getByText(/内部矛盾/)).toBeInTheDocument();
 });
 
 test("dismissing removes the case and opens the next one", async () => {
@@ -114,6 +123,20 @@ test("C and A do nothing on an archived record, and the other shortcuts keep wor
   expect(screen.queryByRole("textbox", { name: "归档原因" })).not.toBeInTheDocument();
   await user.keyboard("j");
   expect(await screen.findByRole("heading", { name: "卷宗 02" })).toBeInTheDocument();
+});
+
+test("a pair shortcut archives the other record after confirmation", async () => {
+  const { b } = seedDuplicate();
+  const { user } = await renderAt("/docket");
+  await screen.findByRole("region", { name: "左侧记录" });
+  await user.click(screen.getByRole("button", { name: "保留甲，归档乙" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText(/保留甲，归档乙/)).toBeInTheDocument();
+  await user.click(within(dialog).getByRole("button", { name: "确认归档" }));
+  await toast("已归档乙，下一次维护会关单");
+  expect(db.calls.find((c) => c.method === "POST" && c.path === `/api/v1/memories/${b.memory_id}/archive`)).toMatchObject({
+    body: { reason: "与另一条内容重复，保留这一条" },
+  });
 });
 
 test("an empty docket says so", async () => {
