@@ -194,7 +194,20 @@ async def lifespan(starlette_app):
 
 # The console build (web/) lands next to this module, so it resolves inside a non-editable install
 # too. It is not committed; without a build /ui/ is 404 and the API still starts.
-ui_app = StaticFiles(directory=Path(__file__).parent / "ui", html=True, check_dir=False)
+class ConsoleStaticFiles(StaticFiles):
+    """The HTML entry must revalidate after a deploy; hashed assets never change."""
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            if path in ("", ".", "index.html") or path.endswith(".html"):
+                response.headers["Cache-Control"] = "no-cache"
+            elif path.startswith("assets/"):
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
+ui_app = ConsoleStaticFiles(directory=Path(__file__).parent / "ui", html=True, check_dir=False)
 
 app = Starlette(
     lifespan=lifespan,

@@ -215,8 +215,11 @@ def test_ui_is_served_without_token_but_data_still_needs_one(test_env, tmp_path,
         page = client.get("/ui/")
         assert page.status_code == 200
         assert "text/html" in page.headers["content-type"]
+        assert page.headers["cache-control"] == "no-cache"
         assert "<title>记忆登记簿</title>" in page.text
-        assert client.get("/ui/assets/index.js").status_code == 200
+        asset = client.get("/ui/assets/index.js")
+        assert asset.status_code == 200
+        assert "immutable" in asset.headers["cache-control"]
         assert client.get("/ui/../health").status_code == 200  # normalised to /health, not a file read
         assert client.get("/api/v1/memories").status_code == 401
         assert client.get("/uix").status_code == 401  # only the /ui/ prefix is open
