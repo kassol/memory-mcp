@@ -134,7 +134,7 @@ export function MaintenancePage() {
                             <TableCell className="px-3 py-2.5 text-right text-[11px] text-muted-foreground">
                               <Findings round={round} />
                             </TableCell>
-                            <TableCell className="max-w-64 px-3 py-2.5 text-[11px] break-all whitespace-normal text-destructive">
+                            <TableCell className="max-w-64 px-3 py-2.5 text-[11px] break-all text-destructive" style={{ whiteSpace: "normal" }}>
                               {round.error ? <span title={round.error}>{round.error}</span> : null}
                             </TableCell>
                           </TableRow>
