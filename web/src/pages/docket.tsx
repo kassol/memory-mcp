@@ -165,7 +165,7 @@ function Case({ finding, index, onDismissed, onBack, onMove, shift }: {
 
 function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; selectedId: string | null; onOpen: (id: string) => void; indexOf: (f: Finding) => number }) {
   return (
-    <ul role="listbox" aria-label="待审的发现" className="flex flex-col gap-1 p-2">
+    <ul role="listbox" aria-label="待审的发现" className="flex min-w-0 flex-col gap-1 p-2">
       {items.map((f) => (
         <li key={f.id} role="option" aria-selected={f.id === selectedId}>
           <button
@@ -185,7 +185,7 @@ function CaseList({ items, selectedId, onOpen, indexOf }: { items: Finding[]; se
                 : "hover:bg-card/60",
             )}
           >
-            <div className="flex w-full items-center gap-2">
+            <div className="flex w-full min-w-0 items-center gap-2">
               <span className="text-[11px] text-muted-foreground tabular-nums">{caseNo(indexOf(f))}</span>
               <span className={`size-1.5 rounded-full ${KIND_DOT[f.kind] ?? "bg-muted-foreground/40"}`} />
               <span className="text-[11px] text-muted-foreground">{KIND[f.kind] ?? f.kind}</span>
@@ -261,7 +261,7 @@ export function DocketPage() {
       )}
       {!!all.length && (
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[18rem_1fr]">
-          <ScrollArea className={cn("min-h-0 border-r border-border/70", reading && "hidden")}>
+          <ScrollArea className={cn("min-h-0 min-w-0 border-r border-border/70", reading && "hidden")}>
             <div className="sticky top-0 z-10 flex flex-col gap-2 border-b border-border/70 bg-background/95 px-3 py-3">
               <div className="flex items-baseline justify-between">
                 <span className="text-xs font-medium">待审队列</span>
@@ -289,7 +289,7 @@ export function DocketPage() {
             {!items.length ? <p className="px-3 py-8 text-center text-xs text-muted-foreground">这一类没有待审发现。</p> : null}
           </ScrollArea>
           {index >= 0 && (
-            <ScrollArea className="min-h-0">
+            <ScrollArea className="min-h-0 min-w-0">
               <Case
                 key={items[index].id}
                 finding={items[index]}
