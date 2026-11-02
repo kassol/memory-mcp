@@ -2,7 +2,7 @@
 // its value, where the value comes from, and can revert to the configuration file value.
 import { useForm } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { useId } from "react";
 import { toast } from "sonner";
 
@@ -136,15 +136,7 @@ function SettingRow({ s }: { s: Setting }) {
                     onChange={(e) => field.handleChange(e.target.value)}
                   />
                   <form.Subscribe selector={(st) => [st.isDirty, st.canSubmit, st.isSubmitting] as const}>
-                    {([dirty, can, busy]) => (
-                      dirty ? (
-                        <Button type="submit" disabled={!can || busy}>保存</Button>
-                      ) : (
-                        <Button type="submit" variant="ghost" size="icon-sm" aria-label="保存" disabled>
-                          <Check />
-                        </Button>
-                      )
-                    )}
+                    {([dirty, can, busy]) => (dirty ? <Button type="submit" disabled={!can || busy}>保存</Button> : null)}
                   </form.Subscribe>
                 </div>
                 {error ? <FieldError>{String(error)}</FieldError> : <FieldDescription>范围 {s.min} – {s.max}</FieldDescription>}

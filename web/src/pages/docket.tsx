@@ -339,6 +339,8 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
     acc[f.kind] = (acc[f.kind] ?? 0) + 1;
     return acc;
   }, {});
+  const filterKinds = Object.keys(counts);
+  if (kind && !filterKinds.includes(kind)) filterKinds.push(kind);
   const items = kind ? all.filter((f) => f.kind === kind) : all;
   // Wide screens always show a case (the first by default); phones show the list until a case is opened.
   const selectedId = items.some((f) => f.id === chosen) ? chosen : isMobile ? null : (items[0]?.id ?? null);
@@ -388,20 +390,20 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
                 >
                   全部 {all.length}
                 </button>
-                {Object.entries(counts).map(([k, n]) => (
+                {filterKinds.map((k) => (
                   <button
                     key={k}
                     onClick={() => { setKind(k); setChosen(null); }}
                     className={cn("rounded-full px-2 py-1 text-[10px] transition-colors", kind === k ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted")}
                   >
-                    {KIND[k] ?? k} {n}
+                    {KIND[k] ?? k} {counts[k] ?? 0}
                   </button>
                 ))}
               </div>
             </div>
             <CaseList items={items} selectedId={selectedId} onOpen={setChosen} indexOf={(f) => all.findIndex((x) => x.id === f.id)} />
             {!items.length ? (
-              <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
+              <div className="flex flex-col items-center gap-2 px-3 py-8 text-center md:hidden">
                 <p className="text-xs text-muted-foreground">这一类没有待审发现。</p>
                 <Button variant="ghost" size="sm" onClick={() => { setKind(null); setChosen(null); }}>
                   查看全部
@@ -409,6 +411,19 @@ export function DocketPage({ initialKind = null }: { initialKind?: string | null
               </div>
             ) : null}
           </div>
+          {index < 0 && !isMobile ? (
+            <div className="flex min-h-0 items-center justify-center p-8">
+              <EmptyState
+                icon={Inbox}
+                title="这一类没有待审发现"
+                action={
+                  <Button variant="ghost" size="sm" onClick={() => { setKind(null); setChosen(null); }}>
+                    查看全部
+                  </Button>
+                }
+              />
+            </div>
+          ) : null}
           {index >= 0 && (
             <div className="min-h-0 min-w-0 overflow-y-auto">
               <Case
